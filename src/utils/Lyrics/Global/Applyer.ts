@@ -5,7 +5,8 @@ import Defaults from "../../../components/Global/Defaults.ts";
 import { parseTTML } from "../../../edited_packages/applemusic-like-lyrics-lyric/parser.ts";
 import { SetWaitingForHeight } from "../../Scrolling/ScrollToActiveLine.ts";
 import { ClearScrollSimplebar } from "../../Scrolling/Simplebar/ScrollSimplebar.ts";
-import { setBlurringLastLine } from "../Animator/Lyrics/LyricsAnimator.ts";
+import { setBlurringLastLine, clearCachedCreditsElement, clearCachedScrollContainer } from "../Animator/Lyrics/LyricsAnimator.ts";
+import { resetViewportTracker } from "../Animator/Lyrics/helpers/viewportTracker.ts";
 import { DestroyAllLyricsContainers } from "../Applyer/CreateLyricsContainer.ts";
 import { EmitApply, EmitNotApplyed } from "../Applyer/OnApply.ts";
 import { ApplyStaticLyrics, type StaticLyricsData } from "../Applyer/Static.ts";
@@ -52,6 +53,9 @@ export const cleanupApplyLyricsAbortController = () => {
 export default async function ApplyLyrics(lyricsContent: [object | string, number] | null): Promise<void> {
   if (!PageContainer) return;
   setBlurringLastLine(null);
+  clearCachedCreditsElement();
+  clearCachedScrollContainer();
+  resetViewportTracker();
   if (!lyricsContent) return;
 
   cleanupApplyLyricsAbortController()

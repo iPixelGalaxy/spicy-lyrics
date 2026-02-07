@@ -7,6 +7,7 @@ import {
   MountScrollSimplebar,
   RecalculateScrollSimplebar,
   ScrollSimplebar,
+  lockScrollHeight,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
@@ -517,6 +518,9 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
   if (ScrollSimplebar) RecalculateScrollSimplebar();
   else MountScrollSimplebar();
+
+  // Lock scroll height after DOM assembly to prevent layout shifts during playback
+  requestAnimationFrame(() => lockScrollHeight());
 
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent .simplebar-content"

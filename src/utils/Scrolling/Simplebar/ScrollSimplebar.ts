@@ -55,6 +55,33 @@ export function RecalculateScrollSimplebar() {
   ScrollSimplebar?.recalculate();
 }
 
+/**
+ * Lock the scroll height by setting a minimum height on the content wrapper.
+ * This prevents layout recalculation during playback.
+ * Call after all lyrics lines are appended to the DOM.
+ */
+export function lockScrollHeight() {
+  if (!ScrollSimplebar) return;
+  const scrollEl = ScrollSimplebar.getScrollElement();
+  if (!scrollEl) return;
+  const contentWrapper = scrollEl.querySelector(".simplebar-content");
+  if (!contentWrapper) return;
+  // Set min-height to current scroll height to prevent layout shifts
+  (contentWrapper as HTMLElement).style.minHeight = `${contentWrapper.scrollHeight}px`;
+}
+
+/**
+ * Unlock the scroll height (call on song change, resize, etc.).
+ */
+export function unlockScrollHeight() {
+  if (!ScrollSimplebar) return;
+  const scrollEl = ScrollSimplebar.getScrollElement();
+  if (!scrollEl) return;
+  const contentWrapper = scrollEl.querySelector(".simplebar-content");
+  if (!contentWrapper) return;
+  (contentWrapper as HTMLElement).style.minHeight = "";
+}
+
 new IntervalManager(Infinity, () => {
   if (!PageContainer) return;
   const LyricsContainer = PageContainer.querySelector<HTMLElement>(

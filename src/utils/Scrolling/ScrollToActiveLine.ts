@@ -10,6 +10,7 @@ import {
   type LyricsSyllable,
   type LyricsType,
 } from "../Lyrics/lyrics.ts";
+import { getCachedCreditsElement } from "../Lyrics/Animator/Lyrics/LyricsAnimator.ts";
 import { ScrollIntoCenterViewCSS } from "../ScrollIntoView/Center.ts";
 import { ScrollIntoTopViewCSS } from "../ScrollIntoView/Top.ts";
 
@@ -216,8 +217,9 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
     const container = ScrollSimplebar?.getScrollElement() as HTMLElement;
     if (!container) return;
     isUserScrolling = false;
+    const creditsEl = allLinesSung ? getCachedCreditsElement() : undefined;
     const scrollToLine = allLinesSung
-      ? Lines[Lines.length - 1]?.HTMLElement
+      ? (creditsEl ?? Lines[Lines.length - 1]?.HTMLElement)
       : currentLine?.HTMLElement;
     if (!scrollToLine) return;
     lastLine = scrollToLine;
@@ -241,8 +243,9 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
     const container = ScrollSimplebar?.getScrollElement() as HTMLElement;
     if (!container) return;
     isUserScrolling = false;
+    const smoothCreditsEl = allLinesSung ? getCachedCreditsElement() : undefined;
     const scrollToLine = allLinesSung
-      ? Lines[Lines.length - 1]?.HTMLElement
+      ? (smoothCreditsEl ?? Lines[Lines.length - 1]?.HTMLElement)
       : currentLine?.HTMLElement;
     if (!scrollToLine) return;
     lastLine = scrollToLine;

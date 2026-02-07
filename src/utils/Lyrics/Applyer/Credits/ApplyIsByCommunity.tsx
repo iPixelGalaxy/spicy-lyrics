@@ -1,7 +1,7 @@
 // deno-lint-ignore no-unused-vars
 import React from "react";
 import { Spicetify } from "@spicetify/bundler";
-import TTMLProfile from "../../../../components/ReactComponents/TTMLProfile/ttml-profile.tsx";
+import TTMLProfile from "../../../../components/ReactComponents/TTMLProfile/components/profile-display.tsx";
 import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { reactQueryClient } from "../../../../app.tsx";

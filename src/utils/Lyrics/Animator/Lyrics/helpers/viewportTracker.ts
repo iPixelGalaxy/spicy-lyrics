@@ -1,92 +1,50 @@
 /**
- * Index-based viewport tracking for lyrics animation culling.
- * Uses offsetTop (no reflow) instead of getBoundingClientRect (causes reflow).
+ * Active-line-based processing range for lyrics animation culling.
+ * Instead of measuring DOM positions (fragile with SimpleBar),
+ * we center the processing window around the currently active line index.
+ * Only lines within the buffer are animated (springs, blur, glow, gradient).
+ * State classes are always set for all lines (cheap).
  */
 
-const VIEWPORT_BUFFER = 3; // lines above/below visible range
+const PROCESSING_BUFFER = 5; // lines above/below active line to process
 
-let _visibleStart = 0;
-let _visibleEnd = 0;
-let _frameCount = 0;
-const UPDATE_EVERY_N_FRAMES = 5;
+let _activeLineIndex: number | null = null;
+let _totalLines = 0;
 
 /**
- * Update the visible line index range based on scroll container state.
- * Should be called every frame; internally throttles to every N frames.
- * @param scrollContainer The scrollable container element
- * @param lines Array of line objects with HTMLElement property
- * @param forceUpdate Skip throttling and update immediately
+ * Update the active line index for culling.
+ * Call this when an active line is found during the animation loop.
  */
-export function updateViewportRange(
-  scrollContainer: HTMLElement | null,
-  lines: Array<{ HTMLElement: HTMLElement }>,
-  forceUpdate = false
-): void {
-  _frameCount++;
-  if (!forceUpdate && _frameCount % UPDATE_EVERY_N_FRAMES !== 0) return;
-
-  if (!scrollContainer || lines.length === 0) {
-    _visibleStart = 0;
-    _visibleEnd = lines.length - 1;
-    return;
-  }
-
-  const scrollTop = scrollContainer.scrollTop;
-  const viewHeight = scrollContainer.clientHeight;
-  const viewBottom = scrollTop + viewHeight;
-
-  let firstVisible = -1;
-  let lastVisible = -1;
-
-  for (let i = 0; i < lines.length; i++) {
-    const el = lines[i].HTMLElement;
-    if (!el) continue;
-
-    // offsetTop is relative to the offsetParent, which avoids forced reflow
-    const top = el.offsetTop;
-    const bottom = top + el.offsetHeight;
-
-    // Check if the line overlaps with the visible area
-    if (bottom >= scrollTop && top <= viewBottom) {
-      if (firstVisible === -1) firstVisible = i;
-      lastVisible = i;
-    } else if (firstVisible !== -1) {
-      // Once we've found visible lines and gone past them, stop
-      break;
-    }
-  }
-
-  if (firstVisible === -1) {
-    // No lines visible — default to all lines to avoid skipping animation
-    _visibleStart = 0;
-    _visibleEnd = lines.length - 1;
-    return;
-  }
-
-  // Apply buffer
-  _visibleStart = Math.max(0, firstVisible - VIEWPORT_BUFFER);
-  _visibleEnd = Math.min(lines.length - 1, lastVisible + VIEWPORT_BUFFER);
+export function setActiveLineIndex(index: number, totalLines: number): void {
+  _activeLineIndex = index;
+  _totalLines = totalLines;
 }
 
 /**
- * Check whether a line at the given index is within the current viewport range.
+ * Check whether a line at the given index is within the processing range.
+ * Lines outside this range skip expensive spring/style work.
  */
 export function isLineInViewportRange(index: number): boolean {
-  return index >= _visibleStart && index <= _visibleEnd;
+  // No active line known yet — process all lines until we find one
+  if (_activeLineIndex === null) return true;
+
+  return (
+    index >= _activeLineIndex - PROCESSING_BUFFER &&
+    index <= _activeLineIndex + PROCESSING_BUFFER
+  );
 }
 
 /**
  * Reset the viewport tracker state (call on lyrics change/reset).
  */
 export function resetViewportTracker(): void {
-  _visibleStart = 0;
-  _visibleEnd = 0;
-  _frameCount = 0;
+  _activeLineIndex = null;
+  _totalLines = 0;
 }
 
 /**
- * Get the current visible range for debugging.
+ * Get the current active line index for debugging.
  */
-export function getViewportRange(): { start: number; end: number } {
-  return { start: _visibleStart, end: _visibleEnd };
+export function getActiveLineIndex(): number | null {
+  return _activeLineIndex;
 }

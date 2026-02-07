@@ -22,7 +22,7 @@ import {
   animateLettersSung,
   animateLettersSungLine,
 } from "./helpers/animateLetter.ts";
-import { updateViewportRange, isLineInViewportRange } from "./helpers/viewportTracker.ts";
+import { setActiveLineIndex, isLineInViewportRange } from "./helpers/viewportTracker.ts";
 
 // Line glow springs
 const LineGlowRange = [
@@ -66,22 +66,8 @@ export function clearCachedCreditsElement(): void {
   _cachedCreditsElement = null;
 }
 
-// Cached scroll container for viewport tracking
-let _cachedScrollContainer: HTMLElement | null = null;
-
-function getScrollContainer(): HTMLElement | null {
-  if (_cachedScrollContainer?.isConnected) {
-    return _cachedScrollContainer;
-  }
-  _cachedScrollContainer =
-    document.querySelector<HTMLElement>(
-      "#SpicyLyricsPage .LyricsContainer .LyricsContent .simplebar-content-wrapper"
-    ) ?? null;
-  return _cachedScrollContainer;
-}
-
 export function clearCachedScrollContainer(): void {
-  _cachedScrollContainer = null;
+  // Kept for backward compatibility — no longer caches a scroll container
 }
 
 export let Blurring_LastLine: number | null = null;
@@ -219,7 +205,8 @@ export function Animate(position: number): void {
 
   const Credits = getCachedCreditsElement();
 
-  // Apply blur helper (closure over ProcessedPosition)
+  // Apply blur helper — only processes lines within a limited range around active
+  const BLUR_RANGE = 10; // lines beyond this distance all get max blur
   const applyBlur = (
     arr: Array<{ HTMLElement: HTMLElement; StartTime: number; EndTime: number }>,
     activeIndex: number,
@@ -230,8 +217,21 @@ export function Animate(position: number): void {
     promoteToGPUWithFilter(arr[activeIndex].HTMLElement);
 
     const max = BlurMultiplier * 5 + BlurMultiplier * 0.465;
+    const maxBlurValue = `${max}px`;
 
-    for (let i = 0; i < arr.length; i++) {
+    const rangeStart = Math.max(0, activeIndex - BLUR_RANGE);
+    const rangeEnd = Math.min(arr.length - 1, activeIndex + BLUR_RANGE);
+
+    // Lines outside range: set to max blur (they're far away)
+    for (let i = 0; i < rangeStart; i++) {
+      setStyleIfChanged(arr[i].HTMLElement, "--BlurAmount", maxBlurValue, 0.25);
+    }
+    for (let i = rangeEnd + 1; i < arr.length; i++) {
+      setStyleIfChanged(arr[i].HTMLElement, "--BlurAmount", maxBlurValue, 0.25);
+    }
+
+    // Lines within range: calculate per-line blur
+    for (let i = rangeStart; i <= rangeEnd; i++) {
       const el = arr[i].HTMLElement;
       const state = getElementState(ProcessedPosition, arr[i].StartTime, arr[i].EndTime);
       const distance = Math.abs(i - activeIndex);
@@ -247,9 +247,6 @@ export function Animate(position: number): void {
   if (CurrentLyricsType === "Syllable") {
     const arr = LyricsObject.Types.Syllable.Lines;
 
-    // Update viewport range for culling
-    updateViewportRange(getScrollContainer(), arr);
-
     for (let index = 0; index < arr.length; index++) {
       const line = arr[index];
       const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
@@ -257,7 +254,12 @@ export function Animate(position: number): void {
       // Always set state classes (lightweight)
       setLineStateClass(line.HTMLElement, lineState);
 
-      // Viewport culling: skip expensive spring/style work for offscreen lines
+      // Track the active line for culling
+      if (lineState === "Active") {
+        setActiveLineIndex(index, arr.length);
+      }
+
+      // Skip expensive spring/style work for lines far from active
       if (!isLineInViewportRange(index)) {
         continue;
       }
@@ -352,9 +354,6 @@ export function Animate(position: number): void {
   } else if (CurrentLyricsType === "Line") {
     const arr = LyricsObject.Types.Line.Lines;
 
-    // Update viewport range for culling
-    updateViewportRange(getScrollContainer(), arr);
-
     for (let index = 0; index < arr.length; index++) {
       const line = arr[index];
       const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
@@ -362,7 +361,12 @@ export function Animate(position: number): void {
       // Always set state classes (lightweight)
       setLineStateClass(line.HTMLElement, lineState);
 
-      // Viewport culling: skip expensive spring/style work for offscreen lines
+      // Track the active line for culling
+      if (lineState === "Active") {
+        setActiveLineIndex(index, arr.length);
+      }
+
+      // Skip expensive spring/style work for lines far from active
       if (!isLineInViewportRange(index)) {
         continue;
       }

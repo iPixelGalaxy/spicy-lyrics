@@ -31,6 +31,10 @@ const Defaults = {
   ViewControlsPosition: "Top",
   SettingsOnTop: true,
   DeveloperMode: false,
+  AlwaysShowInFullscreen: "None" as string,
+  ReplaceSpotifyPlaybar: false,
+  EscapeKeyFunction: "Exit to Cinema" as string,
+  BuildChannel: "Stable" as string,
 };
 
 export default Defaults;

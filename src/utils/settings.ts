@@ -107,6 +107,18 @@ function generalSettings(SettingsSection: any) {
     }
   );
 
+  settings.addDropDown(
+    "syllable-rendering",
+    "Syllable Rendering",
+    ["Default", "Merge Words", "Merge Short"],
+    Defaults.SyllableRendering === "Merge Short" ? 2 : Defaults.SyllableRendering === "Merge Words" ? 1 : 0,
+    () => {
+      const value = settings.getFieldValue("syllable-rendering") as string;
+      storage.set("syllableRendering", value);
+      Defaults.SyllableRendering = value;
+    }
+  );
+
   settings.addToggle("right-align-lyrics", "Right Align Lyrics", Defaults.RightAlignLyrics, () => {
     const value = settings.getFieldValue("right-align-lyrics") as string;
     storage.set("rightAlignLyrics", value);

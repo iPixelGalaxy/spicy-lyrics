@@ -374,25 +374,39 @@ const renderChannelSettings = () => {
     section.id = SETTINGS_SECTION_ID;
     section.className = "x-settings-section";
     section.style.cssText = "border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px 16px;margin-bottom:8px;";
-    section.innerHTML = `
-      <h2 class="x-settings-title main-shelf-title TypeElement-cello-textBase-type encore-text-body-medium-bold" style="color:#fff;padding-bottom:4px;">
-        Spicy Lyrics - Build
-      </h2>
-      <div class="x-settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
-        <div class="x-settings-firstColumn">
-          <label class="x-settings-label" style="font-size:0.875rem;">Build Channel (Current: ${getCurrentChannel()})</label>
-        </div>
-        <div class="x-settings-secondColumn">
-          <button id="sl-entry-manage-btn" type="button" class="x-settings-button"
-            data-encore-id="buttonSecondary"
-            style="padding:6px 16px;border-radius:500px;border:1px solid rgba(255,255,255,0.3);background:transparent;color:#fff;font-weight:700;cursor:pointer;font-size:0.8rem;">
-            Manage
-          </button>
-        </div>
-      </div>
-    `;
+
+    const heading = document.createElement("h2");
+    heading.className = "x-settings-title main-shelf-title TypeElement-cello-textBase-type encore-text-body-medium-bold";
+    heading.style.cssText = "color:#fff;padding-bottom:4px;";
+    heading.textContent = "Spicy Lyrics - Build";
+
+    const row = document.createElement("div");
+    row.className = "x-settings-row";
+    row.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:4px 0;";
+
+    const firstCol = document.createElement("div");
+    firstCol.className = "x-settings-firstColumn";
+    const label = document.createElement("label");
+    label.className = "x-settings-label";
+    label.style.cssText = "font-size:0.875rem;";
+    label.textContent = `Build Channel (Current: ${getCurrentChannel()})`;
+    firstCol.appendChild(label);
+
+    const secondCol = document.createElement("div");
+    secondCol.className = "x-settings-secondColumn";
+    const manageBtn = document.createElement("button");
+    manageBtn.id = "sl-entry-manage-btn";
+    manageBtn.type = "button";
+    manageBtn.className = "x-settings-button";
+    manageBtn.dataset.encoreId = "buttonSecondary";
+    manageBtn.style.cssText = "padding:6px 16px;border-radius:500px;border:1px solid rgba(255,255,255,0.3);background:transparent;color:#fff;font-weight:700;cursor:pointer;font-size:0.8rem;";
+    manageBtn.textContent = "Manage";
+    manageBtn.addEventListener("click", showChannelSwitcher);
+    secondCol.appendChild(manageBtn);
+
+    row.append(firstCol, secondCol);
+    section.append(heading, row);
     container.insertBefore(section, container.firstChild);
-    document.getElementById("sl-entry-manage-btn").addEventListener("click", showChannelSwitcher);
   }, 100);
 };
 
@@ -411,7 +425,7 @@ const registerChannelSettings = () => {
 const getVersionFromHost = (host) =>
   fetch(`https://${host}/version`).then((response) => {
     if (!response.ok) throw new Error("Bad response");
-    return response.text();
+    return response.text().then((t) => t.trim());
   });
 
 const loadExtension = async (storageHost, version) => {
@@ -497,6 +511,30 @@ const load = async () => {
       }
     }, 10);
   });
+
+  // Check if the plugin loaded directly (e.g. dev build).
+  // The dev build writes spicy-lyrics.mjs which loads via WebSocket — if that script
+  // exists alongside the entrypoint, wait for it to set the loaded flag.
+  if (window._spicy_lyrics_loaded) {
+    console.log("[Spicy Lyrics] [Entry] Plugin already loaded (dev build detected), skipping entrypoint.");
+    return;
+  }
+
+  const devExtensionExists = document.querySelector('script[src*="spicy-lyrics.mjs"]:not([src*="entrypoint"])');
+  if (devExtensionExists) {
+    const devDetected = await new Promise((resolve) => {
+      let checks = 0;
+      const iv = setInterval(() => {
+        if (window._spicy_lyrics_loaded) { clearInterval(iv); resolve(true); }
+        else if (++checks >= 300) { clearInterval(iv); resolve(false); } // 3s max
+      }, 10);
+    });
+
+    if (devDetected) {
+      console.log("[Spicy Lyrics] [Entry] Plugin already loaded (dev build detected), skipping entrypoint.");
+      return;
+    }
+  }
 
   // Register channel settings in the settings page (works even if plugin fails)
   registerChannelSettings();

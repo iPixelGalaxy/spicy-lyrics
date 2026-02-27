@@ -33,6 +33,7 @@ const Defaults = {
   DeveloperMode: false,
   AlwaysDisplayPlaybackControls: true,
   RightAlignLyrics: false,
+  EscapeKeyFunction: "Default" as string,
 };
 
 export default Defaults;

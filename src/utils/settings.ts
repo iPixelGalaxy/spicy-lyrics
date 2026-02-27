@@ -1,7 +1,11 @@
 import { Component, Spicetify } from "@spicetify/bundler";
 import Defaults from "../components/Global/Defaults.ts";
-import storage from "./storage.ts";
+import { SpotifyPlayer } from "../components/Global/SpotifyPlayer.ts";
+import PageView, { ShowNotification } from "../components/Pages/PageView.ts";
+import fetchLyrics, { LyricsStore, UserTTMLStore, SessionTTMLStore } from "./Lyrics/fetchLyrics.ts";
+import ApplyLyrics from "./Lyrics/Global/Applyer.ts";
 import { RemoveCurrentLyrics_AllCaches, RemoveCurrentLyrics_StateCache, RemoveLyricsCache } from "./LyricsCacheTools.ts";
+import storage from "./storage.ts";
 
 export async function setSettingsMenu() {
   while (!Spicetify.React || !Spicetify.ReactDOM) {
@@ -34,7 +38,7 @@ function generalSettings(SettingsSection: any) {
 
   settings.addToggle(
     "old-style-font",
-    "Old Style Font (Gets Overriden by the previous option)",
+    "Old Style Font (Gets Overridden by the previous option)",
     Defaults.OldStyleFont,
     () => {
       const value = settings.getFieldValue("old-style-font") as string;
@@ -72,6 +76,7 @@ function generalSettings(SettingsSection: any) {
     storage.set("rightAlignLyrics", value);
     Defaults.RightAlignLyrics = value === "true" || value === true;
   });
+
 
   settings.addToggle(
     "minimal-lyrics-mode",
@@ -147,6 +152,19 @@ function generalSettings(SettingsSection: any) {
     }
   );
 
+  settings.addDropDown(
+    "escape-key-function",
+    "Escape Key Function",
+    ["Exit to Cinema", "Exit Fullscreen", "Exit Fullscreen + Close Lyrics"],
+    Defaults.EscapeKeyFunction === "Exit Fullscreen + Close Lyrics" ? 2 : Defaults.EscapeKeyFunction === "Exit Fullscreen" ? 1 : 0,
+    () => {
+      const value = settings.getFieldValue("escape-key-function") as string;
+      storage.set("escapeKeyFunction", value);
+      Defaults.EscapeKeyFunction = value;
+    }
+  );
+
+
   settings.addToggle(
     "disable-popup-lyrics",
     "Disable Popup Lyrics",
@@ -166,18 +184,6 @@ function generalSettings(SettingsSection: any) {
       const value = settings.getFieldValue("show_topbar_notifications") as string;
       storage.set("show_topbar_notifications", value);
       Defaults.show_topbar_notifications = value === "true" || value === true;
-    }
-  );
-
-  settings.addDropDown(
-    "escape-key-function",
-    "Escape Key Function",
-    ["Default", "Exit Fullscreen", "Exit Fully"],
-    Defaults.EscapeKeyFunction === "Exit Fully" ? 2 : Defaults.EscapeKeyFunction === "Exit Fullscreen" ? 1 : 0,
-    () => {
-      const value = settings.getFieldValue("escape-key-function") as string;
-      storage.set("escapeKeyFunction", value);
-      Defaults.EscapeKeyFunction = value;
     }
   );
 
@@ -263,6 +269,83 @@ function generalSettings(SettingsSection: any) {
     storage.set("developerMode", settings.getFieldValue("developer-mode") as string);
     window.location.reload();
   });
+
+  settings.addButton(
+    "explore-ttml-db",
+    "Explore local TTML Database",
+    "Open Database",
+    () => (globalThis as any)._spicy_lyrics?.execute?.("explore-ttml-db")
+  );
+
+  settings.addButton(
+    "clear-ttml-db",
+    "Clear the local TTML Database (user-uploaded TTMLs)",
+    "Clear Database",
+    () => {
+      const div = document.createElement("div");
+      div.style.cssText = "display:flex;flex-direction:column;gap:16px;padding:8px 0;";
+
+      const textBlock = document.createElement("div");
+      textBlock.style.cssText = "text-align:center;";
+      textBlock.innerHTML = `
+        <p style="margin:0 0 6px;font-size:0.875rem;color:#fff;font-weight:600;">Are you sure?</p>
+        <p style="margin:0;font-size:0.8rem;color:rgba(255,255,255,0.45);line-height:1.4;">This will remove all user-uploaded TTMLs. This action cannot be undone.</p>
+      `;
+      div.appendChild(textBlock);
+
+      const btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:8px;justify-content:center;";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.textContent = "Cancel";
+      cancelBtn.style.cssText = "padding:8px 24px;border-radius:500px;border:1px solid rgba(255,255,255,0.3);background:transparent;color:#fff;font-weight:700;cursor:pointer;font-size:0.875rem;";
+      cancelBtn.addEventListener("click", () => Spicetify.PopupModal.hide());
+      btnRow.appendChild(cancelBtn);
+
+      const confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.textContent = "Clear Database";
+      confirmBtn.style.cssText = "padding:8px 24px;border-radius:500px;border:1px solid rgba(231,76,60,0.5);background:transparent;color:#e74c3c;font-weight:700;cursor:pointer;font-size:0.875rem;";
+      confirmBtn.addEventListener("click", async () => {
+        Spicetify.PopupModal.hide();
+        try {
+          await UserTTMLStore.Destroy();
+          SessionTTMLStore.clear();
+          ShowNotification("TTML database cleared", "success");
+
+          if (PageView.IsOpened) {
+            const uri = SpotifyPlayer.GetUri();
+            if (uri) {
+              const result = await fetchLyrics(uri);
+              ApplyLyrics(result);
+            }
+          }
+        } catch (error) {
+          ShowNotification("Error clearing TTML database", "error");
+          console.error("SpicyLyrics:", error);
+        }
+      });
+      btnRow.appendChild(confirmBtn);
+      div.appendChild(btnRow);
+
+      Spicetify.PopupModal.display({
+        title: "Clear TTML Database",
+        content: div,
+        isLarge: false,
+      });
+    }
+  );
+
+  settings.addButton(
+    "build-channel",
+    `Build Channel (Current: ${Defaults.BuildChannel})`,
+    "Manage",
+    () => {
+      (window as any)._spicy_lyrics_channels?.showSwitcher?.();
+    }
+  );
+
 
   settings.pushSettings();
 }

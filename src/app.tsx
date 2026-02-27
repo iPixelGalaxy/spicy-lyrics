@@ -202,6 +202,14 @@ async function main() {
     Defaults.hide_npv_bg = storage.get("hide_npv_bg") === "true";
   }
 
+  if (!storage.get("syllableRendering")) {
+    storage.set("syllableRendering", "Default");
+  }
+
+  if (storage.get("syllableRendering")) {
+    Defaults.SyllableRendering = storage.get("syllableRendering").toString();
+  }
+
   if (storage.get("rightAlignLyrics")) {
     const val = storage.get("rightAlignLyrics").toString();
     Defaults.RightAlignLyrics = val === "true" || val === true;

@@ -32,6 +32,7 @@ const Defaults = {
   SettingsOnTop: true,
   DeveloperMode: false,
   AlwaysDisplayPlaybackControls: true,
+  SyllableRendering: "Default" as string,
   RightAlignLyrics: false,
   EscapeKeyFunction: "Default" as string,
 };

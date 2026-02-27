@@ -186,6 +186,22 @@ async function main() {
     Defaults.MinimalLyricsMode = storage.get("minimalLyricsMode") === "true";
   }
 
+  if (!storage.get("replaceSpotifyPlaybar")) {
+    storage.set("replaceSpotifyPlaybar", "false");
+  }
+
+  if (storage.get("replaceSpotifyPlaybar")) {
+    Defaults.ReplaceSpotifyPlaybar = storage.get("replaceSpotifyPlaybar") === "true";
+  }
+
+  if (!storage.get("alwaysShowInFullscreen")) {
+    storage.set("alwaysShowInFullscreen", "None");
+  }
+
+  if (storage.get("alwaysShowInFullscreen")) {
+    Defaults.AlwaysShowInFullscreen = storage.get("alwaysShowInFullscreen").toString() as string;
+  }
+
   if (!storage.get("hide_npv_bg")) {
     storage.set("hide_npv_bg", "false");
   }
@@ -195,7 +211,7 @@ async function main() {
   }
 
   if (!storage.get("escapeKeyFunction")) {
-    storage.set("escapeKeyFunction", "Default");
+    storage.set("escapeKeyFunction", "Exit to Cinema");
   }
 
   if (storage.get("escapeKeyFunction")) {
@@ -691,7 +707,11 @@ async function main() {
     });
 
     new IntervalManager(1, async () => {
-      await applyDynamicBackgroundToNowPlayingBar(SpotifyPlayer.GetCover("large"));
+      try {
+        await applyDynamicBackgroundToNowPlayingBar(SpotifyPlayer.GetCover("large"));
+      } catch (err) {
+        console.debug("Skipping NowPlayingBar dynamic BG update:", err);
+      }
     }).Start();
 
     async function onSongChange(event: any) {
@@ -712,7 +732,12 @@ async function main() {
         Fullscreen.IsOpen ? UpdateNowBar(true) : UpdateNowBar();
       }
 
-      fetchLyrics(event?.data?.item?.uri).then(ApplyLyrics);
+      const songUri = event?.data?.item?.uri;
+      if (songUri) {
+        fetchLyrics(songUri).then(ApplyLyrics).catch((err) => {
+          console.error("SpicyLyrics: Error fetching/applying lyrics:", err);
+        });
+      }
 
       if (
         Defaults.StaticBackground &&
@@ -730,15 +755,28 @@ async function main() {
         }
       }
 
-      await applyDynamicBackgroundToNowPlayingBar(SpotifyPlayer.GetCover("large"));
+      try {
+        await applyDynamicBackgroundToNowPlayingBar(SpotifyPlayer.GetCover("large"));
+      } catch (err) {
+        console.error("Error applying dynamic BG to NowPlayingBar:", err);
+      }
 
       const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
       if (!contentBox || (Defaults.StaticBackground && Defaults.StaticBackgroundType === "Color")) return;
-      ApplyDynamicBackground(contentBox);
+      try {
+        await ApplyDynamicBackground(contentBox);
+      } catch (err) {
+        console.error("Error applying dynamic background:", err);
+      }
     }
     Global.Event.listen("playback:songchange", onSongChange);
 
-    fetchLyrics(SpotifyPlayer.GetUri() ?? "").then(ApplyLyrics);
+    const initUri = SpotifyPlayer.GetUri();
+    if (initUri) {
+      fetchLyrics(initUri).then(ApplyLyrics).catch((err) => {
+        console.error("SpicyLyrics: Error fetching/applying lyrics:", err);
+      });
+    }
 
     if (
       Defaults.StaticBackground &&
@@ -761,7 +799,12 @@ async function main() {
 
       Component.GetRootComponent("lCache").RemoveCurrentLyrics_StateCache(false);
       
-      fetchLyrics(Spicetify.Player.data?.item?.uri).then(ApplyLyrics);
+      const onlineUri = Spicetify.Player.data?.item?.uri;
+      if (onlineUri) {
+        fetchLyrics(onlineUri).then(ApplyLyrics).catch((err) => {
+          console.error("SpicyLyrics: Error fetching/applying lyrics:", err);
+        });
+      }
     });
 
     new IntervalManager(ScrollingIntervalTime, () => {
@@ -962,7 +1005,12 @@ async function main() {
           ) {
             const parsedLyrics = JSON.parse(currentSongLyrics.toString());
             if (parsedLyrics?.id !== SpotifyPlayer.GetId()) {
-              fetchLyrics(SpotifyPlayer.GetUri() ?? "").then(ApplyLyrics);
+              const refetchUri = SpotifyPlayer.GetUri();
+              if (refetchUri) {
+                fetchLyrics(refetchUri).then(ApplyLyrics).catch((err) => {
+                  console.error("SpicyLyrics: Error fetching/applying lyrics:", err);
+                });
+              }
             }
           }
         }, 1000);

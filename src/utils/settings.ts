@@ -1,7 +1,11 @@
 import { Component, Spicetify } from "@spicetify/bundler";
 import Defaults from "../components/Global/Defaults.ts";
-import storage from "./storage.ts";
+import { SpotifyPlayer } from "../components/Global/SpotifyPlayer.ts";
+import PageView, { ShowNotification } from "../components/Pages/PageView.ts";
+import fetchLyrics, { LyricsStore, UserTTMLStore } from "./Lyrics/fetchLyrics.ts";
+import ApplyLyrics from "./Lyrics/Global/Applyer.ts";
 import { RemoveCurrentLyrics_AllCaches, RemoveCurrentLyrics_StateCache, RemoveLyricsCache } from "./LyricsCacheTools.ts";
+import storage from "./storage.ts";
 
 export async function setSettingsMenu() {
   while (!Spicetify.React || !Spicetify.ReactDOM) {
@@ -11,7 +15,6 @@ export async function setSettingsMenu() {
   const { SettingsSection } = await import("../edited_packages/spcr-settings/settingsSection.tsx");
 
   generalSettings(SettingsSection);
-  devSettings(SettingsSection);
   //infos(SettingsSection);
 }
 
@@ -21,16 +24,228 @@ Component.AddRootComponent("lCache", {
   RemoveCurrentLyrics_StateCache,
 })
 
-function devSettings(SettingsSection: any) {
-  const settings = new SettingsSection(
-    "Spicy Lyrics - Developer Settings",
-    "spicy-lyrics-dev-settings"
+function generalSettings(SettingsSection: any) {
+  const settings = new SettingsSection("Spicy Lyrics", "spicy-lyrics-settings");
+
+  // --- Appearance ---
+  settings.addGroup("Appearance");
+
+  settings.addToggle("skip-spicy-font", "Skip Spicy Font*", Defaults.SkipSpicyFont, () => {
+    const value = settings.getFieldValue("skip-spicy-font") as string;
+    storage.set("skip-spicy-font", value);
+    Defaults.SkipSpicyFont = value === "true" || value === true;
+  });
+
+  settings.addToggle(
+    "old-style-font",
+    "Old Style Font (Gets Overridden by the previous option)",
+    Defaults.OldStyleFont,
+    () => {
+      const value = settings.getFieldValue("old-style-font") as string;
+      storage.set("old-style-font", value);
+      Defaults.OldStyleFont = value === "true" || value === true;
+    }
+  );
+
+  settings.addToggle("simple-lyrics-mode", "Simple Lyrics Mode", Defaults.SimpleLyricsMode, () => {
+    const value = settings.getFieldValue("simple-lyrics-mode") as string;
+    storage.set("simpleLyricsMode", value);
+    Defaults.SimpleLyricsMode = value === "true" || value === true;
+  });
+
+  settings.addDropDown(
+    "simple-lyrics-mode-rendering-type",
+    "Simple Lyrics Mode - Rendering Type",
+    ["Calculate (More performant)", "Animate (Legacy, More laggier)"],
+    Defaults.SimpleLyricsMode_RenderingType_Default,
+    () => {
+      const value = settings.getFieldValue("simple-lyrics-mode-rendering-type") as string;
+      const processedValue =
+        value === "Calculate (More performant)"
+          ? "calculate"
+          : value === "Animate (Legacy, More laggier)"
+            ? "animate"
+            : "calculate";
+      storage.set("simpleLyricsModeRenderingType", processedValue);
+      Defaults.SimpleLyricsMode_RenderingType = processedValue;
+    }
+  );
+
+  settings.addToggle(
+    "minimal-lyrics-mode",
+    "Minimal Lyrics Mode (Only in Fullscreen/Cinema View)",
+    Defaults.MinimalLyricsMode,
+    () => {
+      const value = settings.getFieldValue("minimal-lyrics-mode") as string;
+      storage.set("minimalLyricsMode", value);
+      Defaults.MinimalLyricsMode = value === "true" || value === true;
+    }
+  );
+
+  // --- Background ---
+  settings.addGroup("Background");
+
+  settings.addToggle(
+    "static-background",
+    "Static Background",
+    Defaults.StaticBackground_Preset,
+    () => {
+      const value = settings.getFieldValue("static-background") as string;
+      storage.set("staticBackground", value);
+      Defaults.StaticBackground = value === "true" || value === true;
+    }
+  );
+
+  settings.addDropDown(
+    "static-background-type",
+    "Static Background Type (Only works when Static Background is Enabled)",
+    ["Auto", "Artist Header Visual", "Cover Art", "Color"],
+    Defaults.StaticBackgroundType_Preset,
+    () => {
+      const value = settings.getFieldValue("static-background-type") as string;
+      storage.set("staticBackgroundType", value);
+      Defaults.StaticBackgroundType = value;
+    }
+  );
+
+  settings.addToggle(
+    "hide_npv_bg",
+    "Hide Now Playing View Dynamic Background",
+    Defaults.hide_npv_bg,
+    () => {
+      const value = settings.getFieldValue("hide_npv_bg") as string;
+      storage.set("hide_npv_bg", value);
+      Defaults.hide_npv_bg = value === "true" || value === true;
+    }
+  );
+
+  // --- Playback & Controls ---
+  settings.addGroup("Playback & Controls");
+
+  settings.addToggle(
+    "replace-spotify-playbar",
+    "Replace Spotify playbar with NowBar playbar (performance gain workaround)",
+    Defaults.ReplaceSpotifyPlaybar,
+    () => {
+      const value = settings.getFieldValue("replace-spotify-playbar") as string;
+      storage.set("replaceSpotifyPlaybar", value);
+      Defaults.ReplaceSpotifyPlaybar = value === "true" || value === true;
+    }
+  );
+
+  settings.addDropDown(
+    "always-show-in-fullscreen",
+    "Always show in Fullscreen/Cinema",
+    ["None", "Time", "Controls", "Both"],
+    Defaults.AlwaysShowInFullscreen === "Both" ? 3 : Defaults.AlwaysShowInFullscreen === "Controls" ? 2 : Defaults.AlwaysShowInFullscreen === "Time" ? 1 : 0,
+    () => {
+      const value = settings.getFieldValue("always-show-in-fullscreen") as string;
+      storage.set("alwaysShowInFullscreen", value);
+      Defaults.AlwaysShowInFullscreen = value;
+    }
+  );
+
+  settings.addDropDown(
+    "viewcontrols-position",
+    "View Controls Position",
+    ["Top", "Bottom"],
+    Defaults.ViewControlsPosition === "Bottom" ? 1 : 0,
+    () => {
+      const value = settings.getFieldValue("viewcontrols-position") as string;
+      storage.set("viewControlsPosition", value);
+      Defaults.ViewControlsPosition = value;
+    }
+  );
+
+  settings.addDropDown(
+    "escape-key-function",
+    "Escape Key Function",
+    ["Exit to Cinema", "Exit Fullscreen", "Exit Fullscreen + Close Lyrics"],
+    Defaults.EscapeKeyFunction === "Exit Fullscreen + Close Lyrics" ? 2 : Defaults.EscapeKeyFunction === "Exit Fullscreen" ? 1 : 0,
+    () => {
+      const value = settings.getFieldValue("escape-key-function") as string;
+      storage.set("escapeKeyFunction", value);
+      Defaults.EscapeKeyFunction = value;
+    }
+  );
+
+  settings.addToggle(
+    "disable-popup-lyrics",
+    "Disable Popup Lyrics",
+    !Defaults.PopupLyricsAllowed,
+    () => {
+      const value = settings.getFieldValue("disable-popup-lyrics") as string;
+      storage.set("disablePopupLyrics", value);
+      window.location.reload();
+    }
+  );
+
+  settings.addToggle(
+    "show_topbar_notifications",
+    "Show Topbar Notifications",
+    Defaults.show_topbar_notifications,
+    () => {
+      const value = settings.getFieldValue("show_topbar_notifications") as string;
+      storage.set("show_topbar_notifications", value);
+      Defaults.show_topbar_notifications = value === "true" || value === true;
+    }
+  );
+
+  // --- Layout ---
+  settings.addGroup("Layout");
+
+  settings.addToggle(
+    "lock_mediabox",
+    "Lock the MediaBox size while in Forced Compact Mode",
+    Defaults.CompactMode_LockedMediaBox,
+    () => {
+      const value = settings.getFieldValue("lock_mediabox") as string;
+      storage.set("lockedMediaBox", value);
+      Defaults.CompactMode_LockedMediaBox = value === "true" || value === true;
+    }
+  );
+
+  settings.addToggle("settings-on-top", "Display the settings panels on top of the settings page?", Defaults.SettingsOnTop, () => {
+    const value = settings.getFieldValue("settings-on-top") as string;
+    storage.set("settingsOnTop", value);
+    const isOn = value === "true" || value === true;
+    Defaults.SettingsOnTop = isOn;
+    document.body.classList.toggle("sl_settings_top", isOn);
+  });
+
+  // --- Cache ---
+  settings.addGroup("Cache");
+
+  settings.addButton(
+    "clear-all-caches",
+    "Clear all lyrics caches at once",
+    "Clear All",
+    async () => {
+      try {
+        await LyricsStore.Destroy();
+        await UserTTMLStore.Destroy();
+        storage.set("currentLyricsData", null);
+
+        ShowNotification("All lyrics caches cleared", "success");
+
+        if (PageView.IsOpened) {
+          const uri = SpotifyPlayer.GetUri();
+          if (uri) {
+            const result = await fetchLyrics(uri);
+            ApplyLyrics(result);
+          }
+        }
+      } catch (error) {
+        ShowNotification("Error clearing caches", "error");
+        console.error("SpicyLyrics:", error);
+      }
+    }
   );
 
   settings.addButton(
     "remove-current-lyrics-all-caches",
     "Clear Lyrics for the current song from all caches",
-    "Clear",
+    "Clear Current Song",
     async () => await RemoveCurrentLyrics_AllCaches(true)
   );
 
@@ -48,116 +263,8 @@ function devSettings(SettingsSection: any) {
     () => RemoveCurrentLyrics_StateCache(true)
   );
 
-  settings.addToggle("dev-mode", "TTML Maker mode (previously Dev Mode)", Defaults.DevMode, () => {
-    storage.set("devMode", settings.getFieldValue("dev-mode") as string);
-    window.location.reload();
-  });
-
-  settings.addToggle("developer-mode", "Developer Mode", Defaults.DeveloperMode, () => {
-    storage.set("developerMode", settings.getFieldValue("developer-mode") as string);
-    window.location.reload();
-  });
-
-  settings.pushSettings();
-}
-
-function generalSettings(SettingsSection: any) {
-  const settings = new SettingsSection("Spicy Lyrics", "spicy-lyrics-settings");
-
-  settings.addToggle(
-    "static-background",
-    "Static Background",
-    Defaults.StaticBackground_Preset,
-    () => {
-      storage.set("staticBackground", settings.getFieldValue("static-background") as string);
-    }
-  );
-
-  settings.addDropDown(
-    "static-background-type",
-    "Static Background Type (Only works when Static Background is Enabled)",
-    ["Auto", "Artist Header Visual", "Cover Art", "Color"],
-    Defaults.StaticBackgroundType_Preset,
-    () => {
-      storage.set(
-        "staticBackgroundType",
-        settings.getFieldValue("static-background-type") as string
-      );
-    }
-  );
-
-  settings.addToggle("simple-lyrics-mode", "Simple Lyrics Mode", Defaults.SimpleLyricsMode, () => {
-    storage.set("simpleLyricsMode", settings.getFieldValue("simple-lyrics-mode") as string);
-  });
-
-  settings.addDropDown(
-    "simple-lyrics-mode-rendering-type",
-    "Simple Lyrics Mode - Rendering Type",
-    ["Calculate (More performant)", "Animate (Legacy, More laggier)"],
-    Defaults.SimpleLyricsMode_RenderingType_Default,
-    () => {
-      const value = settings.getFieldValue("simple-lyrics-mode-rendering-type") as string;
-      const processedValue =
-        value === "Calculate (More performant)"
-          ? "calculate"
-          : value === "Animate (Legacy, More laggier)"
-            ? "animate"
-            : "calculate";
-      storage.set("simpleLyricsModeRenderingType", processedValue);
-    }
-  );
-
-  settings.addToggle(
-    "minimal-lyrics-mode",
-    "Minimal Lyrics Mode (Only in Fullscreen/Cinema View)",
-    Defaults.MinimalLyricsMode,
-    () => {
-      storage.set("minimalLyricsMode", settings.getFieldValue("minimal-lyrics-mode") as string);
-    }
-  );
-
-  settings.addToggle("skip-spicy-font", "Skip Spicy Font*", Defaults.SkipSpicyFont, () => {
-    storage.set("skip-spicy-font", settings.getFieldValue("skip-spicy-font") as string);
-  });
-
-  settings.addToggle(
-    "old-style-font",
-    "Old Style Font (Gets Overriden by the previous option)",
-    Defaults.OldStyleFont,
-    () => {
-      storage.set("old-style-font", settings.getFieldValue("old-style-font") as string);
-    }
-  );
-
-  settings.addToggle(
-    "show_topbar_notifications",
-    "Show Topbar Notifications",
-    Defaults.show_topbar_notifications,
-    () => {
-      storage.set(
-        "show_topbar_notifications",
-        settings.getFieldValue("show_topbar_notifications") as string
-      );
-    }
-  );
-
-  settings.addToggle(
-    "hide_npv_bg",
-    "Hide Now Playing View Dynamic Background",
-    Defaults.hide_npv_bg,
-    () => {
-      storage.set("hide_npv_bg", settings.getFieldValue("hide_npv_bg") as string);
-    }
-  );
-
-  settings.addToggle(
-    "lock_mediabox",
-    "Lock the MediaBox size while in Forced Compact Mode",
-    Defaults.CompactMode_LockedMediaBox,
-    () => {
-      storage.set("lockedMediaBox", settings.getFieldValue("lock_mediabox") as string);
-    }
-  );
+  // --- Advanced ---
+  settings.addGroup("Advanced");
 
   settings.addDropDown(
     "lyrics-renderer",
@@ -173,55 +280,14 @@ function generalSettings(SettingsSection: any) {
             ? "aml-lyrics"
             : "Spicy";
       storage.set("lyricsRenderer", processedValue);
+      Defaults.LyricsRenderer = processedValue;
     }
   );
 
-  settings.addToggle(
-    "disable-popup-lyrics",
-    "Disable Popup Lyrics",
-    !Defaults.PopupLyricsAllowed,
-    () => {
-      storage.set("disablePopupLyrics", settings.getFieldValue("disable-popup-lyrics") as string);
-    }
-  );
-
-  settings.addDropDown(
-    "viewcontrols-position",
-    "View Controls Position",
-    ["Top", "Bottom"],
-    Defaults.ViewControlsPosition,
-    () => {
-      storage.set(
-        "viewControlsPosition",
-        settings.getFieldValue("viewcontrols-position") as string
-      );
-    }
-  );
-
-  settings.addDropDown(
-    "escape-key-function",
-    "Escape Key Function",
-    ["Default", "Exit Fullscreen", "Exit Fully"],
-    Defaults.EscapeKeyFunction === "Exit Fully" ? 2 : Defaults.EscapeKeyFunction === "Exit Fullscreen" ? 1 : 0,
-    () => {
-      const value = settings.getFieldValue("escape-key-function") as string;
-      storage.set("escapeKeyFunction", value);
-      Defaults.EscapeKeyFunction = value;
-    }
-  );
-
-  settings.addToggle("settings-on-top", "Display the settings panels on top of the settings page?", Defaults.SettingsOnTop, () => {
-    storage.set("settingsOnTop", settings.getFieldValue("settings-on-top") as string);
+  settings.addToggle("developer-mode", "Developer Mode", Defaults.DeveloperMode, () => {
+    storage.set("developerMode", settings.getFieldValue("developer-mode") as string);
+    window.location.reload();
   });
-
-  settings.addButton(
-    "save-n-reload",
-    "Save your current settings and reload.",
-    "Save & Reload",
-    () => {
-      window.location.reload();
-    }
-  );
 
   settings.pushSettings();
 }

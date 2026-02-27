@@ -1,5 +1,5 @@
 import { Spicetify } from "@spicetify/bundler";
-import Whentil, { type CancelableTask } from "@spikerko/tools/Whentil";
+import Whentil, { type CancelableTask } from "../../utils/Primitives.ts";
 import storage from "../../utils/storage.ts";
 import {
   SetPageBGBlur,

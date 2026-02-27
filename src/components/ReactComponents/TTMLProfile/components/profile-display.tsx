@@ -1,5 +1,4 @@
 import React from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Query } from "../../../../utils/API/Query.ts";
 import { Spicetify } from "@spicetify/bundler";
 import { PopupModal } from "../../../Modal.ts";
@@ -203,11 +202,72 @@ function SongRowSkeleton() {
   );
 }
 
+// Minimal async-fetch hook replacing @tanstack/react-query's useQuery.
+// Supports: enabled flag, configurable retry count with noRetry escape hatch.
+// deno-lint-ignore no-explicit-any
+function useAsync<T>(
+  queryFn: () => Promise<T>,
+  deps: any[],
+  opts: {
+    enabled?: boolean;
+    // deno-lint-ignore no-explicit-any
+    retry?: number | ((count: number, err: any) => boolean);
+  } = {}
+): { data: T | undefined; isLoading: boolean; isSuccess: boolean; isError: boolean; error: Error | null } {
+  // Store data and error as a single object so we can derive isLoading from
+  // them. This avoids a render gap where enabled=true but the useEffect hasn't
+  // set isLoading=true yet, which caused a brief "Unknown Song" flash.
+  const [result, setResult] = React.useState<{ data?: T; error?: Error }>({});
+  const enabled = opts.enabled !== false;
+
+  React.useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    let attempt = 0;
+    const maxRetries = typeof opts.retry === "number" ? opts.retry : 3;
+
+    setResult({}); // clear previous result so isLoading becomes true immediately
+
+    const run = async () => {
+      while (true) {
+        try {
+          const data = await queryFn();
+          if (!cancelled) setResult({ data });
+          return;
+        } catch (err: any) {
+          const shouldRetry =
+            typeof opts.retry === "function"
+              ? opts.retry(attempt, err)
+              : attempt < maxRetries;
+          attempt++;
+          if (!shouldRetry || cancelled) {
+            if (!cancelled) setResult({ error: err instanceof Error ? err : new Error(String(err)) });
+            return;
+          }
+          await new Promise((r) => setTimeout(r, Math.min(1000 * attempt, 5000)));
+        }
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...deps, enabled]);
+
+  // isLoading is derived: true when enabled and no result yet (no data, no error).
+  // This is correct on the very first render after enabled flips to true,
+  // before the useEffect has had a chance to fire.
+  const isLoading = enabled && result.data === undefined && result.error === undefined;
+  const isSuccess = result.data !== undefined;
+  const isError = result.error !== undefined;
+
+  return { data: result.data, isLoading, isSuccess, isError, error: result.error ?? null };
+}
+
 // Main Profile Display
 function ProfileDisplaySafe({ userId, hasProfileBanner }: ProfileDisplayProps) {
-  const userQuery = useQuery<TTMLProfileResponse, Error>({
-    queryKey: ["ttml-user-query", userId],
-    queryFn: async () => {
+  const userQuery = useAsync<TTMLProfileResponse>(
+    async () => {
       const req = await Query([
         {
           operation: "ttmlProfile",
@@ -219,24 +279,21 @@ function ProfileDisplaySafe({ userId, hasProfileBanner }: ProfileDisplayProps) {
       if (profile.httpStatus !== 200)
         throw new Error(`ttmlProfile returned status ${profile.httpStatus}`);
       if (profile.format !== "json")
-        throw new Error(
-          `ttmlProfile returned type ${profile.format}, expected json`
-        );
-      if (!profile.data)
-        throw new Error("ttmlProfile responseData is missing");
+        throw new Error(`ttmlProfile returned type ${profile.format}, expected json`);
+      if (!profile.data) throw new Error("ttmlProfile responseData is missing");
       if (!profile.data?.profile?.data)
-        throw Object.assign(new Error("ttmlProfile doesn't exist"), {
-          noRetry: true,
-        });
+        throw Object.assign(new Error("ttmlProfile doesn't exist"), { noRetry: true });
       return profile.data;
     },
-    // deno-lint-ignore no-explicit-any
-    retry(failureCount, error: any) {
-      // If error has noRetry, do not retry
-      if (error && error.noRetry) return false;
-      return failureCount < 3;
-    },
-  });
+    [userId],
+    {
+      // deno-lint-ignore no-explicit-any
+      retry: (failureCount: number, error: any) => {
+        if (error && error.noRetry) return false;
+        return failureCount < 3;
+      },
+    }
+  );
 
   // Defensive normalization
   const perUser: TTMLProfileUserList = userQuery.data?.perUser ?? {
@@ -256,7 +313,6 @@ function ProfileDisplaySafe({ userId, hasProfileBanner }: ProfileDisplayProps) {
     }))
     .filter((item) => item.id);
 
-  // Sort by view_count descending for UI display
   const sortedMakes = sortByViewsDesc(normalizedMakes);
   const sortedUploads = sortByViewsDesc(normalizedUploads);
 
@@ -275,32 +331,19 @@ function ProfileDisplaySafe({ userId, hasProfileBanner }: ProfileDisplayProps) {
     return Array.from(uniqSet).sort();
   }, [perUser.makes, perUser.uploads]);
 
-  const tracksQuery = useQuery<any, Error>({
-    queryKey: ["spotify-tracks", userId],
-    queryFn: () => fetchAllSpotifyTracks(userId),
-    enabled: userQuery.isSuccess && allIds.length > 0,
-    retry: 3,
-    staleTime: 120 * 60 * 1000,
-  });
+  const tracksQuery = useAsync<any>(
+    () => fetchAllSpotifyTracks(userId),
+    [userId, userQuery.isSuccess],
+    { enabled: userQuery.isSuccess && allIds.length > 0, retry: 3 }
+  );
 
   const trackMap = React.useMemo(() => {
     const map = new Map<string, any>();
-    (tracksQuery.data?.data ?? []).forEach((t) => t && t.id && map.set(t.id, t));
+    (tracksQuery.data?.data ?? []).forEach((t: any) => t && t.id && map.set(t.id, t));
     return map;
   }, [tracksQuery.data]);
 
   const profile: TTMLProfileData = userQuery.data?.profile || {};
-
-  /* React.useEffect(() => {
-    if (profile?.data?.banner) {
-      const modalContainer = document.querySelector<HTMLElement>(
-        ".GenericModal .main-embedWidgetGenerator-container:has(.ttml-profile-container .ttml-profile-banner-styled)"
-      );
-      if (modalContainer && typeof profile.data.banner === "string") {
-        modalContainer.style.setProperty("--banner-url-bg", `url(${profile.data.banner})`);
-      }
-    }
-  }, [profile?.data?.banner]); */
 
   if (userQuery.isLoading) {
     return <ProfileSkeleton hasProfileBanner={hasProfileBanner} />;

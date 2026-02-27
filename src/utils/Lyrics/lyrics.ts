@@ -1,5 +1,4 @@
-import { Maid } from "@socali/modules/Maid";
-import { OnPreRender } from "@socali/modules/Scheduler";
+import { Maid, OnPreRender } from "../Primitives.ts";
 import Defaults from "../../components/Global/Defaults.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";

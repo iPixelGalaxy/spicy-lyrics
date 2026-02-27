@@ -32,6 +32,7 @@ const Defaults = {
   SettingsOnTop: true,
   DeveloperMode: false,
   AlwaysDisplayPlaybackControls: true,
+  RightAlignLyrics: false,
 };
 
 export default Defaults;

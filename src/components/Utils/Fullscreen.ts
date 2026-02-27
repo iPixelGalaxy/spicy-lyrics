@@ -1,6 +1,4 @@
-import { Maid } from "@socali/modules/Maid";
-import { OnPreRender } from "@socali/modules/Scheduler";
-import Spring from "@socali/modules/Spring";
+import { Maid, OnPreRender, Spring } from "../../utils/Primitives.ts";
 import { GetCurrentLyricsContainerInstance } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import { ResetLastLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import storage from "../../utils/storage.ts";

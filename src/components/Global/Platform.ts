@@ -1,4 +1,4 @@
-import { Defer, Timeout } from "@socali/modules/Scheduler";
+import { Defer, Timeout } from "../../utils/Primitives.ts";
 import { Spicetify } from "@spicetify/bundler";
 
 // Spotify Types

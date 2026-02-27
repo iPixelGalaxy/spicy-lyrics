@@ -1,7 +1,6 @@
-import { Maid } from "@socali/modules/Maid";
-import { Interval } from "@socali/modules/Scheduler";
+import { Maid, Interval } from "../../utils/Primitives.ts";
 import { Spicetify } from "@spicetify/bundler";
-import Whentil from "@spikerko/tools/Whentil";
+import Whentil from "../../utils/Primitives.ts";
 import BlobURLMaker from "../../utils/BlobURLMaker.ts";
 import { GetCurrentLyricsContainerInstance } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import { SongProgressBar } from "./../../utils/Lyrics/SongProgressBar.ts";
@@ -818,7 +817,9 @@ function CloseNowBar() {
   if (!NowBar) return;
   NowBar.classList.remove("Active");
   storage.set("IsNowBarOpen", "false");
-  RestoreSpotifyPlaybackBar();
+  if (Defaults.ReplaceSpotifyPlaybar) {
+    RestoreSpotifyPlaybackBar();
+  }
   CleanUpActiveComponents();
   CleanUpInlineControls();
 
@@ -1148,7 +1149,6 @@ function updateLoopOnInstance(instance: PlaybackControlsInstance | null, loopTyp
 
   const SVG = LoopButton.querySelector("svg");
   if (!SVG) return;
-
 
   replaceSvgElement(LoopButton, loopType === "track" ? Icons.LoopTrack : Icons.Loop);
   const newSvg = LoopButton.querySelector<HTMLElement>("svg");

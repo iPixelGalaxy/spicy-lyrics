@@ -1,11 +1,9 @@
 // deno-lint-ignore-file no-case-declarations
-import { parseTTML } from "../../edited_packages/applemusic-like-lyrics-lyric/parser.ts";
 import { Query } from "../../utils/API/Query.ts";
 import fetchLyrics, { UserTTMLStore, SessionTTMLStore, getSongKey } from "../../utils/Lyrics/fetchLyrics.ts";
-import ApplyLyrics, { currentLyricsPlayer } from "../../utils/Lyrics/Global/Applyer.ts";
+import ApplyLyrics from "../../utils/Lyrics/Global/Applyer.ts";
 import { ProcessLyrics } from "../../utils/Lyrics/ProcessLyrics.ts";
 import storage from "../../utils/storage.ts";
-import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import { ShowNotification } from "../Pages/PageView.ts";
@@ -30,29 +28,6 @@ function uploadTTML(mode: TTMLMode) {
     reader.onload = async (e) => {
       const ttml = e.target?.result as string;
 
-       if (Defaults.LyricsRenderer === "aml-lyrics") {
-        try {
-          ShowNotification(labels[mode].loading, "info", 5000);
-          const lyricsLines = await parseTTML(ttml);
-          currentLyricsPlayer?.setLyricLines(lyricsLines.lines);
-        } catch (err) {
-          console.error("Error parsing TTML (AML):", err);
-          ShowNotification("Error parsing TTML", "error", 5000);
-          return;
-        }
-
-        const songKey = getSongKey(SpotifyPlayer.GetUri() ?? "");
-        if (songKey) {
-          const amlData = { SourceTTML: ttml, Type: "Syllable", id: SpotifyPlayer.GetId() };
-          if (mode === "persist") await UserTTMLStore.SetItem(songKey, amlData);
-          else if (mode === "session") SessionTTMLStore.set(songKey, amlData);
-          if (mode === "temp") SessionTTMLStore.delete(songKey);
-        }
-
-        ShowNotification(labels[mode].done, "success", 5000);
-        return;
-      }
-
       ShowNotification("Found TTML, Parsing...", "info", 5000);
       const result = await ParseTTML(ttml);
       if (!result?.Result) {
@@ -60,7 +35,7 @@ function uploadTTML(mode: TTMLMode) {
         return;
       }
 
-      const data = { ...result.Result, id: SpotifyPlayer.GetId() };
+      const data = { ...result.Result, id: SpotifyPlayer.GetId(), userUploaded: true };
       await ProcessLyrics(data);
 
       const songKey = getSongKey(SpotifyPlayer.GetUri() ?? "");

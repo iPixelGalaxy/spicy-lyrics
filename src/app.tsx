@@ -126,15 +126,7 @@ async function main() {
     Defaults.PopupLyricsAllowed = storage.get("disablePopupLyrics") !== "true";
   }
 
-  if (!storage.get("lyricsRenderer")) {
-    storage.set("lyricsRenderer", "Spicy");
-  }
-
-  if (storage.get("lyricsRenderer")) {
-    Defaults.LyricsRenderer = storage.get("lyricsRenderer").toString() as string;
-  }
-
-  if (!storage.get("simpleLyricsModeRenderingType")) {
+if (!storage.get("simpleLyricsModeRenderingType")) {
     storage.set("simpleLyricsModeRenderingType", "calculate");
   }
 
@@ -226,6 +218,7 @@ async function main() {
     Defaults.RightAlignLyrics = val === "true" || val === true;
   }
 
+
   if (!storage.get("showVolumeSliderFullscreen")) {
     storage.set("showVolumeSliderFullscreen", "Off");
   }
@@ -263,7 +256,6 @@ async function main() {
   if (storage.get("buildChannel")) {
     Defaults.BuildChannel = storage.get("buildChannel").toString() as string;
   }
-
 
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
 
@@ -1131,6 +1123,6 @@ async function main() {
 
 main();
 
-if (storage.get("developerMode") === "true") {
+if (storage.get("displayLatency") === "true") {
   connectionIndicatorInit();
 }

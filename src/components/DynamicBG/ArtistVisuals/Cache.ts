@@ -1,4 +1,4 @@
-import { GetExpireStore } from "@spikerko/tools/Cache";
+import { GetExpireStore } from "../../../utils/Primitives.ts";
 
 const CacheStore = GetExpireStore("SpicyLyrics_ArtistVisuals", 3, {
   Unit: "Days",

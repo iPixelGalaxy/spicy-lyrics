@@ -1,11 +1,10 @@
-import { Timeout } from "@socali/modules/Scheduler";
-import { Signal } from "@socali/modules/Signal";
+import { Timeout, Signal } from "../../utils/Primitives.ts";
 import { Spicetify } from "@spicetify/bundler";
 import {
   //type CoverArtCache,
   DynamicBackground,
   type DynamicBackgroundOptions,
-} from "@spikerko/tools/DynamicBackground";
+} from "../../utils/DynamicBackground/main.ts";
 import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 //import Platform from "../Global/Platform.ts";
@@ -39,10 +38,10 @@ export const DynamicBackgroundConfig: DynamicBackgroundOptions = {
 export let currentBgInstance: DynamicBackground | null = null;
 
 // Add a document visibilitychange event to refocus the dynamic background when the tab regains focus
-document.addEventListener("visibilitychange", () => {
+document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState === "visible" && currentBgInstance) {
     try {
-      currentBgInstance.Update({
+      await currentBgInstance.Update({
         image: SpotifyPlayer.GetCover("large") ?? "",
       });
     } catch (err) {

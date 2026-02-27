@@ -22,18 +22,37 @@ const Fullscreen = {
   CinemaViewOpen: false,
 };
 
+const CloseAndExitLyrics = () => {
+  Close();
+  if (isSpicySidebarMode) {
+    CloseSidebarLyrics();
+  } else {
+    Session.GoBack();
+  }
+};
+
 document.addEventListener("fullscreenchange", () => {
   if (!document.fullscreenElement && Fullscreen.IsOpen && !Fullscreen.CinemaViewOpen) {
-    if (Defaults.EscapeKeyFunction === "Exit Fullscreen") {
+    if (Defaults.EscapeKeyFunction === "Exit Fullscreen + Close Lyrics") {
+      CloseAndExitLyrics();
+    } else if (Defaults.EscapeKeyFunction === "Exit Fullscreen") {
       Close();
-    } else if (Defaults.EscapeKeyFunction === "Exit Fully") {
-      Close();
-      if (isSpicySidebarMode) {
-        CloseSidebarLyrics();
-      } else {
-        Session.GoBack();
-      }
+    } else {
+      Fullscreen.CinemaViewOpen = true;
     }
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || !Fullscreen.IsOpen || !Fullscreen.CinemaViewOpen) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (Defaults.EscapeKeyFunction === "Exit Fullscreen + Close Lyrics") {
+    CloseAndExitLyrics();
+  } else {
+    Close();
   }
 });
 

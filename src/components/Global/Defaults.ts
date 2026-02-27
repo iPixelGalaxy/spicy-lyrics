@@ -35,6 +35,8 @@ const Defaults = {
   SyllableRendering: "Default" as string,
   RightAlignLyrics: false,
   EscapeKeyFunction: "Default" as string,
+  AlwaysShowInFullscreen: "None" as string,
+  ReplaceSpotifyPlaybar: false,
 };
 
 export default Defaults;

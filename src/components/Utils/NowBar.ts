@@ -44,6 +44,7 @@ let ActiveHeartMaid: Maid | null = null;
 
 export const NowBarObj = {
   Open: false,
+  _inlineSetupTimer: null as ReturnType<typeof setTimeout> | null,
 };
 
 export function HideSpotifyPlaybackBar() {
@@ -339,7 +340,9 @@ function SetupSongProgressBar(instanceMap: Map<string, any>): SongProgressBarIns
     if (!isDragging) return;
     let clientX: number;
     if ("touches" in event) {
-      clientX = event.touches[0].clientX;
+      const touch = event.touches[0] ?? event.changedTouches?.[0];
+      if (!touch) return;
+      clientX = touch.clientX;
     } else {
       clientX = event.clientX;
     }
@@ -373,7 +376,9 @@ function SetupSongProgressBar(instanceMap: Map<string, any>): SongProgressBarIns
     document.removeEventListener("touchend", handleDragEnd);
     let clientX: number;
     if ("changedTouches" in event) {
-      clientX = event.changedTouches[0].clientX;
+      const touch = event.changedTouches?.[0] ?? event.touches?.[0];
+      if (!touch) return;
+      clientX = touch.clientX;
     } else {
       clientX = (event as MouseEvent).clientX;
     }
@@ -441,19 +446,23 @@ function SetupInlineControls() {
 
   CleanUpInlineControls();
 
-  const showFullControls = Fullscreen.IsOpen && Defaults.AlwaysDisplayPlaybackControls;
-  const showTimelineOnly = !Fullscreen.IsOpen && !isSpicySidebarMode;
+  const setting = Defaults.AlwaysShowInFullscreen;
+  const inFullscreen = Fullscreen.IsOpen;
 
-  if (!showFullControls && !showTimelineOnly) return;
+  const showTimeline = (!inFullscreen && !isSpicySidebarMode && Defaults.ReplaceSpotifyPlaybar) ||
+    (inFullscreen && (setting === "Time" || setting === "Both"));
+  const showControls = inFullscreen && (setting === "Controls" || setting === "Both");
+
+  if (!showTimeline && !showControls) return;
 
   // Timeline between cover art and song title
-  if (timelineContainer) {
+  if (showTimeline && timelineContainer) {
     InlineSongProgressBarInstance = SetupSongProgressBar(InlineSongProgressBarInstance_Map);
     InlineSongProgressBarInstance?.Apply(timelineContainer);
   }
 
   // Playback controls below song title/artists (only in cinema/fullscreen when setting is enabled)
-  if (showFullControls && controlsContainer) {
+  if (showControls && controlsContainer) {
     InlinePlaybackControlsInstance = SetupPlaybackControls();
     InlinePlaybackControlsInstance?.Apply(controlsContainer);
   }
@@ -485,7 +494,9 @@ function OpenNowBar(skipSaving: boolean = false) {
     spicyLyricsPage?.classList.remove("NowBarStatus__Open");
     return;
   }
-  HideSpotifyPlaybackBar();
+  if (Defaults.ReplaceSpotifyPlaybar) {
+    HideSpotifyPlaybackBar();
+  }
   UpdateNowBar(true);
   NowBar.classList.add("Active");
 
@@ -588,9 +599,15 @@ function OpenNowBar(skipSaving: boolean = false) {
         AppendQueue.push(HeartElement);
       }
 
-      // Only create overlay playback controls + timeline when inline controls are NOT active
-      if (!Defaults.AlwaysDisplayPlaybackControls) {
+      // Only create overlay components when they're not handled by inline controls
+      const _setting = Defaults.AlwaysShowInFullscreen;
+      const _skipOverlayControls = _setting === "Controls" || _setting === "Both";
+      const _skipOverlayTimeline = _setting === "Time" || _setting === "Both";
+
+      if (!_skipOverlayControls) {
         ActivePlaybackControlsInstance = SetupPlaybackControls();
+      }
+      if (!_skipOverlayTimeline) {
         ActiveSetupSongProgressBarInstance = SetupSongProgressBar(ActiveSongProgressBarInstance_Map);
       }
 
@@ -615,14 +632,12 @@ function OpenNowBar(skipSaving: boolean = false) {
             fragment.appendChild(element);
           });
 
-          // Add the playback controls and timeline to the overlay only when inline controls are off
-          if (!Defaults.AlwaysDisplayPlaybackControls) {
-            if (ActivePlaybackControlsInstance) {
-              fragment.appendChild(ActivePlaybackControlsInstance.GetElement());
-            }
-            if (ActiveSetupSongProgressBarInstance) {
-              fragment.appendChild(ActiveSetupSongProgressBarInstance.GetElement());
-            }
+          // Add overlay components that aren't handled by inline controls
+          if (ActivePlaybackControlsInstance) {
+            fragment.appendChild(ActivePlaybackControlsInstance.GetElement());
+          }
+          if (ActiveSetupSongProgressBarInstance) {
+            fragment.appendChild(ActiveSetupSongProgressBarInstance.GetElement());
           }
 
           // Ensure proper order - first view controls, then our custom elements
@@ -966,7 +981,7 @@ function UpdateNowBar(force = false) {
 
   if (contentType === "episode") {
     const showName = SpotifyPlayer.GetShowName();
-    ArtistsSpan.textContent = showName ?? "";
+    if (ArtistsSpan) ArtistsSpan.textContent = showName ?? "";
   }
 
   const artists = SpotifyPlayer.GetArtists();
@@ -1183,10 +1198,22 @@ Global.Event.listen("fullscreen:exit", () => {
   CleanupMediaBox();
   // Re-setup inline controls for regular view (timeline only)
   CleanUpInlineControls();
-  setTimeout(() => SetupInlineControls(), 100);
+  if (NowBarObj._inlineSetupTimer) {
+    clearTimeout(NowBarObj._inlineSetupTimer);
+  }
+  NowBarObj._inlineSetupTimer = setTimeout(() => {
+    NowBarObj._inlineSetupTimer = null;
+    if (PageView.IsOpened && NowBarObj.Open && !Fullscreen.IsOpen) {
+      SetupInlineControls();
+    }
+  }, 100);
 });
 
 Global.Event.listen("page:destroy", () => {
+  if (NowBarObj._inlineSetupTimer) {
+    clearTimeout(NowBarObj._inlineSetupTimer);
+    NowBarObj._inlineSetupTimer = null;
+  }
   CleanupMediaBox();
   CleanUpActiveComponents();
   CleanUpInlineControls();

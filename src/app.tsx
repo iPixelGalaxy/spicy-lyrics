@@ -186,12 +186,20 @@ async function main() {
     Defaults.MinimalLyricsMode = storage.get("minimalLyricsMode") === "true";
   }
 
-  if (!storage.get("alwaysDisplayPlaybackControls")) {
-    storage.set("alwaysDisplayPlaybackControls", "true");
+  if (!storage.get("replaceSpotifyPlaybar")) {
+    storage.set("replaceSpotifyPlaybar", "false");
   }
 
-  if (storage.get("alwaysDisplayPlaybackControls")) {
-    Defaults.AlwaysDisplayPlaybackControls = storage.get("alwaysDisplayPlaybackControls") === "true";
+  if (storage.get("replaceSpotifyPlaybar")) {
+    Defaults.ReplaceSpotifyPlaybar = storage.get("replaceSpotifyPlaybar") === "true";
+  }
+
+  if (!storage.get("alwaysShowInFullscreen")) {
+    storage.set("alwaysShowInFullscreen", "None");
+  }
+
+  if (storage.get("alwaysShowInFullscreen")) {
+    Defaults.AlwaysShowInFullscreen = storage.get("alwaysShowInFullscreen").toString() as string;
   }
 
   if (!storage.get("hide_npv_bg")) {
@@ -216,7 +224,7 @@ async function main() {
   }
 
   if (!storage.get("escapeKeyFunction")) {
-    storage.set("escapeKeyFunction", "Default");
+    storage.set("escapeKeyFunction", "Exit to Cinema");
   }
 
   if (storage.get("escapeKeyFunction")) {
@@ -800,7 +808,12 @@ async function main() {
 
       Component.GetRootComponent("lCache").RemoveCurrentLyrics_StateCache(false);
       
-      fetchLyrics(Spicetify.Player.data?.item?.uri).then(ApplyLyrics);
+      const onlineUri = Spicetify.Player.data?.item?.uri;
+      if (onlineUri) {
+        fetchLyrics(onlineUri).then(ApplyLyrics).catch((err) => {
+          console.error("SpicyLyrics: Error fetching/applying lyrics:", err);
+        });
+      }
     });
 
     new IntervalManager(ScrollingIntervalTime, () => {

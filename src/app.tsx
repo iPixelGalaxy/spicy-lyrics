@@ -1,3 +1,6 @@
+// Signal to entrypoint that the plugin loaded directly (dev build)
+(window as any)._spicy_lyrics_loaded = true;
+
 // CSS Imports
 import "./css/default.css";
 import "./css/default.scss";
@@ -221,6 +224,27 @@ async function main() {
   if (storage.get("rightAlignLyrics")) {
     const val = storage.get("rightAlignLyrics").toString();
     Defaults.RightAlignLyrics = val === "true" || val === true;
+  }
+
+  if (!storage.get("showVolumeSliderFullscreen")) {
+    storage.set("showVolumeSliderFullscreen", "Off");
+  }
+
+  if (storage.get("showVolumeSliderFullscreen")) {
+    const val = storage.get("showVolumeSliderFullscreen").toString();
+    // Migrate old values
+    if (val === "true" || val === "Side") {
+      storage.set("showVolumeSliderFullscreen", "Left Side");
+      Defaults.ShowVolumeSliderFullscreen = "Left Side";
+    } else if (val === "Under") {
+      storage.set("showVolumeSliderFullscreen", "Below");
+      Defaults.ShowVolumeSliderFullscreen = "Below";
+    } else if (val === "false") {
+      storage.set("showVolumeSliderFullscreen", "Off");
+      Defaults.ShowVolumeSliderFullscreen = "Off";
+    } else {
+      Defaults.ShowVolumeSliderFullscreen = val;
+    }
   }
 
 

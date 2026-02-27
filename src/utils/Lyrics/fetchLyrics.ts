@@ -15,9 +15,9 @@ export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore", 12, {
   Duration: 3,
 }, isDev as true);
 
-export const UserTTMLStore = GetExpireStore<any>("SpicyLyrics_UserTTMLStore", 12, {
+export const UserTTMLStore = GetExpireStore<any>("SpicyLyrics_UserTTMLStore", 1, {
   Unit: "Days",
-  Duration: 365,
+  Duration: 36500,
 }, isDev as true);
 
 export const SessionTTMLStore = new Map<string, any>();

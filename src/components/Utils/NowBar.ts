@@ -15,6 +15,7 @@ import { Icons } from "../Styling/Icons.ts";
 import Fullscreen, { CleanupMediaBox } from "./Fullscreen.ts";
 import { isSpicySidebarMode } from "./SidebarLyrics.ts";
 import { IsPIP } from "./PopupLyrics.ts";
+import { SetupVolumeSlider, CleanUpVolumeSlider } from "./VolumeSlider.ts";
 
 // Define interfaces for our control instances
 interface PlaybackControlsInstance {
@@ -453,7 +454,12 @@ function SetupInlineControls() {
     (inFullscreen && (setting === "Time" || setting === "Both"));
   const showControls = inFullscreen && (setting === "Controls" || setting === "Both");
 
-  if (!showTimeline && !showControls) return;
+  const volumeSetting = Defaults.ShowVolumeSliderFullscreen;
+  const showVolumeLeft = inFullscreen && volumeSetting === "Left Side";
+  const showVolumeRight = inFullscreen && volumeSetting === "Right Side";
+  const showVolumeBelow = inFullscreen && volumeSetting === "Below";
+
+  if (!showTimeline && !showControls && !showVolumeLeft && !showVolumeRight && !showVolumeBelow) return;
 
   // Timeline between cover art and song title
   if (showTimeline && timelineContainer) {
@@ -466,6 +472,27 @@ function SetupInlineControls() {
     InlinePlaybackControlsInstance = SetupPlaybackControls();
     InlinePlaybackControlsInstance?.Apply(controlsContainer);
   }
+
+  // Volume slider - Left/Right Side: vertical beside cover art
+  if (showVolumeLeft || showVolumeRight) {
+    const volumeContainer = PageContainer?.querySelector<HTMLElement>(
+      ".ContentBox .NowBar .Header .VolumeSlider"
+    );
+    if (volumeContainer) {
+      if (showVolumeRight) volumeContainer.classList.add("RightSide");
+      SetupVolumeSlider(volumeContainer);
+    }
+  }
+
+  // Volume slider - Below: horizontal below playback controls
+  if (showVolumeBelow) {
+    const volumeUnderContainer = PageContainer?.querySelector<HTMLElement>(
+      ".ContentBox .NowBar .Header .VolumeSliderUnder"
+    );
+    if (volumeUnderContainer) {
+      SetupVolumeSlider(volumeUnderContainer, true);
+    }
+  }
 }
 
 function CleanUpInlineControls() {
@@ -477,10 +504,8 @@ function CleanUpInlineControls() {
     InlineSongProgressBarInstance.CleanUp();
     InlineSongProgressBarInstance = null;
   }
-  if (InlineSongProgressBarInstance_Map.size > 0) {
-    InlineSongProgressBarInstance_Map.clear();
-  }
   InlineSongProgressBarInstance_Map = new Map<string, any>();
+  CleanUpVolumeSlider();
 }
 
 let NowBarFullscreenMaid: Maid | null = null;
@@ -1123,6 +1148,7 @@ function updateLoopOnInstance(instance: PlaybackControlsInstance | null, loopTyp
 
   const SVG = LoopButton.querySelector("svg");
   if (!SVG) return;
+
 
   replaceSvgElement(LoopButton, loopType === "track" ? Icons.LoopTrack : Icons.Loop);
   const newSvg = LoopButton.querySelector<HTMLElement>("svg");

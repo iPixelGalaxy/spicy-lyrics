@@ -223,6 +223,7 @@ async function main() {
     Defaults.RightAlignLyrics = val === "true" || val === true;
   }
 
+
   if (!storage.get("escapeKeyFunction")) {
     storage.set("escapeKeyFunction", "Exit to Cinema");
   }
@@ -230,6 +231,15 @@ async function main() {
   if (storage.get("escapeKeyFunction")) {
     Defaults.EscapeKeyFunction = storage.get("escapeKeyFunction").toString() as string;
   }
+
+  if (!storage.get("buildChannel")) {
+    storage.set("buildChannel", "Stable");
+  }
+
+  if (storage.get("buildChannel")) {
+    Defaults.BuildChannel = storage.get("buildChannel").toString() as string;
+  }
+
 
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
 
@@ -775,7 +785,7 @@ async function main() {
       const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
       if (!contentBox || (Defaults.StaticBackground && Defaults.StaticBackgroundType === "Color")) return;
       try {
-        ApplyDynamicBackground(contentBox);
+        await ApplyDynamicBackground(contentBox);
       } catch (err) {
         console.error("Error applying dynamic background:", err);
       }

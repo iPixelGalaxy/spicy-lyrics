@@ -37,6 +37,7 @@ const Defaults = {
   EscapeKeyFunction: "Default" as string,
   AlwaysShowInFullscreen: "None" as string,
   ReplaceSpotifyPlaybar: false,
+  BuildChannel: "Stable" as string,
 };
 
 export default Defaults;

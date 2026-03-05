@@ -157,6 +157,7 @@ async function OpenPage(
                               <div class="ti_ToImage ib_ImageBox"></div>
                             </div>
                         </div>
+                        <div class="InlineTimeline"></div>
                         <div class="Metadata">
                             <div class="SongName">
                                 <span></span>
@@ -165,6 +166,7 @@ async function OpenPage(
                                 <span></span>
                             </div>
                         </div>
+                        <div class="InlinePlaybackControls"></div>
                     </div>
                 </div>
             </div>

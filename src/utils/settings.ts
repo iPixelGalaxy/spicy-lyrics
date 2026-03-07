@@ -126,8 +126,8 @@ function devSettings(SettingsSection: any) {
     window.location.reload();
   });
 
-  if (isDevModeEnabled() || isDevEnvironment()) {
-    settings.addToggle("developer-mode", "Developer Mode", isDevModeEnabled(), () => {
+  if (isDevModeEnabled()) {
+    settings.addToggle("developer-mode", "Developer Mode", true, () => {
       storage.set("developerMode", settings.getFieldValue("developer-mode").toString());
       window.location.reload();
     });

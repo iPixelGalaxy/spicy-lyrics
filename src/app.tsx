@@ -191,6 +191,14 @@ async function main() {
     Defaults.hide_npv_bg = storage.get("hide_npv_bg") === "true";
   }
 
+  if (!storage.get("showLatencyIndicator")) {
+    storage.set("showLatencyIndicator", "false");
+  }
+
+  if (storage.get("showLatencyIndicator")) {
+    Defaults.ShowLatencyIndicator = storage.get("showLatencyIndicator") === "true";
+  }
+
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
   window._spicy_lyrics_metadata = {}
 
@@ -1110,3 +1118,7 @@ async function main() {
 }
 
 main();
+
+if (storage.get("showLatencyIndicator") === "true") {
+  connectionIndicatorInit();
+}

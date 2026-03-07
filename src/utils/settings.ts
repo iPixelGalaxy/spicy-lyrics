@@ -49,7 +49,7 @@ function attachDevModeGesture() {
       if (rightClickCount >= 7) {
         rightClickCount = 0;
         storage.set("developerMode", "true");
-        window.location.reload();
+        Spicetify.showNotification("Developer Mode enabled");
       }
     });
 
@@ -62,7 +62,7 @@ function attachDevModeGesture() {
       if (leftClickCount >= 6) {
         leftClickCount = 0;
         storage.set("developerMode", "false");
-        window.location.reload();
+        Spicetify.showNotification("Developer Mode disabled");
       }
     });
   };

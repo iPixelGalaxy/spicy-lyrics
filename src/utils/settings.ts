@@ -30,6 +30,7 @@ function isDevEnvironment(): boolean {
 
 function attachDevModeGesture() {
   let rightClickCount = 0;
+  let leftClickCount = 0;
   let clickTimeout: ReturnType<typeof setTimeout> | null = null;
 
   const setupHeading = () => {
@@ -42,8 +43,9 @@ function attachDevModeGesture() {
     heading.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       rightClickCount++;
+      leftClickCount = 0;
       if (clickTimeout) clearTimeout(clickTimeout);
-      clickTimeout = setTimeout(() => { rightClickCount = 0; }, 3000);
+      clickTimeout = setTimeout(() => { rightClickCount = 0; leftClickCount = 0; }, 3000);
       if (rightClickCount >= 7) {
         rightClickCount = 0;
         storage.set("developerMode", "true");
@@ -51,9 +53,14 @@ function attachDevModeGesture() {
       }
     });
 
-    heading.addEventListener("auxclick", (e) => {
-      if ((e as MouseEvent).button === 1) {
-        e.preventDefault();
+    heading.addEventListener("click", (e) => {
+      if ((e as MouseEvent).button !== 0) return;
+      rightClickCount = 0;
+      leftClickCount++;
+      if (clickTimeout) clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => { rightClickCount = 0; leftClickCount = 0; }, 3000);
+      if (leftClickCount >= 6) {
+        leftClickCount = 0;
         storage.set("developerMode", "false");
         window.location.reload();
       }

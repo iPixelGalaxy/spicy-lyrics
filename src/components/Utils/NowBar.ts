@@ -1189,10 +1189,7 @@ function UpdateNowBar(force = false) {
 
       const yearSpan = document.createElement("span");
       yearSpan.className = `ArtistYear ${pos === "Before Artist" ? "before" : "after"}`;
-      yearSpan.textContent =
-        pos === "Before Artist"
-          ? `${year}\u00A0\u00A0\u00B7\u00A0`
-          : `\u00A0\u00B7\u00A0\u00A0${year}`;
+      yearSpan.textContent = year;
       if (pos === "Before Artist") {
         ArtistsDiv.insertBefore(yearSpan, artistsEl);
       } else {

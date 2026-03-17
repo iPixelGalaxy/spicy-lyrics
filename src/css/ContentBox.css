@@ -270,7 +270,9 @@
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow {
   display: flex;
   align-items: center;
-  max-width: 80cqw;
+  justify-content: center;
+  width: 85cqw;
+  max-width: 85cqw;
   overflow: hidden;
 }
 
@@ -288,6 +290,26 @@
   animation: none !important;
 }
 
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow span.ArtistYear.before {
+  padding-left: 2.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow span.ArtistYear.after {
+  padding-right: 2.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow span.ArtistYear.before::after {
+  content: "\00B7";
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow span.ArtistYear.after::before {
+  content: "\00B7";
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists {
   font-size: calc(var(--default-font-size) * 1.5) !important;
   line-height: calc(var(--title-height) * 8) !important;
@@ -296,7 +318,7 @@
   opacity: 0.7;
   display: flex;
   align-items: center;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: 80cqw;
   overflow: hidden;

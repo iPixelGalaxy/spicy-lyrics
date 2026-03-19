@@ -166,8 +166,10 @@ async function OpenPage(
                             <div class="SongName">
                                 <span></span>
                             </div>
-                            <div class="Artists">
-                                <span></span>
+                            <div class="ArtistsRow">
+                                <div class="Artists">
+                                    <span></span>
+                                </div>
                             </div>
                         </div>
                         <div class="InlinePlaybackControls"></div>

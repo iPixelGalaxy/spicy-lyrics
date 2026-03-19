@@ -38,6 +38,7 @@ const Defaults = {
   CustomFont: "",
   AlwaysShowInFullscreen: "None" as string,
   ShowVolumeSliderFullscreen: "Off" as string,
+  ReleaseYearPosition: "Off" as string,
 };
 
 export default Defaults;

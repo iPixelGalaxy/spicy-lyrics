@@ -244,6 +244,8 @@ async function main() {
     Defaults.SyllableRendering = storage.get("syllableRendering").toString();
   }
 
+  Defaults.ReleaseYearPosition = storage.get("releaseYearPosition")?.toString() ?? "Off";
+
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
   window._spicy_lyrics_metadata = {}
 
@@ -327,16 +329,16 @@ async function main() {
 
         @keyframes Marquee_Artists {
           0% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 0));
           }
           10% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 0));
           }
           90% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 1));
           }
           100% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 1));
           }
         }
 

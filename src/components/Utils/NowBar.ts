@@ -1,5 +1,6 @@
-import { Maid } from "@spikerko/web-modules/Maid";
-import { Interval } from "@spikerko/web-modules/Scheduler";
+import { Maid } from "@socali/modules/Maid";
+import { Interval } from "@socali/modules/Scheduler";
+import { Spicetify } from "@spicetify/bundler";
 import Whentil from "@spikerko/tools/Whentil";
 import BlobURLMaker from "../../utils/BlobURLMaker.ts";
 import { GetCurrentLyricsContainerInstance } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
@@ -640,7 +641,7 @@ function OpenNowBar(skipSaving: boolean = false) {
               "#SpicyLyricsPage .ContentBox .NowBar .Header .MediaBox .MediaContent"
           )
         : document.querySelector(
-              "#SpicyLyricsPage .ContentBox .NowBar .Header .MediaBox .MediaImageContainer"
+              "#SpicyLyricsPage .ContentBox .NowBar .Header .MediaBox .MediaImage"
           ); */
 
   /* {
@@ -860,7 +861,7 @@ async function getAVCStreamUrl(manifestUrl: string) {
 
     //const ArtistsDiv = NowBar.querySelector(".Header .Metadata .Artists");
     const ArtistsSpan = NowBar.querySelector(".Header .Metadata .Artists span");
-    const MediaImageContainer = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImageContainer");
+    const MediaImageContainer = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImage");
     const SongNameSpan = NowBar.querySelector(".Header .Metadata .SongName span");
     //const MediaBox = NowBar.querySelector(".Header .MediaBox");
     //const SongName = NowBar.querySelector(".Header .Metadata .SongName");
@@ -933,36 +934,61 @@ async function getAVCStreamUrl(manifestUrl: string) {
     }
 } */
 
+let _yearGeneration = 0;
+let _yearAlbumUri: string | undefined;
+let _lastDisplayedYear: string | undefined;
+const _yearCache = new Map<string, string>();
+const _yearInflight = new Map<string, Promise<string | undefined>>();
+const _yearTrackInflight = new Map<string, Promise<string | undefined>>();
+const _yearInflightHandlers = new Map<string, number>();
+
+function EnsureNowBarYearFetch(albumUri?: string, trackId?: string): void {
+  if (!albumUri) return;
+
+  const syncYear = SpotifyPlayer.GetAlbumReleaseYearSync();
+  if (syncYear) {
+    _yearCache.set(albumUri, syncYear);
+    return;
+  }
+
+  if (!_yearCache.has(albumUri) && !_yearInflight.has(albumUri)) {
+    const inflight = SpotifyPlayer.GetAlbumReleaseYear(albumUri);
+    _yearInflight.set(albumUri, inflight);
+    inflight.finally(() => {
+      if (_yearInflight.get(albumUri) === inflight) _yearInflight.delete(albumUri);
+    });
+    inflight.then((year) => {
+      if (!year) return;
+      _yearCache.set(albumUri, year);
+    });
+  }
+
+  if (
+    trackId &&
+    !_yearCache.has(albumUri) &&
+    !_yearInflight.has(albumUri) &&
+    !_yearTrackInflight.has(trackId)
+  ) {
+    const inflight = SpotifyPlayer.GetReleaseYear(trackId);
+    _yearTrackInflight.set(trackId, inflight);
+    inflight.finally(() => {
+      if (_yearTrackInflight.get(trackId) === inflight) _yearTrackInflight.delete(trackId);
+    });
+    inflight.then((year) => {
+      if (!year) return;
+      if (!_yearCache.has(albumUri)) _yearCache.set(albumUri, year);
+    });
+  }
+}
+
 function UpdateNowBar(force = false) {
   const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
 
-  const waitForTransitionEnd = (
-    el: HTMLElement,
-    propertyName: string,
-    timeoutMs: number,
-  ) =>
-    new Promise<void>((resolve) => {
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        el.removeEventListener("transitionend", onEnd);
-        clearTimeout(t);
-        resolve();
-      };
-      const onEnd = (e: TransitionEvent) => {
-        if (e.target === el && e.propertyName === propertyName) finish();
-      };
-      const t = window.setTimeout(finish, timeoutMs);
-      el.addEventListener("transitionend", onEnd);
-    });
-
-  //const ArtistsDiv = NowBar.querySelector(".Header .Metadata .Artists");
-  const MetadataContainer = NowBar.querySelector(".Header .Metadata");
-  const ArtistsSpan = MetadataContainer.querySelector(".Artists span");
-  const MediaImageContainer = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImageContainer");
-  const SongNameSpan = MetadataContainer.querySelector(".SongName span");
+  const ArtistsDiv = NowBar.querySelector<HTMLElement>(".Header .Metadata .ArtistsRow");
+  const ArtistsSpan = NowBar.querySelector<HTMLElement>(".Header .Metadata .ArtistsRow .Artists span");
+  const MediaImage = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImage");
+  const SongNameSpan = NowBar.querySelector(".Header .Metadata .SongName span");
   //const MediaBox = NowBar.querySelector(".Header .MediaBox");
   //const SongName = NowBar.querySelector(".Header .Metadata .SongName");
 
@@ -970,132 +996,248 @@ function UpdateNowBar(force = false) {
   if (IsNowBarOpen === "false" && !force) return;
 
   const coverArt = SpotifyPlayer.GetCover("xlarge");
-
-  // If we have no container or cover art, bail out early
-  if (!MediaImageContainer || !coverArt) {
-    return;
-  }
-
-  const previousCoverArt = MediaImageContainer.getAttribute("last-image");
-  const previousCoverArtUrl = MediaImageContainer.getAttribute("last-image-url");
-  const finalUrl = `https://i.scdn.co/image/${coverArt.replace("spotify:image:", "")}`;
-
-  // Avoid re-running if the artwork hasn't changed
-  if (previousCoverArt === coverArt) {
-    // DOM can temporarily lose its background/classes between rapid updates/remounts.
-    // If the cover is logically the same, restore the image without triggering animation.
-    const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
-    const toImage = MediaImageContainer.querySelector<HTMLDivElement>(".ti_ToImage");
-    const restoredUrl = previousCoverArtUrl ?? finalUrl;
-
-    if (fromImage) {
-      const hasBg = !!fromImage.style.backgroundImage && fromImage.style.backgroundImage !== "none";
-      if (!fromImage.classList.contains("containsImage") || !hasBg) {
-        fromImage.style.backgroundImage = `url("${restoredUrl}")`;
-        fromImage.classList.add("containsImage");
-      }
-      fromImage.classList.remove("MB_anim_fimg");
-    }
-
-    if (toImage) {
-      toImage.classList.remove("MB_anim_enter");
-      toImage.classList.add("MB_hidden");
-    }
-  } else {
-    // Capture a token for this specific update so we can ignore stale async work
-    const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
-    MediaImageContainer.setAttribute("data-update-token", updateToken);
-
+  if (MediaImage && coverArt && MediaImage.getAttribute("last-image") !== coverArt) {
+    const finalUrl = `https://i.scdn.co/image/${coverArt.replace("spotify:image:", "")}`;
     BlobURLMaker(finalUrl)
       .catch(() => null)
       .then((coverArtUrl) => {
-        // If the container was removed or a newer update ran while we were loading, skip
-        if (!MediaImageContainer.isConnected) return;
-        const latestToken = MediaImageContainer.getAttribute("data-update-token");
-        if (latestToken !== updateToken) return;
-
-        MediaImageContainer.setAttribute("last-image", coverArt ?? "");
-        MediaImageContainer.setAttribute("last-image-url", coverArtUrl ?? finalUrl);
-
-        const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
-        const toImage = MediaImageContainer.querySelector<HTMLDivElement>(".ti_ToImage");
-
-        // If we don't even have a target image element, bail completely
-        if (!toImage) return;
-
-        toImage.style.backgroundImage = `url("${coverArtUrl ?? finalUrl}")`
-        toImage.classList.remove("MB_hidden");
-        toImage.classList.add("containsImage")
-
-        const canAnimate = !!fromImage && fromImage.classList.contains("containsImage");
-
-        // Only run the crossfade animation if fromImage already has an image
-        if (canAnimate) {
-          if (toImage.classList.contains("containsImage")) {
-            toImage.classList.add("MB_anim_enter");
-            fromImage?.classList.add("MB_anim_fimg");
-          }
-
-          setTimeout(async () => {
-            // If another track update happened during the timeout, skip applying stale state
-            const latestInnerToken = MediaImageContainer.getAttribute("data-update-token");
-            if (latestInnerToken !== updateToken) return;
-            fromImage!.style.backgroundImage = `url("${coverArtUrl ?? finalUrl}")`
-            fromImage!.classList.add("containsImage");
-
-            // Ensure the fromImage blur overlay fades out (opacity -> 0) before we hide toImage.
-            // `MB_anim_fimg` toggles `fromImage::before { opacity }` with a CSS transition.
-            fromImage!.classList.remove("MB_anim_fimg");
-            await waitForTransitionEnd(fromImage!, "opacity", 950);
-
-            const latestAfterFadeToken = MediaImageContainer.getAttribute("data-update-token");
-            if (latestAfterFadeToken !== updateToken) return;
-            toImage.classList.add("MB_hidden");
-            toImage.classList.remove("MB_anim_enter");
-          }, 1100)
-        } else {
-          // No fromImage image yet: just set fromImage (or fall back to toImage) without animation
-          toImage.classList.remove("MB_anim_enter");
-          toImage.classList.add("MB_hidden");
-
-          if (fromImage) {
-            fromImage.style.backgroundImage = `url("${coverArtUrl ?? finalUrl}")`;
-            fromImage.classList.add("containsImage");
-            fromImage.classList.remove("MB_anim_fimg");
-          } else {
-            toImage.classList.remove("MB_hidden");
-            toImage.classList.add("containsImage");
-          }
-        }
+        // Only after the new image is fetched, swap it in
+        MediaImage.style.backgroundImage = `url("${coverArtUrl ?? coverArt}")`;
+        MediaImage.setAttribute("last-image", coverArt ?? "");
       });
   }
 
+  const songName = SpotifyPlayer.GetName();
+  if (SongNameSpan) {
+    SongNameSpan.textContent = songName ?? "";
+  }
 
-  MetadataContainer.classList.add("tr_VisuallyHidden");
+  const contentType = SpotifyPlayer.GetContentType();
 
-  setTimeout(() => {
-    const songName = SpotifyPlayer.GetName();
-    if (SongNameSpan) {
-      SongNameSpan.textContent = songName ?? "";
+  if (contentType === "episode") {
+    const showName = SpotifyPlayer.GetShowName();
+    if (ArtistsSpan) ArtistsSpan.textContent = showName ?? "";
+    ArtistsDiv?.querySelector(".ArtistYear")?.remove();
+    if (ArtistsDiv) {
+      ArtistsDiv.removeAttribute("data-sl-year");
+      ArtistsDiv.removeAttribute("data-sl-year-pos");
+      ArtistsDiv.removeAttribute("data-sl-year-album-uri");
+      ArtistsDiv.removeAttribute("data-sl-year-pending");
+      ArtistsDiv.removeAttribute("data-sl-year-requested-album-uri");
     }
-  
-    const contentType = SpotifyPlayer.GetContentType();
-  
-    if (contentType === "episode") {
-      const showName = SpotifyPlayer.GetShowName();
-      ArtistsSpan.textContent = showName ?? "";
+    const episodeArtistsEl = ArtistsDiv?.querySelector<HTMLElement>(".Artists");
+    if (episodeArtistsEl) {
+      episodeArtistsEl.classList.remove("has-year-before", "has-year-after");
+      episodeArtistsEl.classList.remove("sl-marquee");
+      episodeArtistsEl.style.removeProperty("--artists-anim-ref");
     }
-  
-    const artists = SpotifyPlayer.GetArtists();
-    if (artists && ArtistsSpan && contentType !== "episode") {
-      const processedArtists = artists.map((artist) => artist.name)?.join(", ");
-      ArtistsSpan.textContent = processedArtists ?? "";
+
+    const episodeArtistsTextEl = episodeArtistsEl?.querySelector<HTMLElement>("span");
+    if (episodeArtistsEl && episodeArtistsTextEl) {
+      requestAnimationFrame(() => {
+        const viewportWidth = episodeArtistsEl.clientWidth || episodeArtistsEl.offsetWidth;
+        if (viewportWidth > 0) {
+          episodeArtistsEl.style.setProperty("--artists-anim-ref", `${viewportWidth}px`);
+        }
+
+        const textStyle = getComputedStyle(episodeArtistsTextEl);
+        const padLeft = Number.parseFloat(textStyle.paddingLeft) || 0;
+        const padRight = Number.parseFloat(textStyle.paddingRight) || 0;
+        const rawWidth = episodeArtistsTextEl.scrollWidth || episodeArtistsTextEl.offsetWidth;
+        const contentWidth = Math.max(0, rawWidth - padLeft - padRight);
+        const shouldMarquee = viewportWidth > 0 && contentWidth > viewportWidth + 1;
+        episodeArtistsEl.classList.toggle("sl-marquee", shouldMarquee);
+      });
     }
-  
-    setTimeout(() => MetadataContainer.classList.remove("tr_VisuallyHidden"), 80);
-  }, 350);
+
+    return;
+  }
+
+  const artists = SpotifyPlayer.GetArtists();
+  if (artists && ArtistsDiv && ArtistsSpan && contentType !== "episode") {
+    const processedArtists = artists.map((artist) => artist.name)?.join(", ") ?? "";
+    ArtistsSpan.textContent = processedArtists;
+    const yearPos = Defaults.ReleaseYearPosition;
+    const currentAlbumUri = SpotifyPlayer.GetAlbumUri();
+    const trackId = SpotifyPlayer.GetId();
+
+    if (yearPos !== "Off") EnsureNowBarYearFetch(currentAlbumUri, trackId);
+
+    const updateArtistsMarquee = () => {
+      const artistsEl = ArtistsDiv.querySelector<HTMLElement>(".Artists");
+      const artistsTextEl = artistsEl?.querySelector<HTMLElement>("span");
+      if (!artistsEl || !artistsTextEl) return;
+
+      const viewportWidth = artistsEl.clientWidth || artistsEl.offsetWidth;
+      if (viewportWidth > 0) {
+        artistsEl.style.setProperty("--artists-anim-ref", `${viewportWidth}px`);
+      }
+
+      const textStyle = getComputedStyle(artistsTextEl);
+      const padLeft = Number.parseFloat(textStyle.paddingLeft) || 0;
+      const padRight = Number.parseFloat(textStyle.paddingRight) || 0;
+      const rawWidth = artistsTextEl.scrollWidth || artistsTextEl.offsetWidth;
+      const contentWidth = Math.max(0, rawWidth - padLeft - padRight);
+      const shouldMarquee = viewportWidth > 0 && contentWidth > viewportWidth + 1;
+      artistsEl.classList.toggle("sl-marquee", shouldMarquee);
+    };
+
+    const clearYear = () => {
+      ArtistsDiv.querySelector(".ArtistYear")?.remove();
+      ArtistsDiv.removeAttribute("data-sl-year");
+      ArtistsDiv.removeAttribute("data-sl-year-pos");
+      ArtistsDiv.removeAttribute("data-sl-year-album-uri");
+      ArtistsDiv.removeAttribute("data-sl-year-pending");
+      const artistsEl = ArtistsDiv.querySelector<HTMLElement>(".Artists");
+      if (artistsEl) {
+        artistsEl.classList.remove("has-year-before", "has-year-after");
+      }
+      // Re-measure marquee after the year DOM changes.
+      requestAnimationFrame(updateArtistsMarquee);
+    };
+
+    const renderYear = (year: string, pos: string, albumUri: string, pending = false) => {
+      clearYear();
+      if (!year || pos === "Off") return;
+      const artistsEl = ArtistsDiv.querySelector<HTMLElement>(".Artists");
+      if (!artistsEl) return;
+
+      const yearSpan = document.createElement("span");
+      yearSpan.className = `ArtistYear ${pos === "Before Artist" ? "before" : "after"}`;
+      yearSpan.textContent = year;
+      if (pos === "Before Artist") {
+        ArtistsDiv.insertBefore(yearSpan, artistsEl);
+      } else {
+        ArtistsDiv.appendChild(yearSpan);
+      }
+
+      artistsEl.classList.add(pos === "Before Artist" ? "has-year-before" : "has-year-after");
+      requestAnimationFrame(updateArtistsMarquee);
+
+      ArtistsDiv.setAttribute("data-sl-year", year);
+      ArtistsDiv.setAttribute("data-sl-year-pos", pos);
+      ArtistsDiv.setAttribute("data-sl-year-album-uri", albumUri);
+      ArtistsDiv.setAttribute("data-sl-year-pending", pending ? "1" : "0");
+      if (!pending) _lastDisplayedYear = year;
+    };
+
+    if (yearPos === "Off" || !currentAlbumUri) {
+      clearYear();
+      ArtistsDiv.removeAttribute("data-sl-year-requested-album-uri");
+      return;
+    }
+
+    if (currentAlbumUri !== _yearAlbumUri) {
+      _yearAlbumUri = currentAlbumUri;
+      _yearGeneration++;
+    }
+    const generation = _yearGeneration;
+
+    const existingAlbumUri = ArtistsDiv.getAttribute("data-sl-year-album-uri") ?? "";
+    const existingPos = ArtistsDiv.getAttribute("data-sl-year-pos") ?? "";
+    const existingYear = ArtistsDiv.getAttribute("data-sl-year") ?? "";
+    const existingPending = ArtistsDiv.getAttribute("data-sl-year-pending") === "1";
+    if (
+      existingAlbumUri === currentAlbumUri &&
+      existingPos === yearPos &&
+      existingYear &&
+      ArtistsDiv.querySelector(".ArtistYear") &&
+      !existingPending
+    ) {
+      return;
+    }
+
+    const syncYear = SpotifyPlayer.GetAlbumReleaseYearSync();
+    if (syncYear) {
+      _yearCache.set(currentAlbumUri, syncYear);
+      renderYear(syncYear, yearPos, currentAlbumUri);
+      return;
+    }
+
+    const cachedYear = _yearCache.get(currentAlbumUri);
+    if (cachedYear) {
+      renderYear(cachedYear, yearPos, currentAlbumUri);
+      return;
+    }
+
+    const requestedAlbumUri = ArtistsDiv.getAttribute("data-sl-year-requested-album-uri") ?? "";
+    if (requestedAlbumUri !== currentAlbumUri) {
+      ArtistsDiv.setAttribute("data-sl-year-requested-album-uri", currentAlbumUri);
+    }
+
+    let inflight = _yearInflight.get(currentAlbumUri);
+    if (!inflight) {
+      inflight = SpotifyPlayer.GetAlbumReleaseYear(currentAlbumUri);
+      _yearInflight.set(currentAlbumUri, inflight);
+      inflight.finally(() => {
+        if (_yearInflight.get(currentAlbumUri) === inflight) _yearInflight.delete(currentAlbumUri);
+      });
+    }
+
+    if (
+      existingAlbumUri === currentAlbumUri &&
+      existingPos === yearPos &&
+      existingYear &&
+      ArtistsDiv.querySelector(".ArtistYear") &&
+      existingPending
+    ) {
+      return;
+    }
+
+    const placeholderYear = _lastDisplayedYear ?? existingYear;
+    if (placeholderYear) {
+      renderYear(placeholderYear, yearPos, currentAlbumUri, true);
+    } else {
+      clearYear();
+    }
+
+    if (_yearInflightHandlers.get(currentAlbumUri) !== generation) {
+      _yearInflightHandlers.set(currentAlbumUri, generation);
+      inflight
+        .then((year) => {
+          if (!year) return;
+          _yearCache.set(currentAlbumUri, year);
+          if (_yearGeneration !== generation) return;
+          if (SpotifyPlayer.GetAlbumUri() !== currentAlbumUri) return;
+          const currentPos = Defaults.ReleaseYearPosition;
+          if (currentPos === "Off") return;
+          if (!ArtistsDiv?.isConnected) return;
+          renderYear(year, currentPos, currentAlbumUri, false);
+        })
+        .finally(() => {
+          if (_yearInflightHandlers.get(currentAlbumUri) === generation) {
+            _yearInflightHandlers.delete(currentAlbumUri);
+          }
+        });
+    }
+  }
 }
 
+Global.Event.listen("playback:songchange", () => {
+  if (Defaults.ReleaseYearPosition !== "Off") {
+    setTimeout(() => {
+      if (SpotifyPlayer.GetContentType() === "episode") return;
+      EnsureNowBarYearFetch(SpotifyPlayer.GetAlbumUri(), SpotifyPlayer.GetId());
+    }, 0);
+    setTimeout(() => {
+      if (SpotifyPlayer.GetContentType() === "episode") return;
+      EnsureNowBarYearFetch(SpotifyPlayer.GetAlbumUri(), SpotifyPlayer.GetId());
+    }, 250);
+  }
+
+  setTimeout(() => {
+    UpdateNowBar(IsPIP);
+    setTimeout(() => {
+      UpdateNowBar(IsPIP);
+      setTimeout(() => {
+        UpdateNowBar(IsPIP);
+        setTimeout(() => {
+          UpdateNowBar(IsPIP);
+        }, 1000);
+      }, 1000);
+    }, 1000);
+  }, 2000);
+});
 
 function NowBar_SwapSides() {
   const NowBar = PageContainer.querySelector(".ContentBox .NowBar");

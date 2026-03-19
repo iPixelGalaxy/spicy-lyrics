@@ -245,6 +245,21 @@ export function showSettingsPanel() {
     }
   );
 
+  dropdown(
+    "Release Year Position",
+    ["Off", "Before Artist", "After Artist"],
+    Defaults.ReleaseYearPosition === "After Artist"
+      ? 2
+      : Defaults.ReleaseYearPosition === "Before Artist"
+        ? 1
+        : 0,
+    (v) => {
+      storage.set("releaseYearPosition", v);
+      Defaults.ReleaseYearPosition = v;
+      import("../components/Utils/NowBar.ts").then(({ UpdateNowBar }) => UpdateNowBar(true));
+    }
+  );
+
   toggle("Disable Popup Lyrics", !Defaults.PopupLyricsAllowed, (v) => {
     storage.set("disablePopupLyrics", v.toString());
     Defaults.PopupLyricsAllowed = !v;

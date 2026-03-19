@@ -214,7 +214,6 @@ async function main() {
   if (storage.get("replaceSpotifyPlaybar")) {
     Defaults.ReplaceSpotifyPlaybar = storage.get("replaceSpotifyPlaybar") === "true";
   }
-
   if (!storage.get("hide_npv_bg")) {
     storage.set("hide_npv_bg", "false");
   }
@@ -722,7 +721,7 @@ async function main() {
       );
 
       PopupModal.display({
-        title: "Spicy Lyrics Updated!",
+        title: "",
         content: div,
         onClose: () => {
           reactRoot.unmount();

@@ -37,6 +37,7 @@ const Defaults = {
   CustomFontEnabled: false,
   CustomFont: "",
   AlwaysShowInFullscreen: "None" as string,
+  ShowVolumeSliderFullscreen: "Off" as string,
 };
 
 export default Defaults;

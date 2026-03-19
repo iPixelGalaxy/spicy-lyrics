@@ -229,6 +229,22 @@ export function showSettingsPanel() {
     }
   );
 
+  dropdown(
+    "Volume Slider in Fullscreen/Cinema",
+    ["Off", "Left Side", "Right Side", "Below"],
+    Defaults.ShowVolumeSliderFullscreen === "Below"
+      ? 3
+      : Defaults.ShowVolumeSliderFullscreen === "Right Side"
+        ? 2
+        : Defaults.ShowVolumeSliderFullscreen === "Left Side"
+          ? 1
+          : 0,
+    (v) => {
+      storage.set("showVolumeSliderFullscreen", v);
+      Defaults.ShowVolumeSliderFullscreen = v;
+    }
+  );
+
   toggle("Disable Popup Lyrics", !Defaults.PopupLyricsAllowed, (v) => {
     storage.set("disablePopupLyrics", v.toString());
     Defaults.PopupLyricsAllowed = !v;

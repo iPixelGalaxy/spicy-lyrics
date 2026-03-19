@@ -761,29 +761,44 @@ function AppendViewControls(ReAppend: boolean = false) {
             content: `Load TTML`,
           });
         }
-        loadTTMLButton.addEventListener("click", () => {
-          if (IsPIP) {
-            globalThis.focus();
-          }
-
+        const showLoadTTMLModal = () => {
           Spicetify.PopupModal.display({
             title: "Load TTML",
             isLarge: true,
             content: `
+                            <style>.SpicyLyricsDevToolsContainer .SettingValue button { min-width: 140px; box-sizing: border-box; text-align: center; }</style>
                             <div class="SpicyLyricsDevToolsContainer">
                                 <div class="Setting">
-                                    <div class="SettingName"><span>Load TTML for the current song</span></div>
+                                    <div class="SettingName"><span>Temporarily load TTML for the current song</span></div>
                                     <div class="SettingValue">
-                                        <button onclick="window._spicy_lyrics.execute('upload-ttml')">Load TTML</button>
+                                        <button onclick="window.__spicy_ttml_upload_temp?.()">Load Temporary</button>
+                                    </div>
+                                </div>
+                                <div class="Setting">
+                                    <div class="SettingName"><span>Load TTML for the current session (persists until restart)</span></div>
+                                    <div class="SettingValue">
+                                        <button onclick="window.__spicy_ttml_upload_session?.()">Load Session</button>
+                                    </div>
+                                </div>
+                                <div class="Setting">
+                                    <div class="SettingName"><span>Load TTML for the current song (saved permanently)</span></div>
+                                    <div class="SettingValue">
+                                        <button onclick="window.__spicy_ttml_upload_persistent?.()">Load Persistent</button>
                                     </div>
                                 </div>
                                 <div class="Setting">
                                     <div class="SettingName"><span>Reset TTML for the current song</span></div>
                                     <div class="SettingValue">
-                                        <button onclick="window._spicy_lyrics.execute('reset-ttml')">Reset TTML</button>
+                                        <button onclick="window.__spicy_ttml_reset?.()">Reset TTML</button>
                                     </div>
                                 </div>
                                 <div class="Setting" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                                    <div class="SettingName"><span>Browse and manage saved TTML entries</span></div>
+                                    <div class="SettingValue">
+                                        <button onclick="window.__spicy_ttml_explore_db?.()">Browse Database</button>
+                                    </div>
+                                </div>
+                                <div class="Setting">
                                     <div class="SettingName"><span>Need help creating TTML files?</span></div>
                                     <div class="SettingValue">
                                         <button onclick="window.open('https://lyrprep.spicylyrics.org/guide', '_blank')">Open Guide</button>
@@ -792,6 +807,12 @@ function AppendViewControls(ReAppend: boolean = false) {
                             </div>
                         `,
           });
+        };
+        loadTTMLButton.addEventListener("click", () => {
+          if (IsPIP) {
+            globalThis.focus();
+          }
+          showLoadTTMLModal();
         });
       } catch (err) {
         console.warn("Failed to setup LoadTTML tooltip:", err);

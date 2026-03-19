@@ -162,6 +162,7 @@ async function OpenPage(
                         </div>
                         <div class="InlineTimeline"></div>
                         <div class="VolumeSliderUnder"></div>
+                        <div class="InlinePlaybar"></div>
                         <div class="Metadata">
                             <div class="SongName">
                                 <span></span>

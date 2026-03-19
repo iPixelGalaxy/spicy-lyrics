@@ -39,6 +39,7 @@ const Defaults = {
   AlwaysShowInFullscreen: "None" as string,
   ShowVolumeSliderFullscreen: "Off" as string,
   ReleaseYearPosition: "Off" as string,
+  ReplaceSpotifyPlaybar: false,
 };
 
 export default Defaults;

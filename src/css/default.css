@@ -17,6 +17,28 @@ body:has(#SpicyLyricsPage) .playback-bar > .playback-progressbar-container {
   margin-left: calc(var(--playback-bar-grid-gap, 8px) + 50px);
 }
 
+body.SpicyLyrics__PlaybackBarHidden .playback-bar {
+  display: none !important;
+}
+
+body.SpicyLyrics__PlaybackBarHidden
+  .main-nowPlayingBar-container:has(.main-connectBar-connectBar.main-connectBar-connected) {
+  display: flex !important;
+  min-height: var(--encore-graphic-size-decorative-larger, 40px);
+}
+
+body.SpicyLyrics__PlaybackBarHidden
+  .main-nowPlayingBar-container:has(.main-connectBar-connectBar.main-connectBar-connected)
+  .main-connectBar-connectBar {
+  display: flex !important;
+}
+
+body.SpicyLyrics__PlaybackBarHidden
+  .main-nowPlayingBar-container:has(.main-connectBar-connectBar.main-connectBar-connected)
+  .playback-bar {
+  display: none !important;
+}
+
 .main-nowPlayingView-contextItemInfo::before {
   display: none;
 }

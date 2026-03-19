@@ -260,6 +260,11 @@ export function showSettingsPanel() {
     }
   );
 
+  toggle("Replace Spotify Playbar with NowBar", Defaults.ReplaceSpotifyPlaybar, (v) => {
+    storage.set("replaceSpotifyPlaybar", v.toString());
+    Defaults.ReplaceSpotifyPlaybar = v;
+  });
+
   toggle("Disable Popup Lyrics", !Defaults.PopupLyricsAllowed, (v) => {
     storage.set("disablePopupLyrics", v.toString());
     Defaults.PopupLyricsAllowed = !v;

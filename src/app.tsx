@@ -49,7 +49,7 @@ import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 // Unused import removed: import sleep from "./utils/sleep";
-import { setSettingsMenu } from "./utils/settings.ts";
+import "./utils/settings.ts";
 import storage from "./utils/storage.ts";
 import { CheckForUpdates } from "./utils/version/CheckForUpdates.tsx";
 import "./css/polyfills/tippy-polyfill.css";
@@ -253,14 +253,21 @@ async function main() {
     document.body.classList.add("sl_settings_top");
   }
 
-  // Lets set out the Settings Menu
-  setSettingsMenu();
-
-  const OldStyleFont = storage.get("old-style-font");
-  if (OldStyleFont !== "true") {
-    LoadFonts();
-    ApplyFontPixel();
+  if (storage.get("customFontEnabled") === "true") {
+    Defaults.CustomFontEnabled = true;
   }
+
+  if (storage.get("customFont")) {
+    Defaults.CustomFont = storage.get("customFont").toString();
+  }
+
+  if (Defaults.CustomFontEnabled && Defaults.CustomFont) {
+    document.documentElement.style.setProperty("--spicy-custom-font", Defaults.CustomFont);
+  }
+
+  LoadFonts();
+  ApplyFontPixel();
+  (window as any).__spicy_load_fonts = () => { LoadFonts(); ApplyFontPixel(); };
 
   const skeletonStyle = document.createElement("style");
   skeletonStyle.innerHTML = `

@@ -8,8 +8,6 @@ const Defaults = {
   },
   CurrentLyricsType: "None",
   LyricsContainerExists: false,
-  SkipSpicyFont: false,
-  OldStyleFont: false,
   SpicyLyricsVersion: "0.0.0",
   show_topbar_notifications: true,
   PrefersReducedMotion: false,
@@ -36,6 +34,8 @@ const Defaults = {
   ShowLatencyIndicator: false,
   BuildChannel: "Stable" as string,
   SyllableRendering: "Default" as string,
+  CustomFontEnabled: false,
+  CustomFont: "",
 };
 
 export default Defaults;

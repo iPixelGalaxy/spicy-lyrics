@@ -9,7 +9,6 @@ import { QueueForceScroll, ResetLastLine } from "../../utils/Scrolling/ScrollToA
 import storage from "../../utils/storage.ts";
 import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
-import Defaults from "../Global/Defaults.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import PageView, { PageContainer } from "../Pages/PageView.ts";
 import { Icons } from "../Styling/Icons.ts";
@@ -48,6 +47,79 @@ export const NowBarObj = {
   Open: false,
   _inlineSetupTimer: null as ReturnType<typeof setTimeout> | null,
 };
+
+export function HideSpotifyPlaybackBar() {
+  document.body.classList.add("SpicyLyrics__PlaybackBarHidden");
+}
+
+export function RestoreSpotifyPlaybackBar() {
+  document.body.classList.remove("SpicyLyrics__PlaybackBarHidden");
+}
+
+function IsDevicePickerOpen() {
+  const devicePickerButton = document.querySelector<HTMLElement>(
+    '[data-restore-focus-key="device_picker"]'
+  );
+
+  if (
+    devicePickerButton?.getAttribute("aria-expanded") === "true" ||
+    devicePickerButton?.getAttribute("aria-pressed") === "true"
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    document.querySelector(
+      ".Root__right-sidebar .oXO9_yYs6JyOwkBn8E4a:has(.Ot1yAtVbjD2owYqmw6BK)"
+    )
+  );
+}
+
+function SyncSpotifyPlaybackBarVisibility() {
+  const shouldHidePlaybackBar =
+    Defaults.ReplaceSpotifyPlaybar &&
+    NowBarObj.Open &&
+    PageView.IsOpened &&
+    !Fullscreen.IsOpen &&
+    !isSpicySidebarMode &&
+    !IsDevicePickerOpen();
+
+  if (shouldHidePlaybackBar) {
+    HideSpotifyPlaybackBar();
+    return;
+  }
+
+  RestoreSpotifyPlaybackBar();
+}
+
+let PlaybackBarVisibilityObserver: MutationObserver | null = null;
+let PlaybackBarVisibilitySyncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+function QueueSyncSpotifyPlaybackBarVisibility(delay = 0) {
+  if (PlaybackBarVisibilitySyncTimeout) {
+    clearTimeout(PlaybackBarVisibilitySyncTimeout);
+  }
+
+  PlaybackBarVisibilitySyncTimeout = setTimeout(() => {
+    PlaybackBarVisibilitySyncTimeout = null;
+    SyncSpotifyPlaybackBarVisibility();
+  }, delay);
+}
+
+function EnsurePlaybackBarVisibilityObserver() {
+  if (PlaybackBarVisibilityObserver || !document.body) return;
+
+  PlaybackBarVisibilityObserver = new MutationObserver(() => {
+    QueueSyncSpotifyPlaybackBarVisibility();
+  });
+
+  PlaybackBarVisibilityObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["aria-expanded", "aria-pressed", "class"],
+  });
+}
 
 // Inline controls instances (separate from the overlay controls)
 let InlinePlaybackControlsInstance: PlaybackControlsInstance | null = null;
@@ -442,9 +514,13 @@ function SetupInlineControls() {
 
   const setting = Defaults.AlwaysShowInFullscreen;
   const inFullscreen = Fullscreen.IsOpen;
+  const replacePlaybar =
+    Defaults.ReplaceSpotifyPlaybar && !inFullscreen && !isSpicySidebarMode;
 
-  const showTimeline = inFullscreen && (setting === "Time" || setting === "Both");
-  const showControls = inFullscreen && (setting === "Controls" || setting === "Both");
+  const showTimeline =
+    replacePlaybar || (inFullscreen && (setting === "Time" || setting === "Both"));
+  const showControls =
+    replacePlaybar || (inFullscreen && (setting === "Controls" || setting === "Both"));
 
   if (!showTimeline && !showControls) return;
 
@@ -482,8 +558,10 @@ function OpenNowBar(skipSaving: boolean = false) {
   if (isSpicySidebarMode) {
     spicyLyricsPage?.classList.add("NowBarStatus__Closed");
     spicyLyricsPage?.classList.remove("NowBarStatus__Open");
+    RestoreSpotifyPlaybackBar();
     return;
   }
+  EnsurePlaybackBarVisibilityObserver();
   UpdateNowBar(true);
   NowBar.classList.add("Active");
 
@@ -493,6 +571,7 @@ function OpenNowBar(skipSaving: boolean = false) {
   }
 
   if (!skipSaving) storage.set("IsNowBarOpen", "true");
+  QueueSyncSpotifyPlaybackBarVisibility();
 
   setTimeout(() => {
     // console.log("Resizing Lyrics Container");
@@ -728,6 +807,7 @@ function OpenNowBar(skipSaving: boolean = false) {
   NowBarObj.Open = true;
   PageView.AppendViewControls(true);
   SetupInlineControls();
+  QueueSyncSpotifyPlaybackBarVisibility();
 }
 
 function CleanUpActiveComponents() {
@@ -784,6 +864,7 @@ function CloseNowBar() {
   storage.set("IsNowBarOpen", "false");
   CleanUpActiveComponents();
   CleanUpInlineControls();
+  RestoreSpotifyPlaybackBar();
 
   const spicyLyricsPage = PageContainer;
   if (spicyLyricsPage) {
@@ -799,6 +880,7 @@ function CloseNowBar() {
   }, 10);
 
   PageView.AppendViewControls(true);
+  QueueSyncSpotifyPlaybackBarVisibility();
 }
 
 function ToggleNowBar() {
@@ -1421,6 +1503,7 @@ Global.Event.listen("playback:position", (e: number) => {
     );
     if (updateTimelineState) updateTimelineState(e);
   }
+  QueueSyncSpotifyPlaybackBarVisibility();
 });
 
 Global.Event.listen("fullscreen:open", () => {
@@ -1459,6 +1542,7 @@ Global.Event.listen("fullscreen:exit", () => {
       SetupInlineControls();
     }
   }, 100);
+  QueueSyncSpotifyPlaybackBarVisibility(150);
 });
 
 Global.Event.listen("page:destroy", () => {
@@ -1466,9 +1550,16 @@ Global.Event.listen("page:destroy", () => {
     clearTimeout(NowBarObj._inlineSetupTimer);
     NowBarObj._inlineSetupTimer = null;
   }
+  if (PlaybackBarVisibilitySyncTimeout) {
+    clearTimeout(PlaybackBarVisibilitySyncTimeout);
+    PlaybackBarVisibilitySyncTimeout = null;
+  }
+  PlaybackBarVisibilityObserver?.disconnect();
+  PlaybackBarVisibilityObserver = null;
   CleanupMediaBox();
   CleanUpActiveComponents();
   CleanUpInlineControls();
+  RestoreSpotifyPlaybackBar();
 });
 
 Global.Event.listen("nowbar:timeline:dragging", () => {

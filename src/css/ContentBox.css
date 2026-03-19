@@ -654,6 +654,12 @@
   position: relative;
 }
 
+body.SpicyLyrics__PlaybackBarHidden #SpicyLyricsPage .ContentBox .NowBar .Header .InlineTimeline {
+  display: flex;
+  width: 100%;
+  position: relative;
+}
+
 #SpicyLyricsPage.Fullscreen .ContentBox .NowBar .Header .InlineTimeline .Timeline {
   position: relative;
   bottom: auto;
@@ -671,7 +677,31 @@
   container-type: size;
 }
 
+body.SpicyLyrics__PlaybackBarHidden #SpicyLyricsPage .ContentBox .NowBar .Header .InlinePlaybackControls {
+  display: flex;
+  width: 100%;
+  height: 10cqw;
+  container-type: size;
+}
+
 #SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .Header
+  .InlinePlaybackControls
+  .PlaybackControls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100cqw;
+  height: 100cqh;
+  padding: 0 5cqw;
+  container-type: size;
+}
+
+body.SpicyLyrics__PlaybackBarHidden
+  #SpicyLyricsPage
   .ContentBox
   .NowBar
   .Header

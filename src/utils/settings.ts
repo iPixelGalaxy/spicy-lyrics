@@ -2,6 +2,85 @@ import Defaults from "../components/Global/Defaults.ts";
 import storage from "./storage.ts";
 import { RemoveAllLyricsCaches, RemoveCurrentLyrics_AllCaches, RemoveCurrentLyrics_StateCache, RemoveLyricsCache, ReloadCurrentLyrics } from "./LyricsCacheTools.ts";
 
+function attachDevModeGesture() {
+  let rightClickCount = 0;
+  let leftClickCount = 0;
+  let clickTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const resetCounts = () => {
+    rightClickCount = 0;
+    leftClickCount = 0;
+  };
+
+  const queueReset = () => {
+    if (clickTimeout) clearTimeout(clickTimeout);
+    clickTimeout = setTimeout(resetCounts, 3000);
+  };
+
+  const setupHeading = () => {
+    const container = document.getElementById("spicy-lyrics-settings");
+    if (!container) return;
+
+    const heading = container.querySelector<HTMLElement>("h2");
+    if (!heading || (heading as any).__spicy_devmode_gesture) return;
+    (heading as any).__spicy_devmode_gesture = true;
+
+    heading.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      rightClickCount++;
+      leftClickCount = 0;
+      queueReset();
+
+      if (rightClickCount < 7) return;
+
+      resetCounts();
+      storage.set("developerMode", "true");
+      Spicetify.showNotification("Developer Mode enabled");
+    });
+
+    heading.addEventListener("click", (e) => {
+      if ((e as MouseEvent).button !== 0) return;
+
+      leftClickCount++;
+      rightClickCount = 0;
+      queueReset();
+
+      if (leftClickCount < 6) return;
+
+      resetCounts();
+      storage.set("developerMode", "false");
+      Spicetify.showNotification("Developer Mode disabled");
+    });
+  };
+
+  const waitAndSetup = () => {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+
+      if (document.getElementById("spicy-lyrics-settings")) {
+        clearInterval(interval);
+        setupHeading();
+        return;
+      }
+
+      if (attempts > 100) {
+        clearInterval(interval);
+      }
+    }, 50);
+  };
+
+  Spicetify.Platform.History.listen((e: any) => {
+    if (e.pathname === "/preferences") {
+      waitAndSetup();
+    }
+  });
+
+  if (Spicetify.Platform.History.location.pathname === "/preferences") {
+    waitAndSetup();
+  }
+}
+
 export function showSettingsPanel() {
   if (document.querySelector(".SpicyLyricsSettingsOverlay")) return;
 
@@ -356,17 +435,10 @@ export function showSettingsPanel() {
     (window as any)._spicy_lyrics_channels?.showSwitcher?.();
   });
 
-  toggle("Show Latency to Server", Defaults.ShowLatencyIndicator, (v) => {
-    storage.set("showLatencyIndicator", v.toString());
-    Defaults.ShowLatencyIndicator = v;
-    window.location.reload();
-  });
-
   if (storage.get("developerMode") === "true") {
     toggle("Developer Mode", Defaults.DeveloperMode, (v) => {
       storage.set("developerMode", v.toString());
       Defaults.DeveloperMode = v;
-      window.location.reload();
     });
   }
 
@@ -391,4 +463,5 @@ export async function setSettingsMenu() {
   );
 
   settings.pushSettings();
+  attachDevModeGesture();
 }

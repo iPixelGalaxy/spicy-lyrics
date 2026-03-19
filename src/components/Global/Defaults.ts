@@ -31,7 +31,6 @@ const Defaults = {
   DeveloperMode: false,
   RightAlignLyrics: false,
   EscapeKeyFunction: "Default" as string,
-  ShowLatencyIndicator: false,
   BuildChannel: "Stable" as string,
   SyllableRendering: "Default" as string,
   CustomFontEnabled: false,

@@ -236,12 +236,8 @@ async function main() {
     Defaults.EscapeKeyFunction = storage.get("escapeKeyFunction").toString() as string;
   }
 
-  if (!storage.get("showLatencyIndicator")) {
-    storage.set("showLatencyIndicator", "false");
-  }
-
-  if (storage.get("showLatencyIndicator")) {
-    Defaults.ShowLatencyIndicator = storage.get("showLatencyIndicator") === "true";
+  if (storage.get("developerMode")) {
+    Defaults.DeveloperMode = storage.get("developerMode") === "true";
   }
 
   if (!storage.get("syllableRendering")) {
@@ -728,7 +724,6 @@ async function main() {
       PopupModal.display({
         title: "Spicy Lyrics Updated!",
         content: div,
-        isLarge: true,
         onClose: () => {
           reactRoot.unmount();
         }
@@ -1176,13 +1171,6 @@ async function main() {
   Hometinue();
 
   
-  /* if (storage.get("developerMode") === "true") {
-    connectionIndicatorInit();
-  } */
 }
 
 main();
-
-if (storage.get("showLatencyIndicator") === "true") {
-  connectionIndicatorInit();
-}

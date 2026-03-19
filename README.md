@@ -46,7 +46,15 @@ Spicy Lyrics replaces Spotify's plain, static lyrics with a fully animated, imme
 
 ## What's New
 
-### v100.10.14 — Latest
+### v100.10.15 — Latest
+
+- **Unified update popups** — the "updated" and "update available" dialogs now match the newer Spicy Lyrics modal styling
+- **Hidden custom build channels** — custom channel controls are now tucked behind a seven-right-click unlock gesture on the Build Channel label to keep the default UI cleaner
+- **Removed** the old server latency / connection indicator setting and related UI
+
+---
+
+### v100.10.14
 
 - **Rebased on main Spicy Lyrics** — refreshed the iPixel dev build onto the current mainline Spicy Lyrics base
 - **Compact / fullscreen NowBar layout fixes** — tightened the compact NowBar so metadata, timeline, and controls no longer sprawl across the view
@@ -178,11 +186,12 @@ Once the plugin is loaded, you need to point it at the dev server:
 2. Scroll down until you see the **Spicy Lyrics** section
 3. Click **Open Settings**
 4. Scroll to the bottom and find **Build Channel** under the **Advanced** section, then click **Manage**
-5. Enter `ipixelgalaxy.com` as the server URL
-6. Check the **"Use the same host for both API and Storage"** box
-7. Name the branch something like **`iPixel Dev`**
-8. Click **Save Channel**
-9. Click **Apply & Reload** — Spicy Lyrics will restart on the dev channel
+5. If the custom channel controls are hidden, right-click the **Build Channel** label seven times quickly to unlock custom channels
+6. Enter `ipixelgalaxy.com` as the server URL
+7. Check the **"Use the same host for both API and Storage"** box
+8. Name the branch something like **`iPixel Dev`**
+9. Click **Save Channel**
+10. Click **Apply & Reload** — Spicy Lyrics will restart on the dev channel
 
 ---
 

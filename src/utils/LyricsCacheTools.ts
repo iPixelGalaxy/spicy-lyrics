@@ -40,6 +40,36 @@ export const RemoveCurrentLyrics_AllCaches = async (ui: boolean = false) => {
   }
 };
 
+export const RemoveAllLyricsCaches = async (ui: boolean = false) => {
+  try {
+    await LyricsStore.Destroy();
+    storage.set("currentLyricsData", null);
+    ui
+      ? ShowNotification(
+          "All lyrics caches have been cleared successfully",
+          "success"
+        )
+      : null;
+    if (PageView.IsOpened) {
+      const uri = SpotifyPlayer.GetUri();
+      if (uri && uri !== undefined) {
+        fetchLyrics(uri).then(ApplyLyrics);
+      }
+    }
+  } catch (error) {
+    ui
+      ? ShowNotification(
+          `
+                <p>All lyrics caches couldn't be cleared</p>
+                <p style="opacity: 0.75;">Check the console for more info</p>
+            `,
+          "error"
+        )
+      : null;
+    console.error("SpicyLyrics:", error);
+  }
+};
+
 export const RemoveLyricsCache = async (ui: boolean = false) => {
   try {
     await LyricsStore.Destroy();

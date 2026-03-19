@@ -1,7 +1,7 @@
 import { Component, Spicetify } from "@spicetify/bundler";
 import Defaults from "../components/Global/Defaults.ts";
 import storage from "./storage.ts";
-import { RemoveCurrentLyrics_AllCaches, RemoveCurrentLyrics_StateCache, RemoveLyricsCache, ReloadCurrentLyrics } from "./LyricsCacheTools.ts";
+import { RemoveAllLyricsCaches, RemoveCurrentLyrics_AllCaches, RemoveCurrentLyrics_StateCache, RemoveLyricsCache, ReloadCurrentLyrics } from "./LyricsCacheTools.ts";
 
 Component.AddRootComponent("lCache", {
   RemoveCurrentLyrics_AllCaches,
@@ -236,6 +236,11 @@ export function showSettingsPanel() {
 
   // --- Cache ---
   group("Cache");
+
+  button("Clear All Cache", "Clear", async () => {
+    if (!confirm("Clear all saved lyrics cache and the current loaded lyrics?")) return;
+    await RemoveAllLyricsCaches(true);
+  });
 
   button("Clear Lyrics for the current song from all caches", "Clear Current Song", async () => {
     if (!confirm("Clear all cached data for the current song?")) return;

@@ -35,6 +35,7 @@ const Defaults = {
   EscapeKeyFunction: "Default" as string,
   ShowLatencyIndicator: false,
   BuildChannel: "Stable" as string,
+  SyllableRendering: "Default" as string,
 };
 
 export default Defaults;

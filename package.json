@@ -3,7 +3,7 @@
   "author": "Spikerko",
   "scripts": {
     "sc": "spicetify-creator",
-    "dev": "spicetify-creator dev",
+    "dev": "spicetify enable-devtools && spicetify-creator dev",
     "build": "spicetify-creator build",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",

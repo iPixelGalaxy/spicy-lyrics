@@ -195,6 +195,17 @@ function generalSettings(SettingsSection: any) {
     storage.set("settingsOnTop", settings.getFieldValue("settings-on-top") as string);
   });
 
+  settings.addToggle(
+    "replace-spotify-playbar",
+    "Replace Spotify Playbar with NowBar",
+    Defaults.ReplaceSpotifyPlaybar,
+    () => {
+      const value = settings.getFieldValue("replace-spotify-playbar") as string;
+      storage.set("replaceSpotifyPlaybar", value);
+      Defaults.ReplaceSpotifyPlaybar = value === "true";
+    }
+  );
+
   settings.addButton(
     "save-n-reload",
     "Save your current settings and reload.",

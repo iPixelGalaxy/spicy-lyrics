@@ -1,6 +1,4 @@
-import { Spicetify } from "@spicetify/bundler";
 import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
-import { actions } from "../../../../actions.ts";
 import storage from "../../../../utils/storage.ts";
 import {
   showIframeProfileModal,
@@ -34,10 +32,6 @@ export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
 
 // Kept for any external callers that may still reference this export
 export const unmountTTMLProfileReactRoot = () => {};
-
-actions.push("lyricsProfile", (userId: string) => {
-  showIframeProfileModal(userId);
-});
 
 export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): void {
   if (!data.source || !LyricsContainer) return;

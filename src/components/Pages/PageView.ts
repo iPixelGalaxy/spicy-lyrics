@@ -160,8 +160,8 @@ async function OpenPage(
                               <div class="ti_ToImage ib_ImageBox"></div>
                             </div>
                         </div>
-                        <div class="InlineTimeline"></div>
                         <div class="VolumeSliderUnder"></div>
+                        <div class="InlineTimeline"></div>
                         <div class="InlinePlaybar"></div>
                         <div class="Metadata">
                             <div class="SongName">

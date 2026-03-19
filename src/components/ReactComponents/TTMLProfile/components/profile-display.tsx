@@ -1,7 +1,6 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Query } from "../../../../utils/API/Query.ts";
-import { Spicetify } from "@spicetify/bundler";
 import { PopupModal } from "../../../Modal.ts";
 
 class ErrorBoundary extends React.Component {

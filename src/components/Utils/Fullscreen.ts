@@ -8,7 +8,7 @@ import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 import Session from "../Global/Session.ts";
 import PageView, { Compactify, GetPageRoot, PageContainer, Tooltips } from "../Pages/PageView.ts";
-import { EnableCompactMode, IsCompactMode } from "./CompactMode.ts";
+import { DisableCompactMode, EnableCompactMode, IsCompactMode } from "./CompactMode.ts";
 import { CleanUpNowBarComponents, CloseNowBar, DeregisterNowBarBtn, OpenNowBar } from "./NowBar.ts";
 import { IsPIP } from "./PopupLyrics.ts";
 import { CloseSidebarLyrics, isSpicySidebarMode } from "./SidebarLyrics.ts";
@@ -355,6 +355,14 @@ function Close(isPip: boolean = false) {
 
     if (storage.get("IsNowBarOpen") !== "true") {
       CloseNowBar();
+    }
+
+    if (!isPip) {
+      // Compact mode is fullscreen/cinema behavior only. Reset visual/state classes on exit.
+      SpicyPage.classList.remove("CompactifyEnabledCompactMode", "ForcedCompactMode");
+      if (IsCompactMode()) {
+        DisableCompactMode();
+      }
     }
 
     CleanupMediaBox();

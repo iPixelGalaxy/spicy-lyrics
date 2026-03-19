@@ -1,5 +1,3 @@
-import { Spicetify } from "@spicetify/bundler";
-
 // Spotify's own volume icons (extracted from the Spotify web player)
 let cleanupFn: (() => void) | null = null;
 

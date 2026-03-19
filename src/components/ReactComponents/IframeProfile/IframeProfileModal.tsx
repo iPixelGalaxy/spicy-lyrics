@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { Spicetify } from "@spicetify/bundler";
 import { Query } from "../../../utils/API/Query.ts";
 import storage from "../../../utils/storage.ts";
 

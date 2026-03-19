@@ -46,7 +46,7 @@ export const RemoveAllLyricsCaches = async (ui: boolean = false) => {
     storage.set("currentLyricsData", null);
     ui
       ? ShowNotification(
-          "All lyrics caches have been cleared successfully",
+          "All cached lyrics and the current loaded lyrics have been cleared",
           "success"
         )
       : null;
@@ -60,7 +60,7 @@ export const RemoveAllLyricsCaches = async (ui: boolean = false) => {
     ui
       ? ShowNotification(
           `
-                <p>All lyrics caches couldn't be cleared</p>
+                <p>All cached lyrics could not be cleared</p>
                 <p style="opacity: 0.75;">Check the console for more info</p>
             `,
           "error"

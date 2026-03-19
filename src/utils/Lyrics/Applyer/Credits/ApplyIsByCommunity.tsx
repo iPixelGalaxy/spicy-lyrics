@@ -15,8 +15,10 @@ const devLog = (...args: any[]) => {
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
 
-export function CleanUpIsByCommunity() {
-  closeIframeProfileModal();
+export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
+  if (closeProfileModal) {
+    closeIframeProfileModal();
+  }
   if (isByCommunityAbortController) {
     isByCommunityAbortController.abort();
     isByCommunityAbortController = null;

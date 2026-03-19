@@ -354,7 +354,7 @@ function DestroyPage() {
   PageView.IsOpened = false;
   Defaults.LyricsContainerExists = false;
   DestroyAllLyricsContainers();
-  CleanUpIsByCommunity();
+  CleanUpIsByCommunity(true);
 
   const legacyPage = document.querySelector<HTMLElement>(
     ".Root__main-view .main-view-container .os-host"

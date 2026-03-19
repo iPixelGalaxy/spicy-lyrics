@@ -153,29 +153,31 @@ export function showSettingsPanel() {
     customFontRow = row;
   }
 
-  toggle("Simple Lyrics Mode", Defaults.SimpleLyricsMode, (v) => {
-    storage.set("simpleLyricsMode", v.toString());
-    Defaults.SimpleLyricsMode = v;
-    ReloadCurrentLyrics();
-  });
-
-  dropdown(
-    "Simple Lyrics Mode - Rendering Type",
-    ["Calculate (More performant)", "Animate (Legacy, More laggier)"],
-    Defaults.SimpleLyricsMode_RenderingType_Default,
-    (v) => {
-      const processed = v === "Animate (Legacy, More laggier)" ? "animate" : "calculate";
-      storage.set("simpleLyricsModeRenderingType", processed);
-      Defaults.SimpleLyricsMode_RenderingType = processed;
-      ReloadCurrentLyrics();
-    }
-  );
-
   toggle("Minimal Lyrics Mode (Only in Fullscreen/Cinema View)", Defaults.MinimalLyricsMode, (v) => {
     storage.set("minimalLyricsMode", v.toString());
     Defaults.MinimalLyricsMode = v;
     ReloadCurrentLyrics();
   });
+
+  dropdown(
+    "Simple Lyrics",
+    ["Off", "Calculate (Performance)", "Animated (Legacy, Laggy)"],
+    !Defaults.SimpleLyricsMode
+      ? 0
+      : Defaults.SimpleLyricsMode_RenderingType === "animate"
+        ? 2
+        : 1,
+    (v) => {
+      const simpleLyricsEnabled = v !== "Off";
+      const processed = v === "Animated (Legacy, Laggy)" ? "animate" : "calculate";
+      storage.set("simpleLyricsMode", simpleLyricsEnabled.toString());
+      storage.set("simpleLyricsModeRenderingType", processed);
+      Defaults.SimpleLyricsMode = simpleLyricsEnabled;
+      Defaults.SimpleLyricsMode_RenderingType = processed;
+      Defaults.SimpleLyricsMode_RenderingType_Default = processed === "animate" ? 1 : 0;
+      ReloadCurrentLyrics();
+    }
+  );
 
   // --- Background ---
   group("Background");

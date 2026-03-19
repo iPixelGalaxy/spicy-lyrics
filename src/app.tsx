@@ -204,6 +204,14 @@ async function main() {
     Defaults.EscapeKeyFunction = storage.get("escapeKeyFunction").toString() as string;
   }
 
+  if (!storage.get("showLatencyIndicator")) {
+    storage.set("showLatencyIndicator", "false");
+  }
+
+  if (storage.get("showLatencyIndicator")) {
+    Defaults.ShowLatencyIndicator = storage.get("showLatencyIndicator") === "true";
+  }
+
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
   window._spicy_lyrics_metadata = {}
 
@@ -1123,3 +1131,7 @@ async function main() {
 }
 
 main();
+
+if (storage.get("showLatencyIndicator") === "true") {
+  connectionIndicatorInit();
+}

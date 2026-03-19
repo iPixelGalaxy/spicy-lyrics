@@ -12,6 +12,81 @@ export async function setSettingsMenu() {
   generalSettings(SettingsSection);
   devSettings(SettingsSection);
   //infos(SettingsSection);
+
+  attachDevModeGesture();
+}
+
+function isDevModeEnabled(): boolean {
+  return storage.get("developerMode") === "true";
+}
+
+function isDevEnvironment(): boolean {
+  // True when running deno run dev, or when Spicetify devtools are active
+  if ((window as any).__spicy_lyrics_dev_local) return true;
+  if ((Spicetify as any).Config?.enableDevTools) return true;
+  if ((Spicetify as any).Config?.devtools) return true;
+  return false;
+}
+
+function attachDevModeGesture() {
+  let rightClickCount = 0;
+  let leftClickCount = 0;
+  let clickTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  const setupHeading = () => {
+    const container = document.getElementById("spicy-lyrics-settings");
+    if (!container) return;
+    const heading = container.querySelector<HTMLElement>("h2");
+    if (!heading || (heading as any).__spicy_devmode_gesture) return;
+    (heading as any).__spicy_devmode_gesture = true;
+
+    heading.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      rightClickCount++;
+      leftClickCount = 0;
+      if (clickTimeout) clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => { rightClickCount = 0; leftClickCount = 0; }, 3000);
+      if (rightClickCount >= 7) {
+        rightClickCount = 0;
+        storage.set("developerMode", "true");
+        Spicetify.showNotification("Developer Mode enabled");
+      }
+    });
+
+    heading.addEventListener("click", (e) => {
+      if ((e as MouseEvent).button !== 0) return;
+      rightClickCount = 0;
+      leftClickCount++;
+      if (clickTimeout) clearTimeout(clickTimeout);
+      clickTimeout = setTimeout(() => { rightClickCount = 0; leftClickCount = 0; }, 3000);
+      if (leftClickCount >= 6) {
+        leftClickCount = 0;
+        storage.set("developerMode", "false");
+        Spicetify.showNotification("Developer Mode disabled");
+      }
+    });
+  };
+
+  const waitAndSetup = () => {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (document.getElementById("spicy-lyrics-settings")) {
+        setupHeading();
+        clearInterval(interval);
+      } else if (attempts > 100) {
+        clearInterval(interval);
+      }
+    }, 50);
+  };
+
+  Spicetify.Platform.History.listen((e: any) => {
+    if (e.pathname === "/preferences") waitAndSetup();
+  });
+
+  if (Spicetify.Platform.History.location.pathname === "/preferences") {
+    waitAndSetup();
+  }
 }
 
 function devSettings(SettingsSection: any) {
@@ -46,10 +121,17 @@ function devSettings(SettingsSection: any) {
     window.location.reload();
   });
 
-  settings.addToggle("developer-mode", "Developer Mode", Defaults.DeveloperMode, () => {
-    storage.set("developerMode", settings.getFieldValue("developer-mode") as string);
+  settings.addToggle("show-latency-indicator", "Latency to Server (Performance Heavy)", Defaults.ShowLatencyIndicator, () => {
+    storage.set("showLatencyIndicator", settings.getFieldValue("show-latency-indicator").toString());
     window.location.reload();
   });
+
+  if (isDevModeEnabled()) {
+    settings.addToggle("developer-mode", "Developer Mode", true, () => {
+      storage.set("developerMode", settings.getFieldValue("developer-mode").toString());
+      window.location.reload();
+    });
+  }
 
   settings.pushSettings();
 }

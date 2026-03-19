@@ -34,6 +34,7 @@ const Defaults = {
   RightAlignLyrics: false,
   EscapeKeyFunction: "Default" as string,
   ShowLatencyIndicator: false,
+  BuildChannel: "Stable" as string,
 };
 
 export default Defaults;

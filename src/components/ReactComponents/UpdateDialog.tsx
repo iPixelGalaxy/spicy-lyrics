@@ -1,4 +1,5 @@
 import React from "react";
+import Session from "../Global/Session.ts";
 
 interface UpdateDialogProps {
   fromVersion: string;
@@ -6,9 +7,17 @@ interface UpdateDialogProps {
 }
 
 const UpdateDialog: React.FC<UpdateDialogProps> = ({ fromVersion, spicyLyricsVersion }) => {
+  const prev = fromVersion ? Session.SpicyLyrics.ParseVersion(fromVersion) : undefined;
+  const curr = spicyLyricsVersion ? Session.SpicyLyrics.ParseVersion(spicyLyricsVersion) : undefined;
+
+  const isDowngrade = prev && curr ? Session.SpicyLyrics.CompareVersions(curr, prev) < 0 : false;
   return (
     <div className="update-card-wrapper slm">
-      <h2 className="header">Spicy Lyrics has been successfully updated!</h2>
+      <h2 className="header">
+        {isDowngrade
+          ? "Spicy Lyrics has been downgraded!"
+          : "Spicy Lyrics has been successfully updated!"}
+      </h2>
       <div className="card version">
         Version: {fromVersion ? `${fromVersion} → ` : ""}{spicyLyricsVersion || "Unknown"}
       </div>

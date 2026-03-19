@@ -36,6 +36,7 @@ const Defaults = {
   SyllableRendering: "Default" as string,
   CustomFontEnabled: false,
   CustomFont: "",
+  AlwaysShowInFullscreen: "None" as string,
 };
 
 export default Defaults;

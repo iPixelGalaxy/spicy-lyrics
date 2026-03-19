@@ -213,6 +213,22 @@ export function showSettingsPanel() {
     }
   );
 
+  dropdown(
+    "Always show in Fullscreen/Cinema",
+    ["None", "Time", "Controls", "Both"],
+    Defaults.AlwaysShowInFullscreen === "Both"
+      ? 3
+      : Defaults.AlwaysShowInFullscreen === "Controls"
+        ? 2
+        : Defaults.AlwaysShowInFullscreen === "Time"
+          ? 1
+          : 0,
+    (v) => {
+      storage.set("alwaysShowInFullscreen", v);
+      Defaults.AlwaysShowInFullscreen = v;
+    }
+  );
+
   toggle("Disable Popup Lyrics", !Defaults.PopupLyricsAllowed, (v) => {
     storage.set("disablePopupLyrics", v.toString());
     Defaults.PopupLyricsAllowed = !v;
@@ -283,7 +299,6 @@ export async function setSettingsMenu() {
 
   const { SettingsSection } = await import("../edited_packages/spcr-settings/settingsSection.tsx");
   const settings = new SettingsSection("Spicy Lyrics", "spicy-lyrics-settings");
-
   settings.addButton(
     "open-spicy-settings",
     "Open the Spicy Lyrics settings panel",

@@ -1163,6 +1163,14 @@ function EnsureNowBarYearFetch(albumUri?: string, trackId?: string): void {
   }
 }
 
+function ResolveNowBarCoverUrl(coverArt: string): string {
+  if (coverArt.startsWith("spotify:image:")) {
+    return `https://i.scdn.co/image/${coverArt.replace("spotify:image:", "")}`;
+  }
+
+  return coverArt;
+}
+
 function UpdateNowBar(force = false) {
   const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
@@ -1179,7 +1187,7 @@ function UpdateNowBar(force = false) {
 
   const coverArt = SpotifyPlayer.GetCover("xlarge");
   if (MediaImageContainer && coverArt && MediaImageContainer.getAttribute("last-image") !== coverArt) {
-    const finalUrl = `https://i.scdn.co/image/${coverArt.replace("spotify:image:", "")}`;
+    const finalUrl = ResolveNowBarCoverUrl(coverArt);
     BlobURLMaker(finalUrl)
       .catch(() => null)
       .then((coverArtUrl) => {
@@ -1205,9 +1213,7 @@ function UpdateNowBar(force = false) {
       });
   } else if (MediaImageContainer && coverArt) {
     const lastImageUrl = MediaImageContainer.getAttribute("last-image-url");
-    const restoredUrl =
-      lastImageUrl ??
-      `https://i.scdn.co/image/${coverArt.replace("spotify:image:", "")}`;
+    const restoredUrl = lastImageUrl ?? ResolveNowBarCoverUrl(coverArt);
     const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
     const toImage = MediaImageContainer.querySelector<HTMLDivElement>(".ti_ToImage");
 

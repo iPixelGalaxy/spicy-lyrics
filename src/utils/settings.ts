@@ -158,10 +158,6 @@ export function showSettingsPanel() {
   const scroll = document.createElement("div");
   scroll.className = "SpicyLyricsSettingsScroll";
 
-  const dialogLayer = document.createElement("div");
-  dialogLayer.className = "SpicyLyricsSettingsDialogLayer";
-  dialogLayer.hidden = true;
-
   function group(name: string) {
     const h = document.createElement("h3");
     h.className = "sl-settings-group";
@@ -213,60 +209,6 @@ export function showSettingsPanel() {
     btn.textContent = btnText;
     btn.addEventListener("click", () => onClick());
     makeRow(label, btn);
-  }
-
-  function confirmAction(
-    titleText: string,
-    bodyText: string,
-    confirmText: string,
-    onConfirm: () => void | Promise<void>,
-    danger = false
-  ) {
-    dialogLayer.replaceChildren();
-    dialogLayer.hidden = false;
-
-    const dismissDialog = () => {
-      dialogLayer.hidden = true;
-      dialogLayer.replaceChildren();
-    };
-
-    const surface = document.createElement("div");
-    surface.className = "SpicyLyricsSettingsDialog";
-    surface.addEventListener("click", (e) => e.stopPropagation());
-
-    const title = document.createElement("p");
-    title.className = "SpicyLyricsSettingsDialogTitle";
-    title.textContent = titleText;
-    surface.appendChild(title);
-
-    const body = document.createElement("p");
-    body.className = "SpicyLyricsSettingsDialogBody";
-    body.textContent = bodyText;
-    surface.appendChild(body);
-
-    const btnRow = document.createElement("div");
-    btnRow.className = "SpicyLyricsSettingsDialogActions";
-
-    const cancelBtn = document.createElement("button");
-    cancelBtn.type = "button";
-    cancelBtn.className = "sl-btn";
-    cancelBtn.textContent = "Cancel";
-    cancelBtn.addEventListener("click", dismissDialog);
-    btnRow.appendChild(cancelBtn);
-
-    const confirmBtn = document.createElement("button");
-    confirmBtn.type = "button";
-    confirmBtn.className = `sl-btn ${danger ? "sl-btn-danger" : "sl-btn-primary"}`;
-    confirmBtn.textContent = confirmText;
-    confirmBtn.addEventListener("click", async () => {
-      dismissDialog();
-      await onConfirm();
-    });
-    btnRow.appendChild(confirmBtn);
-
-    surface.appendChild(btnRow);
-    dialogLayer.appendChild(surface);
-    dialogLayer.onclick = dismissDialog;
   }
 
   // --- Appearance ---
@@ -467,43 +409,19 @@ export function showSettingsPanel() {
   group("Cache");
 
   button("Clear All Cache", "Clear All Cache", async () => {
-    confirmAction(
-      "Clear All Cache",
-      "This will clear all saved lyrics cache and the currently loaded lyrics.",
-      "Clear All Cache",
-      async () => await RemoveAllLyricsCaches(true),
-      true
-    );
+    await RemoveAllLyricsCaches(true);
   });
 
   button("Clear Lyrics for the current song from all caches", "Clear Current Song", async () => {
-    confirmAction(
-      "Clear Current Song",
-      "This will clear all cached lyrics data for the current song only.",
-      "Clear Current Song",
-      async () => await RemoveCurrentLyrics_AllCaches(true),
-      true
-    );
+    await RemoveCurrentLyrics_AllCaches(true);
   });
 
   button("Clear Cached Lyrics (Lyrics Stay in Cache for 3 days)", "Clear Cached Lyrics", async () => {
-    confirmAction(
-      "Clear Cached Lyrics",
-      "This will clear the saved lyrics cache. This action cannot be undone.",
-      "Clear Cached Lyrics",
-      async () => await RemoveLyricsCache(true),
-      true
-    );
+    await RemoveLyricsCache(true);
   });
 
   button("Clear Current Song Lyrics from internal state", "Clear Current Lyrics", () => {
-    confirmAction(
-      "Clear Current Lyrics",
-      "This will clear the currently loaded lyrics from internal state only.",
-      "Clear Current Lyrics",
-      () => RemoveCurrentLyrics_StateCache(true),
-      true
-    );
+    RemoveCurrentLyrics_StateCache(true);
   });
 
   // --- Advanced ---
@@ -511,6 +429,10 @@ export function showSettingsPanel() {
 
   button(`Build Channel (Current: ${Defaults.BuildChannel})`, "Manage", () => {
     (window as any)._spicy_lyrics_channels?.showSwitcher?.();
+  });
+
+  button("Browse Local TTML Database", "Browse Database", () => {
+    (window as any).__spicy_ttml_explore_db?.();
   });
 
   if (storage.get("developerMode") === "true") {
@@ -522,7 +444,6 @@ export function showSettingsPanel() {
 
   container.appendChild(header);
   container.appendChild(scroll);
-  container.appendChild(dialogLayer);
   backdrop.appendChild(container);
   document.body.appendChild(backdrop);
 }

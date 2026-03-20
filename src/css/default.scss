@@ -235,6 +235,56 @@ body.sl_settings_top {
   }
 }
 
+.SpicyLyricsSettingsDialogLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: inherit;
+}
+
+.SpicyLyricsSettingsDialogLayer[hidden] {
+  display: none !important;
+}
+
+.SpicyLyricsSettingsDialog {
+  width: min(420px, calc(100vw - 48px));
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.SpicyLyricsSettingsDialogTitle {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: #fff;
+}
+
+.SpicyLyricsSettingsDialogBody {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.SpicyLyricsSettingsDialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 /* Global sl-* component classes — usable in the settings overlay, popups, and modals */
 
 .sl-settings-group {

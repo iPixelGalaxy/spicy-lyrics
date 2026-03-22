@@ -819,6 +819,8 @@ function OpenNowBar(skipSaving: boolean = false) {
 }
 
 function CleanUpActiveComponents() {
+  DisconnectNowBarArtistsResizeHandling();
+
   if (NowBarFullscreenMaid && !NowBarFullscreenMaid?.IsDestroyed()) {
     NowBarFullscreenMaid.Destroy();
   }
@@ -1026,6 +1028,77 @@ const _yearCache = new Map<string, string>();
 const _yearInflight = new Map<string, Promise<string | undefined>>();
 const _yearTrackInflight = new Map<string, Promise<string | undefined>>();
 const _yearInflightHandlers = new Map<string, number>();
+let NowBarArtistsResizeObserver: ResizeObserver | null = null;
+let NowBarArtistsResizeHandler: (() => void) | null = null;
+let NowBarArtistsResizeTarget: HTMLElement | null = null;
+let NowBarArtistsMeasureFrame: number | null = null;
+let NowBarArtistsMeasureFn: (() => void) | null = null;
+
+function DisconnectNowBarArtistsResizeHandling() {
+  if (NowBarArtistsMeasureFrame !== null) {
+    cancelAnimationFrame(NowBarArtistsMeasureFrame);
+    NowBarArtistsMeasureFrame = null;
+  }
+
+  if (NowBarArtistsResizeHandler) {
+    window.removeEventListener("resize", NowBarArtistsResizeHandler);
+    NowBarArtistsResizeHandler = null;
+  }
+
+  NowBarArtistsResizeObserver?.disconnect();
+  NowBarArtistsResizeObserver = null;
+  NowBarArtistsResizeTarget = null;
+  NowBarArtistsMeasureFn = null;
+}
+
+function QueueNowBarArtistsMeasure() {
+  if (!NowBarArtistsMeasureFn) return;
+
+  if (NowBarArtistsMeasureFrame !== null) {
+    cancelAnimationFrame(NowBarArtistsMeasureFrame);
+  }
+
+  NowBarArtistsMeasureFrame = requestAnimationFrame(() => {
+    NowBarArtistsMeasureFrame = null;
+    NowBarArtistsMeasureFn?.();
+  });
+}
+
+function EnsureNowBarArtistsResizeHandling(
+  artistsEl: HTMLElement | null | undefined,
+  measureFn: (() => void) | null
+) {
+  if (!artistsEl || !measureFn) {
+    DisconnectNowBarArtistsResizeHandling();
+    return;
+  }
+
+  NowBarArtistsMeasureFn = measureFn;
+  if (NowBarArtistsResizeTarget === artistsEl) {
+    QueueNowBarArtistsMeasure();
+    return;
+  }
+
+  if (NowBarArtistsResizeHandler) {
+    window.removeEventListener("resize", NowBarArtistsResizeHandler);
+  }
+
+  NowBarArtistsResizeObserver?.disconnect();
+
+  NowBarArtistsResizeTarget = artistsEl;
+  NowBarArtistsResizeHandler = () => {
+    QueueNowBarArtistsMeasure();
+  };
+
+  window.addEventListener("resize", NowBarArtistsResizeHandler);
+
+  NowBarArtistsResizeObserver = new ResizeObserver(() => {
+    QueueNowBarArtistsMeasure();
+  });
+  NowBarArtistsResizeObserver.observe(artistsEl);
+
+  QueueNowBarArtistsMeasure();
+}
 
 function EnsureNowBarYearFetch(albumUri?: string, trackId?: string): void {
   if (!albumUri) return;
@@ -1119,7 +1192,7 @@ function UpdateNowBar(force = false) {
 
     const episodeArtistsTextEl = episodeArtistsEl?.querySelector<HTMLElement>("span");
     if (episodeArtistsEl && episodeArtistsTextEl) {
-      requestAnimationFrame(() => {
+      const updateEpisodeArtistsMarquee = () => {
         const viewportWidth = episodeArtistsEl.clientWidth || episodeArtistsEl.offsetWidth;
         if (viewportWidth > 0) {
           episodeArtistsEl.style.setProperty("--artists-anim-ref", `${viewportWidth}px`);
@@ -1132,7 +1205,11 @@ function UpdateNowBar(force = false) {
         const contentWidth = Math.max(0, rawWidth - padLeft - padRight);
         const shouldMarquee = viewportWidth > 0 && contentWidth > viewportWidth + 1;
         episodeArtistsEl.classList.toggle("sl-marquee", shouldMarquee);
-      });
+      };
+
+      EnsureNowBarArtistsResizeHandling(episodeArtistsEl, updateEpisodeArtistsMarquee);
+    } else {
+      DisconnectNowBarArtistsResizeHandling();
     }
 
     return;
@@ -1166,6 +1243,10 @@ function UpdateNowBar(force = false) {
       const shouldMarquee = viewportWidth > 0 && contentWidth > viewportWidth + 1;
       artistsEl.classList.toggle("sl-marquee", shouldMarquee);
     };
+    EnsureNowBarArtistsResizeHandling(
+      ArtistsDiv.querySelector<HTMLElement>(".Artists"),
+      updateArtistsMarquee
+    );
 
     const clearYear = () => {
       ArtistsDiv.querySelector(".ArtistYear")?.remove();
@@ -1178,7 +1259,7 @@ function UpdateNowBar(force = false) {
         artistsEl.classList.remove("has-year-before", "has-year-after");
       }
       // Re-measure marquee after the year DOM changes.
-      requestAnimationFrame(updateArtistsMarquee);
+      QueueNowBarArtistsMeasure();
     };
 
     const renderYear = (year: string, pos: string, albumUri: string, pending = false) => {
@@ -1197,7 +1278,7 @@ function UpdateNowBar(force = false) {
       }
 
       artistsEl.classList.add(pos === "Before Artist" ? "has-year-before" : "has-year-after");
-      requestAnimationFrame(updateArtistsMarquee);
+      QueueNowBarArtistsMeasure();
 
       ArtistsDiv.setAttribute("data-sl-year", year);
       ArtistsDiv.setAttribute("data-sl-year-pos", pos);

@@ -359,6 +359,11 @@ export function showSettingsPanel() {
     Defaults.ReplaceSpotifyPlaybar = v;
   });
 
+  toggle("Cover Art Animation", Defaults.CoverArtAnimation, (v) => {
+    storage.set("coverArtAnimation", v.toString());
+    Defaults.CoverArtAnimation = v;
+  });
+
   toggle("Disable Popup Lyrics", !Defaults.PopupLyricsAllowed, (v) => {
     storage.set("disablePopupLyrics", v.toString());
     Defaults.PopupLyricsAllowed = !v;

@@ -39,6 +39,7 @@ const Defaults = {
   ShowVolumeSliderFullscreen: "Off" as string,
   ReleaseYearPosition: "Off" as string,
   ReplaceSpotifyPlaybar: false,
+  CoverArtAnimation: true,
 };
 
 export default Defaults;

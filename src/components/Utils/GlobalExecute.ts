@@ -7,7 +7,6 @@ import storage from "../../utils/storage.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import { ShowNotification } from "../Pages/PageView.ts";
-
 type TTMLMode = "temp" | "session" | "persist";
 
 function resetTTML() {
@@ -27,7 +26,6 @@ function resetTTML() {
       });
   }, 25);
 }
-
 function uploadTTML(mode: TTMLMode) {
   const labels: Record<TTMLMode, string> = {
     temp:    "Lyrics Applied Temporarily! (will reset on song change)",

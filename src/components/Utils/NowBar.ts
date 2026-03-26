@@ -1248,6 +1248,27 @@ function UpdateNowBar(force = false) {
   const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
 
+  const waitForTransitionEnd = (
+    el: HTMLElement,
+    propertyName: string,
+    timeoutMs: number,
+  ) =>
+    new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        el.removeEventListener("transitionend", onEnd);
+        clearTimeout(t);
+        resolve();
+      };
+      const onEnd = (e: TransitionEvent) => {
+        if (e.target === el && e.propertyName === propertyName) finish();
+      };
+      const t = window.setTimeout(finish, timeoutMs);
+      el.addEventListener("transitionend", onEnd);
+    });
+
   const ArtistsDiv = NowBar.querySelector<HTMLElement>(".Header .Metadata .ArtistsRow");
   const ArtistsSpan = NowBar.querySelector<HTMLElement>(".Header .Metadata .ArtistsRow .Artists span");
   const MediaImageContainer = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImageContainer");
@@ -1261,27 +1282,71 @@ function UpdateNowBar(force = false) {
   const coverArt = SpotifyPlayer.GetCover("xlarge");
   if (MediaImageContainer && coverArt && MediaImageContainer.getAttribute("last-image") !== coverArt) {
     const finalUrl = ResolveNowBarCoverUrl(coverArt);
+    const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
+    MediaImageContainer.setAttribute("data-update-token", updateToken);
+
     BlobURLMaker(finalUrl)
       .catch(() => null)
       .then((coverArtUrl) => {
         const resolvedUrl = coverArtUrl ?? finalUrl;
+        if (!MediaImageContainer.isConnected) return;
+        const latestToken = MediaImageContainer.getAttribute("data-update-token");
+        if (latestToken !== updateToken) return;
+
         const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
         const toImage = MediaImageContainer.querySelector<HTMLDivElement>(".ti_ToImage");
 
         MediaImageContainer.setAttribute("last-image", coverArt);
         MediaImageContainer.setAttribute("last-image-url", resolvedUrl);
 
-        if (fromImage) {
+        if (!Defaults.CoverArtAnimation || !toImage) {
+          if (fromImage) {
+            fromImage.style.backgroundImage = `url("${resolvedUrl}")`;
+            fromImage.classList.add("containsImage");
+            fromImage.classList.remove("MB_anim_fimg");
+          }
+
+          if (toImage) {
+            toImage.style.backgroundImage = `url("${resolvedUrl}")`;
+            toImage.classList.add("MB_hidden");
+            toImage.classList.remove("MB_anim_enter");
+            toImage.classList.add("containsImage");
+          }
+
+          return;
+        }
+
+        toImage.style.backgroundImage = `url("${resolvedUrl}")`;
+        toImage.classList.remove("MB_hidden");
+        toImage.classList.add("containsImage");
+
+        const canAnimate = !!fromImage && fromImage.classList.contains("containsImage");
+
+        if (canAnimate) {
+          toImage.classList.add("MB_anim_enter");
+          fromImage.classList.add("MB_anim_fimg");
+
+          setTimeout(async () => {
+            const latestInnerToken = MediaImageContainer.getAttribute("data-update-token");
+            if (latestInnerToken !== updateToken) return;
+
+            fromImage.style.backgroundImage = `url("${resolvedUrl}")`;
+            fromImage.classList.add("containsImage");
+            fromImage.classList.remove("MB_anim_fimg");
+            await waitForTransitionEnd(fromImage, "opacity", 950);
+
+            const latestAfterFadeToken = MediaImageContainer.getAttribute("data-update-token");
+            if (latestAfterFadeToken !== updateToken) return;
+
+            toImage.classList.add("MB_hidden");
+            toImage.classList.remove("MB_anim_enter");
+          }, 1100);
+        } else if (fromImage) {
+          toImage.classList.add("MB_hidden");
+          toImage.classList.remove("MB_anim_enter");
           fromImage.style.backgroundImage = `url("${resolvedUrl}")`;
           fromImage.classList.add("containsImage");
           fromImage.classList.remove("MB_anim_fimg");
-        }
-
-        if (toImage) {
-          toImage.style.backgroundImage = `url("${resolvedUrl}")`;
-          toImage.classList.add("MB_hidden");
-          toImage.classList.remove("MB_anim_enter");
-          toImage.classList.add("containsImage");
         }
       });
   } else if (MediaImageContainer && coverArt) {

@@ -46,7 +46,16 @@ Spicy Lyrics replaces Spotify's plain, static lyrics with a fully animated, imme
 
 ## What's New
 
-### v100.10.15 — Latest
+### v100.10.16 — Latest
+
+- **Merged latest mainline Spicy Lyrics changes into dev** — pulled `main` forward into the iPixel dev branch, including the recent performance and background pipeline updates
+- **Cover Art Animation toggle** — added a new setting to enable or disable the NowBar cover art transition, enabled by default
+- **Refined cover art transition** — the cover art animation is now directional when changing tracks and behaves differently for next vs. previous track changes
+- **Use Old Background Animation toggle** — added a fallback option that restores the older pre-merge dynamic background renderer
+
+---
+
+### v100.10.15
 
 - **Unified update popups** — the "updated" and "update available" dialogs now match the newer Spicy Lyrics modal styling
 - **Hidden custom build channels** — custom channel controls are now tucked behind a seven-right-click unlock gesture on the Build Channel label to keep the default UI cleaner

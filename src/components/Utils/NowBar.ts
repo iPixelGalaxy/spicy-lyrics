@@ -1121,6 +1121,8 @@ async function getAVCStreamUrl(manifestUrl: string) {
 let _yearGeneration = 0;
 let _yearAlbumUri: string | undefined;
 let _lastDisplayedYear: string | undefined;
+let _lastNowBarTrackId: string | undefined;
+let _lastCoverAnimationDirection: "forward" | "backward" = "forward";
 const _yearCache = new Map<string, string>();
 const _yearInflight = new Map<string, Promise<string | undefined>>();
 const _yearTrackInflight = new Map<string, Promise<string | undefined>>();
@@ -1244,6 +1246,32 @@ function ResolveNowBarCoverUrl(coverArt: string): string {
   return coverArt;
 }
 
+function GetCoverAnimationDirection(currentTrackId?: string): "forward" | "backward" {
+  if (!currentTrackId) {
+    return _lastCoverAnimationDirection;
+  }
+
+  const previousTrackId = _lastNowBarTrackId;
+  _lastNowBarTrackId = currentTrackId;
+
+  if (!previousTrackId || previousTrackId === currentTrackId) {
+    return _lastCoverAnimationDirection;
+  }
+
+  const previousItems = (Spicetify?.Player?.data?.previousItems ?? []) as Array<{ uri?: string }>;
+  const nextItems = (Spicetify?.Player?.data?.nextItems ?? []) as Array<{ uri?: string }>;
+  const oldTrackIsBehind = previousItems.some((item) => item?.uri?.split(":")[2] === previousTrackId);
+  const oldTrackIsAhead = nextItems.some((item) => item?.uri?.split(":")[2] === previousTrackId);
+
+  if (oldTrackIsAhead) {
+    _lastCoverAnimationDirection = "backward";
+  } else if (oldTrackIsBehind) {
+    _lastCoverAnimationDirection = "forward";
+  }
+
+  return _lastCoverAnimationDirection;
+}
+
 function UpdateNowBar(force = false) {
   const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
@@ -1283,6 +1311,7 @@ function UpdateNowBar(force = false) {
   if (MediaImageContainer && coverArt && MediaImageContainer.getAttribute("last-image") !== coverArt) {
     const finalUrl = ResolveNowBarCoverUrl(coverArt);
     const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
+    const animationDirection = GetCoverAnimationDirection(SpotifyPlayer.GetId());
     MediaImageContainer.setAttribute("data-update-token", updateToken);
 
     BlobURLMaker(finalUrl)
@@ -1304,6 +1333,7 @@ function UpdateNowBar(force = false) {
             fromImage.style.backgroundImage = `url("${resolvedUrl}")`;
             fromImage.classList.add("containsImage");
             fromImage.classList.remove("MB_anim_fimg");
+            fromImage.style.removeProperty("--mb-exit-mask-direction");
           }
 
           if (toImage) {
@@ -1311,11 +1341,19 @@ function UpdateNowBar(force = false) {
             toImage.classList.add("MB_hidden");
             toImage.classList.remove("MB_anim_enter");
             toImage.classList.add("containsImage");
+            toImage.style.removeProperty("--mb-enter-x");
+            toImage.style.removeProperty("--mb-enter-shadow-x");
           }
 
           return;
         }
 
+        const enterOffset = animationDirection === "backward" ? "-3%" : "3%";
+        const enterShadow = animationDirection === "backward" ? "-2px" : "2px";
+        const exitMaskDirection = animationDirection === "backward" ? "270deg" : "90deg";
+
+        toImage.style.setProperty("--mb-enter-x", enterOffset);
+        toImage.style.setProperty("--mb-enter-shadow-x", enterShadow);
         toImage.style.backgroundImage = `url("${resolvedUrl}")`;
         toImage.classList.remove("MB_hidden");
         toImage.classList.add("containsImage");
@@ -1323,6 +1361,7 @@ function UpdateNowBar(force = false) {
         const canAnimate = !!fromImage && fromImage.classList.contains("containsImage");
 
         if (canAnimate) {
+          fromImage.style.setProperty("--mb-exit-mask-direction", exitMaskDirection);
           toImage.classList.add("MB_anim_enter");
           fromImage.classList.add("MB_anim_fimg");
 
@@ -1333,20 +1372,22 @@ function UpdateNowBar(force = false) {
             fromImage.style.backgroundImage = `url("${resolvedUrl}")`;
             fromImage.classList.add("containsImage");
             fromImage.classList.remove("MB_anim_fimg");
-            await waitForTransitionEnd(fromImage, "opacity", 950);
+            await waitForTransitionEnd(fromImage, "opacity", 800);
 
             const latestAfterFadeToken = MediaImageContainer.getAttribute("data-update-token");
             if (latestAfterFadeToken !== updateToken) return;
 
             toImage.classList.add("MB_hidden");
             toImage.classList.remove("MB_anim_enter");
-          }, 1100);
+            fromImage.style.removeProperty("--mb-exit-mask-direction");
+          }, 700);
         } else if (fromImage) {
           toImage.classList.add("MB_hidden");
           toImage.classList.remove("MB_anim_enter");
           fromImage.style.backgroundImage = `url("${resolvedUrl}")`;
           fromImage.classList.add("containsImage");
           fromImage.classList.remove("MB_anim_fimg");
+          fromImage.style.removeProperty("--mb-exit-mask-direction");
         }
       });
   } else if (MediaImageContainer && coverArt) {
@@ -1359,11 +1400,14 @@ function UpdateNowBar(force = false) {
       fromImage.style.backgroundImage = `url("${restoredUrl}")`;
       fromImage.classList.add("containsImage");
       fromImage.classList.remove("MB_anim_fimg");
+      fromImage.style.removeProperty("--mb-exit-mask-direction");
     }
 
     if (toImage) {
       toImage.classList.add("MB_hidden");
       toImage.classList.remove("MB_anim_enter");
+      toImage.style.removeProperty("--mb-enter-x");
+      toImage.style.removeProperty("--mb-enter-shadow-x");
     }
   }
 

@@ -336,6 +336,14 @@ export function showSettingsPanel() {
     Defaults.hide_npv_bg = v;
   });
 
+  toggle("Use Old Background Animation", Defaults.UseOldBackgroundAnimation, (v) => {
+    storage.set("useOldBackgroundAnimation", v.toString());
+    Defaults.UseOldBackgroundAnimation = v;
+    import("../components/DynamicBG/dynamicBackground.ts").then(({ ReapplyDynamicBackgrounds }) => {
+      void ReapplyDynamicBackgrounds();
+    });
+  });
+
   toggle("Static Background", Defaults.StaticBackground_Preset, (v) => {
     storage.set("staticBackground", v.toString());
     Defaults.StaticBackground = v;

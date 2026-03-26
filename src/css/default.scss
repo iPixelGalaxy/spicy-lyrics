@@ -320,15 +320,18 @@ body.sl_settings_top {
 }
 
 .sl-select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
   appearance: none;
   background-color: rgba(255, 255, 255, 0.07);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d6d6d6' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 10px center;
+  background-size: 12px 12px;
   color: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
-  padding: 6px 28px 6px 10px;
+  padding: 6px 34px 6px 10px;
   font-size: 0.8rem;
   cursor: pointer;
   flex-shrink: 0;
@@ -411,6 +414,32 @@ body.sl_settings_top {
   * {
     font-family: inherit !important;
   }
+}
+
+.x-settings-dropdownWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 140px;
+}
+
+.x-settings-dropdown {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 32px !important;
+}
+
+.x-settings-dropdownArrow {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.72);
+  pointer-events: none;
 }
 
 /* Take the elapsed time out of normal layout flow to avoid document-wide reflow

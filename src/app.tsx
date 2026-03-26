@@ -15,6 +15,7 @@ import "./components/Utils/GlobalExecute.ts";
 
 import Whentil from "@spikerko/tools/Whentil";
 import ApplyDynamicBackground, {
+  CleanupDynamicBackgroundKey,
   GetStaticBackground,
   KawarpMap,
 } from "./components/DynamicBG/dynamicBackground.ts";
@@ -217,6 +218,14 @@ async function main() {
 
   if (storage.get("coverArtAnimation")) {
     Defaults.CoverArtAnimation = storage.get("coverArtAnimation") === "true";
+  }
+
+  if (!storage.get("useOldBackgroundAnimation")) {
+    storage.set("useOldBackgroundAnimation", "false");
+  }
+
+  if (storage.get("useOldBackgroundAnimation")) {
+    Defaults.UseOldBackgroundAnimation = storage.get("useOldBackgroundAnimation") === "true";
   }
 
   if (!storage.get("hide_npv_bg")) {
@@ -435,10 +444,12 @@ async function main() {
 
         @keyframes MB_anim_enter {
           0% {
-            transform: translate(100%, 0);
+            transform: translate(var(--mb-enter-x, 3%), 0) scale(0.998);
+            opacity: 0;
           }
           100% {
-            transform: translate(0, 0);
+            transform: translate(0, 0) scale(1);
+            opacity: 1;
           }
         }
   `;
@@ -771,11 +782,7 @@ async function main() {
     const CleanupNowBarDynamicBgLets = () => {
       const nowPlayingBar = getNowPlayingBarElement() ?? lastNowPlayingBarElement;
 
-      const kawarpInstance = KawarpMap.get("npvbg");
-      if (kawarpInstance) {
-        kawarpInstance.dispose();
-        KawarpMap.delete("npvbg");
-      }
+      CleanupDynamicBackgroundKey("npvbg");
       nowPlayingBar?.querySelector<HTMLElement>(".spicy-dynamic-bg")?.remove();
       nowPlayingBar?.classList.remove("spicy-dynamic-bg-in-this");
       lastNowPlayingBarElement = null;

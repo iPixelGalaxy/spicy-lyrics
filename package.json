@@ -3,7 +3,7 @@
   "author": "Spikerko",
   "scripts": {
     "sc": "spicetify-creator",
-    "dev": "spicetify enable-devtools && spicetify-creator dev",
+    "dev": "spicetify-creator dev",
     "build": "bun run ./scripts/build.ts",
     "build:creator": "spicetify-creator build",
     "lint": "oxlint",

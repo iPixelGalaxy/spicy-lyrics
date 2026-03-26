@@ -18,7 +18,7 @@ import {
   ResetLastLine,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
-import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
+import ApplyDynamicBackground, { CleanupDynamicBackgroundKey, KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 import Session from "../Global/Session.ts";
@@ -353,8 +353,7 @@ function DestroyPage() {
   if (Fullscreen.IsOpen) Fullscreen.Close();
   if (!PageContainer) return;
 
-  KawarpMap.get("lpagebg")?.dispose();
-  KawarpMap.delete("lpagebg");
+  CleanupDynamicBackgroundKey("lpagebg");
   ResetLastLine();
   CleanupScrollEvents();
   PageResizeListener?.disconnect(); // Disconnect the observer

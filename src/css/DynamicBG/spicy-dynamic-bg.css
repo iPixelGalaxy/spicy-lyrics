@@ -36,6 +36,55 @@ aside .spicy-dynamic-bg {
   filter: brightness(0.6) saturate(2.65);
 }
 
+.spicy-dynamic-bg.LegacyBackground {
+  filter: saturate(1.5) brightness(0.8);
+}
+
+.spicy-dynamic-bg.LegacyBackground .Back,
+.spicy-dynamic-bg.LegacyBackground .BackCenter,
+.spicy-dynamic-bg.LegacyBackground .Front {
+  --PlaceholderHueShift: 0deg;
+  animation: bgAnim 45s linear infinite;
+  border-radius: 100em;
+  position: absolute;
+  width: 200%;
+  height: 100%;
+  filter: blur(15px);
+}
+
+.spicy-dynamic-bg.LegacyBackground .Back:not(.NoEffect),
+.spicy-dynamic-bg.LegacyBackground .BackCenter:not(.NoEffect),
+.spicy-dynamic-bg.LegacyBackground .Front:not(.NoEffect) {
+  filter: hue-rotate(var(--PlaceholderHueShift)) blur(40px);
+}
+
+aside .spicy-dynamic-bg.LegacyBackground .Back:not(.NoEffect),
+aside .spicy-dynamic-bg.LegacyBackground .BackCenter:not(.NoEffect),
+aside .spicy-dynamic-bg.LegacyBackground .Front:not(.NoEffect) {
+  filter: hue-rotate(var(--PlaceholderHueShift)) blur(30px);
+}
+
+.spicy-dynamic-bg.LegacyBackground .Front {
+  right: 0;
+  top: 0;
+  z-index: 2;
+}
+
+.spicy-dynamic-bg.LegacyBackground .Back {
+  animation-direction: reverse;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+}
+
+.spicy-dynamic-bg.LegacyBackground .BackCenter {
+  animation-direction: reverse;
+  right: -50%;
+  top: -20%;
+  width: 300%;
+  z-index: 0;
+}
+
 @property --sl_videocanvas_mask-stop {
   syntax: '<percentage>';
   inherits: false;
@@ -157,4 +206,22 @@ body:has(#SpicyLyricsPage.Fullscreen) .Root__right-sidebar
 
 #SpicyLyricsPage .spicy-dynamic-bg.ColorBackground {
   z-index: -1 !important;
+}
+
+.spicy-dynamic-bg.Hidden {
+  opacity: 0;
+}
+
+@keyframes bgAnim {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+
+  50% {
+    transform: translate3d(-8%, 6%, 0) scale(1.1);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
 }

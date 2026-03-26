@@ -40,6 +40,7 @@ const Defaults = {
   ReleaseYearPosition: "Off" as string,
   ReplaceSpotifyPlaybar: false,
   CoverArtAnimation: true,
+  UseOldBackgroundAnimation: false,
 };
 
 export default Defaults;

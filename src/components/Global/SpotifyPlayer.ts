@@ -117,6 +117,33 @@ const GetContentType = (): string => {
   return "unknown";
 };
 
+const LOCAL_FLAC_METADATA_KEYS = [
+  "file_format",
+  "format",
+  "codec",
+  "container",
+  "mime_type",
+  "media_format",
+  "extension",
+  "filename",
+  "local_file_path",
+  "path",
+  "url",
+  "entity_uri",
+  "media.type",
+  "audio.format",
+] as const;
+
+const hasFlacSignature = (value: unknown): boolean => {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "flac" ||
+    normalized === "audio/flac" ||
+    normalized.endsWith(".flac")
+  );
+};
+
 export type CoverSizes = "standard" | "small" | "large" | "xlarge";
 export type Artist = {
   type: "artist";
@@ -133,6 +160,30 @@ export const SpotifyPlayer = {
   GetContentType: GetContentType,
   GetMediaType: (): string => {
     return Spicetify?.Player?.data?.item?.mediaType;
+  },
+  GetTrackMetadata: (): Record<string, unknown> => {
+    return (Spicetify?.Player?.data?.item?.metadata ?? {}) as Record<
+      string,
+      unknown
+    >;
+  },
+  IsLocalTrack: (): boolean => {
+    const item = Spicetify?.Player?.data?.item;
+    if (!item) return false;
+    return Boolean(item.isLocal) || item.uri?.startsWith("spotify:local:");
+  },
+  IsLocalFlacTrack: (): boolean => {
+    const item = Spicetify?.Player?.data?.item;
+    if (!item || !SpotifyPlayer.IsLocalTrack()) return false;
+
+    const metadata = SpotifyPlayer.GetTrackMetadata();
+    for (const key of LOCAL_FLAC_METADATA_KEYS) {
+      if (hasFlacSignature(metadata[key])) {
+        return true;
+      }
+    }
+
+    return [item.name, metadata.title].some((value) => hasFlacSignature(value));
   },
   GetDuration: (): number => {
     if (Spicetify?.Player?.data?.item?.duration?.milliseconds) {

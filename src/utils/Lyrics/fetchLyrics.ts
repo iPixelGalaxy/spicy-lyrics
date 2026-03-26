@@ -32,6 +32,8 @@ export function getSongKey(uri: string): string {
 
 export default async function fetchLyrics(uri: string): Promise<[object | string, number] | null> {
   const IsSpicyRenderer = Defaults.LyricsRenderer === "Spicy";
+  const songKey = getSongKey(uri);
+  const isLocalTrack = uri.startsWith("spotify:local:");
 
   //if (!PageContainer) return;
   const LyricsContent =
@@ -71,11 +73,6 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
     return ["unknown-track", 400];
   }
 
-  if (uri.startsWith("spotify:local:")) {
-    storage.set("currentlyFetching", "false");
-    return ["local-track", 400];
-  }
-
   const currFetching = storage.get("currentlyFetching");
   if (currFetching === "true") {
     storage.set("currentlyFetching", "false");
@@ -88,8 +85,7 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
     LyricsContent.classList.add("HiddenTransitioned");
   }
 
-  const trackId = uri.split(":")[2];
-  const songKey = getSongKey(uri);
+  const trackId = isLocalTrack ? songKey : uri.split(":")[2];
 
   // Check persistent user TTML first (Cache API, survives restarts)
   if (UserTTMLStore && songKey) {
@@ -139,6 +135,11 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
       PageView.AppendViewControls(true);
       return [lyricsData, 200];
     }
+  }
+
+  if (isLocalTrack) {
+    storage.set("currentlyFetching", "false");
+    return ["local-track", 400];
   }
 
   // Check if there's already data in localStorage

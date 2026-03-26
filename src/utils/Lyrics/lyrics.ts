@@ -234,11 +234,35 @@ LyricsInterval();
 // Define proper types for event listener variables
 let LinesEvListenerMaid: Maid | null = null;
 let LinesEvListenerExists: boolean = false;
+let lastLocalFlacSeekWarning = 0;
+
+function warnLocalFlacSeekDisabled() {
+  const now = Date.now();
+  if (now - lastLocalFlacSeekWarning < 2500) return;
+  lastLocalFlacSeekWarning = now;
+
+  Spicetify?.showNotification?.(
+    "Local FLAC lyric seeking is disabled because Spotify desyncs the file audio from the timeline."
+  );
+}
+
+function shouldBlockSeekForCurrentTrack() {
+  if (!SpotifyPlayer.IsLocalFlacTrack()) return false;
+  warnLocalFlacSeekDisabled();
+  return true;
+}
 
 // Define proper type for event parameter
 function LinesEvListener(e: MouseEvent) {
   const target = e.target as HTMLElement;
   if (target.classList.contains("line")) {
+    if (target.classList.contains("musical-line")) {
+      return;
+    }
+    if (shouldBlockSeekForCurrentTrack()) {
+      return;
+    }
+
     let startTime: number | undefined;
 
     LyricsObject.Types.Line.Lines.forEach((line) => {
@@ -255,6 +279,13 @@ function LinesEvListener(e: MouseEvent) {
       Global.Event.evoke("song:seek", startTime);
     }
   } else if (target.classList.contains("word")) {
+    if (target.closest(".musical-line")) {
+      return;
+    }
+    if (shouldBlockSeekForCurrentTrack()) {
+      return;
+    }
+
     let startTime: number | undefined;
 
     LyricsObject.Types.Syllable.Lines.forEach((line) => {
@@ -275,6 +306,13 @@ function LinesEvListener(e: MouseEvent) {
       Global.Event.evoke("song:seek", startTime);
     }
   } else if (target.classList.contains("Emphasis")) {
+    if (target.closest(".musical-line")) {
+      return;
+    }
+    if (shouldBlockSeekForCurrentTrack()) {
+      return;
+    }
+
     let startTime: number | undefined;
 
     LyricsObject.Types.Syllable.Lines.forEach((line) => {

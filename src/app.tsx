@@ -41,7 +41,7 @@ import App from "./ready.ts";
 import { IsPlaying } from "./utils/Addons.ts";
 import { requestPositionSync } from "./utils/Gets/GetProgress.ts";
 import { IntervalManager } from "./utils/IntervalManager.ts";
-import fetchLyrics from "./utils/Lyrics/fetchLyrics.ts";
+import fetchLyrics, { getSongKey } from "./utils/Lyrics/fetchLyrics.ts";
 import ApplyLyrics from "./utils/Lyrics/Global/Applyer.ts";
 import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
@@ -944,7 +944,6 @@ async function main() {
       }
     }
     Global.Event.listen("playback:songchange", onSongChange);
-
     const initUri = SpotifyPlayer.GetUri();
     if (initUri) {
       fetchLyrics(initUri).then(ApplyLyrics);
@@ -1164,13 +1163,15 @@ async function main() {
         }
         lastTimeout = setTimeout(async () => {
           const currentSongLyrics = storage.get("currentLyricsData");
+          const currentUri = SpotifyPlayer.GetUri() ?? "";
+          const currentSongKey = getSongKey(currentUri);
           if (
             currentSongLyrics &&
             currentSongLyrics.toString() !== `NO_LYRICS:${SpotifyPlayer.GetId()}`
           ) {
             const parsedLyrics = JSON.parse(currentSongLyrics.toString());
-            if (parsedLyrics?.id !== SpotifyPlayer.GetId()) {
-              const refetchUri = SpotifyPlayer.GetUri();
+            if (parsedLyrics?.id !== currentSongKey) {
+              const refetchUri = currentUri;
               if (refetchUri) {
                 fetchLyrics(refetchUri).then(ApplyLyrics);
               }

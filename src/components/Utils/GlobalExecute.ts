@@ -1,12 +1,13 @@
 // deno-lint-ignore-file no-case-declarations
-import { Query } from "../../utils/API/Query.ts";
 import fetchLyrics, { UserTTMLStore, SessionTTMLStore, getSongKey } from "../../utils/Lyrics/fetchLyrics.ts";
 import ApplyLyrics from "../../utils/Lyrics/Global/Applyer.ts";
+import parseTTMLToLyrics from "../../utils/Lyrics/ParseTTML.ts";
 import { ProcessLyrics } from "../../utils/Lyrics/ProcessLyrics.ts";
 import storage from "../../utils/storage.ts";
+import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
-import { ShowNotification } from "../Pages/PageView.ts";
+import PageView, { PageContainer, ShowNotification } from "../Pages/PageView.ts";
 type TTMLMode = "temp" | "session" | "persist";
 
 function resetTTML() {
@@ -43,6 +44,9 @@ function uploadTTML(mode: TTMLMode) {
     const reader = new FileReader();
     reader.onload = async (e) => {
       const ttml = e.target?.result as string;
+      const currentUri = SpotifyPlayer.GetUri() ?? "";
+      const songKey = getSongKey(currentUri);
+      const lyricsId = currentUri.startsWith("spotify:local:") ? songKey : SpotifyPlayer.GetId();
 
       ShowNotification("Found TTML, Parsing...", "info", 5000);
       const result = await ParseTTML(ttml);
@@ -51,10 +55,9 @@ function uploadTTML(mode: TTMLMode) {
         return;
       }
 
-      const data = { ...result.Result, id: SpotifyPlayer.GetId(), userUploaded: true };
+      const data = { ...result.Result, id: lyricsId, userUploaded: true };
       await ProcessLyrics(data);
 
-      const songKey = getSongKey(SpotifyPlayer.GetUri() ?? "");
       if (songKey) {
         if (mode === "session") {
           SessionTTMLStore.set(songKey, data);
@@ -64,8 +67,23 @@ function uploadTTML(mode: TTMLMode) {
       }
 
       storage.set("currentLyricsData", JSON.stringify(data));
+      if (currentUri.startsWith("spotify:local:")) {
+        Defaults.CurrentLyricsType = data.Type;
+        if (data?.IncludesRomanization) {
+          PageContainer?.classList.add("Lyrics_RomanizationAvailable");
+        } else {
+          PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
+        }
+        PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
+        PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+        PageView.AppendViewControls(true);
+        await ApplyLyrics([data, 200]);
+        ShowNotification(labels[mode], "success", 5000);
+        return;
+      }
+
       setTimeout(() => {
-        fetchLyrics(SpotifyPlayer.GetUri() ?? "")
+        fetchLyrics(currentUri)
           .then((lyrics) => {
             ApplyLyrics(lyrics);
             ShowNotification(labels[mode], "success", 5000);
@@ -433,12 +451,8 @@ Global.SetScope("execute", (command: string) => {
 
 async function ParseTTML(ttml: string): Promise<any | null> {
   try {
-    const query = await Query([{ operation: "parseTTML", variables: { ttml } }]);
-    const result = query.get("0");
-    if (!result || result.httpStatus !== 200 || !result.data || result.format !== "json" || result.data.error) {
-      return null;
-    }
-    return result.data;
+    const parsedLyrics = parseTTMLToLyrics(ttml);
+    return { Result: parsedLyrics };
   } catch (error) {
     console.error("Error parsing TTML:", error);
     ShowNotification("Error parsing TTML", "error", 5000);

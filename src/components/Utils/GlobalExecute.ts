@@ -10,6 +10,78 @@ import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import PageView, { PageContainer, ShowNotification } from "../Pages/PageView.ts";
 type TTMLMode = "temp" | "session" | "persist";
 
+function decodeDatabaseKey(key: string): string {
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
+}
+
+function decodeLocalUriPart(value: string | undefined): string {
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value.replace(/\+/g, " "));
+  } catch {
+    return value.replace(/\+/g, " ");
+  }
+}
+
+function dedupeRepeatedArtists(value: string): string {
+  const parts = value
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return "";
+
+  return Array.from(new Set(parts)).join("; ");
+}
+
+function getLocalTrackDisplay(itemKey: string): { name: string; artists: string } {
+  const parts = itemKey.split(":");
+  const artists = dedupeRepeatedArtists(decodeLocalUriPart(parts[2]));
+  const name = decodeLocalUriPart(parts[4]);
+
+  return {
+    name: name || "Unknown Local Track",
+    artists,
+  };
+}
+
+function getSpotifyTrackId(value: string | undefined): string {
+  if (!value) return "";
+  if (value.startsWith("spotify:track:")) {
+    return value.split(":")[2] ?? "";
+  }
+  return value;
+}
+
+async function getSpotifyTrackDisplay(
+  trackId: string
+): Promise<{ name: string; artists: string } | null> {
+  if (!trackId) return null;
+
+  try {
+    const hexId = Spicetify.URI.idToHex(trackId);
+    const track = await (Spicetify as any).CosmosAsync.get(
+      `https://spclient.wg.spotify.com/metadata/4/track/${hexId}?market=from_token`
+    );
+
+    const name = track?.name ?? "";
+    const artists = Array.isArray(track?.artist)
+      ? track.artist.map((artist: any) => artist?.name).filter(Boolean).join(", ")
+      : "";
+
+    if (!name) return null;
+
+    return { name, artists };
+  } catch (error) {
+    console.warn("Could not fetch internal track metadata:", trackId, error);
+    return null;
+  }
+}
+
 function resetTTML() {
   const songKey = getSongKey(SpotifyPlayer.GetUri() ?? "");
   storage.set("currentLyricsData", "");
@@ -251,30 +323,20 @@ function exploreTTMLDatabase() {
         const response = await cache.match(key);
         if (!response) continue;
         const data = await response.json();
-        const itemKey = key.url.replace(/^.*\//, "");
-        const trackId = data.Content?.id ?? itemKey;
-        const lyricsType = data.Content?.Type ?? "Unknown";
+        const itemKey = decodeDatabaseKey(key.url.replace(/^.*\//, ""));
         const isLocal = itemKey.startsWith("spotify") && itemKey.includes("local");
+        const rawTrackId = data.Content?.id ?? data.Content?.uri ?? itemKey;
+        const trackId = isLocal ? rawTrackId : getSpotifyTrackId(rawTrackId);
+        const lyricsType = data.Content?.Type ?? "Unknown";
         entries.push({ itemKey, trackId, lyricsType, isLocal });
         if (!isLocal && trackId) nonLocalIds.push(trackId);
       }
 
       const trackMeta: Record<string, { name: string; artists: string }> = {};
-      for (let i = 0; i < nonLocalIds.length; i += 50) {
-        try {
-          const resp = await (Spicetify as any).CosmosAsync.get(
-            `https://api.spotify.com/v1/tracks?ids=${nonLocalIds.slice(i, i + 50).join(",")}`
-          );
-          for (const track of resp?.tracks ?? []) {
-            if (track) {
-              trackMeta[track.id] = {
-                name: track.name,
-                artists: track.artists.map((a: any) => a.name).join(", "),
-              };
-            }
-          }
-        } catch (metaErr) {
-          console.warn("Could not fetch track metadata:", metaErr);
+      for (const trackId of nonLocalIds) {
+        const meta = await getSpotifyTrackDisplay(trackId);
+        if (meta) {
+          trackMeta[trackId] = meta;
         }
       }
 
@@ -293,7 +355,10 @@ function exploreTTMLDatabase() {
 
           const name = document.createElement("span");
           if (entry.isLocal) {
-            name.textContent = entry.trackId;
+            const meta = getLocalTrackDisplay(entry.itemKey);
+            name.textContent = meta.artists
+              ? `${meta.name} — ${meta.artists}`
+              : meta.name;
           } else if (trackMeta[entry.trackId]) {
             const meta = trackMeta[entry.trackId];
             name.textContent = `${meta.name} — ${meta.artists}`;

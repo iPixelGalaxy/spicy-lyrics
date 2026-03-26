@@ -177,7 +177,19 @@ function readITunesMetadata(root: Element) {
 }
 
 function parseSongwriters(root: Element): string[] {
-  const writers = new Set<string>();
+  const writers = new Map<string, string>();
+
+  const addWriterParts = (value: string) => {
+    for (const part of value
+      .split(/[;,]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)) {
+      const normalized = part.toLowerCase();
+      if (!writers.has(normalized)) {
+        writers.set(normalized, part);
+      }
+    }
+  };
 
   for (const meta of findElements(root, "amll:meta", "meta")) {
     const key =
@@ -191,27 +203,18 @@ function parseSongwriters(root: Element): string[] {
 
     if (!key || !rawValue || !WRITER_KEY_MATCH.test(key)) continue;
 
-    for (const part of rawValue
-      .split(/[;,]/)
-      .map((entry) => entry.trim())
-      .filter(Boolean)) {
-      writers.add(part);
-    }
+    addWriterParts(rawValue);
   }
 
   for (const node of findElements(root, "songwriter", "songwriters", "writer", "writers", "composer", "lyricist")) {
+    if (node.children.length > 0) continue;
+
     const text = node.textContent?.trim() ?? "";
     if (!text) continue;
-
-    for (const part of text
-      .split(/[;,]/)
-      .map((entry) => entry.trim())
-      .filter(Boolean)) {
-      writers.add(part);
-    }
+    addWriterParts(text);
   }
 
-  return Array.from(writers);
+  return Array.from(writers.values());
 }
 
 function parseAgents(root: Element): Map<string, boolean> {

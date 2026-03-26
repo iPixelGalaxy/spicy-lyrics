@@ -46,7 +46,15 @@ Spicy Lyrics replaces Spotify's plain, static lyrics with a fully animated, imme
 
 ## What's New
 
-### v100.10.16 — Latest
+### v100.10.17 — Latest
+
+- **Client-side TTML parsing** — uploaded TTML files are now parsed directly in the Spotify client instead of being sent to the server first
+- **Local TTML apply flow cleanup** — local TTML uploads now apply directly in-app after parsing instead of bouncing back through the normal fetch flow
+- **TTML database browser improvements** — saved TTML entries now display readable song names instead of raw Spotify IDs or full local URIs, local artist names are deduplicated, and Spotify-track lookups use Spotify client metadata instead of the rate-limited public Web API
+
+---
+
+### v100.10.16
 
 - **Merged latest mainline Spicy Lyrics changes into dev** — pulled `main` forward into the iPixel dev branch, including the recent performance and background pipeline updates
 - **Cover Art Animation toggle** — added a new setting to enable or disable the NowBar cover art transition, enabled by default

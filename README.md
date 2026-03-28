@@ -46,7 +46,16 @@ Spicy Lyrics replaces Spotify's plain, static lyrics with a fully animated, imme
 
 ## What's New
 
-### v100.10.17 — Latest
+### v100.10.18 — Latest
+
+- **Merged mainline Spicy Lyrics 5.22.0** — pulled the latest official release into the dev branch, including sidebar lyrics improvements, dynamic background fixes, and updated audio analysis caching
+- **RTL lyrics fixes** — Arabic and other right-to-left lyrics now animate in the correct direction, syllable splits in the middle of words grow outward properly, and RTL lines no longer clip during animation
+- **Local FLAC seek blocking** — clicking lyrics to seek is now disabled for local FLAC files because Spotify desyncs the audio from the timeline; a notification explains why
+- **Musical interlude lines are no longer seekable** — clicking instrumental/musical lines no longer triggers a seek
+
+---
+
+### v100.10.17
 
 - **Client-side TTML parsing** — uploaded TTML files are now parsed directly in the Spotify client instead of being sent to the server first
 - **Local TTML apply flow cleanup** — local TTML uploads now apply directly in-app after parsing instead of bouncing back through the normal fetch flow

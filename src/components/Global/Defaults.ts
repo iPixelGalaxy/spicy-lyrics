@@ -35,6 +35,7 @@ const Defaults = {
   SyllableRendering: "Default" as string,
   CustomFontEnabled: false,
   CustomFont: "",
+  CustomFontURL: "",
   AlwaysShowInFullscreen: "None" as string,
   ShowVolumeSliderFullscreen: "Off" as string,
   ReleaseYearPosition: "Off" as string,

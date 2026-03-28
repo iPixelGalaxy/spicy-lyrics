@@ -1,5 +1,6 @@
 import Defaults from "../components/Global/Defaults.ts";
 import storage from "./storage.ts";
+import { applyFontFromURL, injectFontURL, removeFontURL } from "./FontURL.ts";
 import { RemoveAllLyricsCaches, RemoveCurrentLyrics_AllCaches, RemoveCurrentLyrics_StateCache, RemoveLyricsCache, ReloadCurrentLyrics } from "./LyricsCacheTools.ts";
 
 function attachDevModeGesture() {
@@ -214,33 +215,71 @@ export function showSettingsPanel() {
   // --- Appearance ---
   group("Appearance");
 
-  let customFontRow: HTMLElement | null = null;
+  let customFontRows: HTMLElement[] = [];
+
+  const showCustomFontRows = (show: boolean) => {
+    customFontRows.forEach(r => r.style.display = show ? "" : "none");
+  };
 
   toggle("Custom Font", Defaults.CustomFontEnabled, (v) => {
     storage.set("customFontEnabled", v.toString());
     Defaults.CustomFontEnabled = v;
     const page = document.querySelector<HTMLElement>("#SpicyLyricsPage");
     if (v) {
-      if (customFontRow) customFontRow.style.display = "";
-      if (Defaults.CustomFont) {
-        document.documentElement.style.setProperty("--spicy-custom-font", Defaults.CustomFont);
+      showCustomFontRows(true);
+      if (Defaults.CustomFontURL) {
+        injectFontURL(Defaults.CustomFontURL);
       }
+      applyFontFromURL(Defaults.CustomFontURL, Defaults.CustomFont);
       page?.classList.remove("UseSpicyFont");
     } else {
-      if (customFontRow) customFontRow.style.display = "none";
+      showCustomFontRows(false);
+      removeFontURL();
       document.documentElement.style.removeProperty("--spicy-custom-font");
       page?.classList.add("UseSpicyFont");
       (window as any).__spicy_load_fonts?.();
     }
   });
 
+  // Font URL row
   {
     const row = document.createElement("div");
     row.className = "sl-settings-row";
     row.style.display = Defaults.CustomFontEnabled ? "" : "none";
     const lbl = document.createElement("span");
     lbl.className = "sl-settings-label";
-    lbl.textContent = "Font Name";
+    lbl.textContent = "Font URL (Google Fonts)";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "sl-input";
+    input.placeholder = "https://fonts.googleapis.com/css2?family=Press+Start+2P";
+    input.value = Defaults.CustomFontURL;
+    input.addEventListener("input", () => {
+      const val = input.value.trim();
+      storage.set("customFontURL", val);
+      Defaults.CustomFontURL = val;
+      if (val) {
+        injectFontURL(val);
+        applyFontFromURL(val, Defaults.CustomFont);
+      } else {
+        removeFontURL();
+        applyFontFromURL("", Defaults.CustomFont);
+      }
+    });
+    row.appendChild(lbl);
+    row.appendChild(input);
+    scroll.appendChild(row);
+    customFontRows.push(row);
+  }
+
+  // Font Name row (fallback / override when no URL)
+  {
+    const row = document.createElement("div");
+    row.className = "sl-settings-row";
+    row.style.display = Defaults.CustomFontEnabled ? "" : "none";
+    const lbl = document.createElement("span");
+    lbl.className = "sl-settings-label";
+    lbl.textContent = "Font Name (manual / override)";
     const input = document.createElement("input");
     input.type = "text";
     input.className = "sl-input";
@@ -250,16 +289,12 @@ export function showSettingsPanel() {
       const val = input.value.trim();
       storage.set("customFont", val);
       Defaults.CustomFont = val;
-      if (val) {
-        document.documentElement.style.setProperty("--spicy-custom-font", val);
-      } else {
-        document.documentElement.style.removeProperty("--spicy-custom-font");
-      }
+      applyFontFromURL(Defaults.CustomFontURL, val);
     });
     row.appendChild(lbl);
     row.appendChild(input);
     scroll.appendChild(row);
-    customFontRow = row;
+    customFontRows.push(row);
   }
 
   toggle("Lock the MediaBox size while in Forced Compact Mode", Defaults.CompactMode_LockedMediaBox, (v) => {

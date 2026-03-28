@@ -26,6 +26,7 @@ import Session from "./components/Global/Session.ts";
 import { SpotifyPlayer } from "./components/Global/SpotifyPlayer.ts";
 import PageView, { GetPageRoot, PageContainer } from "./components/Pages/PageView.ts";
 import LoadFonts, { ApplyFontPixel } from "./components/Styling/Fonts.ts";
+import { applyFontFromURL, injectFontURL } from "./utils/FontURL.ts";
 import { Icons } from "./components/Styling/Icons.ts";
 import Fullscreen from "./components/Utils/Fullscreen.ts";
 import { UpdateNowBar } from "./components/Utils/NowBar.ts";
@@ -314,10 +315,17 @@ async function main() {
     Defaults.CustomFont = storage.get("customFont").toString();
   }
 
+  if (storage.get("customFontURL")) {
+    Defaults.CustomFontURL = storage.get("customFontURL").toString();
+  }
+
   await setSettingsMenu();
 
-  if (Defaults.CustomFontEnabled && Defaults.CustomFont) {
-    document.documentElement.style.setProperty("--spicy-custom-font", Defaults.CustomFont);
+  if (Defaults.CustomFontEnabled) {
+    if (Defaults.CustomFontURL) {
+      injectFontURL(Defaults.CustomFontURL);
+    }
+    applyFontFromURL(Defaults.CustomFontURL, Defaults.CustomFont);
   }
 
   LoadFonts();

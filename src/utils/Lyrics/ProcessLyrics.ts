@@ -5,6 +5,8 @@ import langs from "langs";
 import { RetrievePackage } from "../ImportPackage.ts";
 import * as KuromojiAnalyzer from "./KuromojiAnalyzer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
+import Defaults from "../../components/Global/Defaults.ts";
+import { gibberishifyLine, gibberishifySyllable } from "./GibberishTransform.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -353,5 +355,45 @@ export const ProcessLyrics = async (lyrics: any) => {
     PageContainer?.classList.add("Lyrics_RomanizationAvailable");
   } else {
     PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
+  }
+
+  // ── Gibberish Mode ────────────────────────────────────────────────────
+  if (Defaults.GibberishMode) {
+    if (lyrics.Type === "Static") {
+      for (const lyricMetadata of lyrics.Lines) {
+        lyricMetadata.GibberishText = gibberishifyLine(lyricMetadata.Text);
+      }
+    } else if (lyrics.Type === "Line") {
+      for (const vocalGroup of lyrics.Content) {
+        if (vocalGroup.Type === "Vocal") {
+          vocalGroup.GibberishText = gibberishifyLine(vocalGroup.Text);
+        }
+      }
+    } else if (lyrics.Type === "Syllable") {
+      for (const vocalGroup of lyrics.Content) {
+        if (vocalGroup.Type === "Vocal") {
+          // Build the full line text, gibberish-ify it, and store on the lead
+          let lineText = vocalGroup.Lead.Syllables[0]?.Text ?? "";
+          for (let i = 1; i < vocalGroup.Lead.Syllables.length; i++) {
+            const syl = vocalGroup.Lead.Syllables[i];
+            lineText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
+          }
+          vocalGroup.Lead.GibberishText = gibberishifyLine(lineText);
+
+          // Per-syllable gibberish for individual rendering
+          for (const syllable of vocalGroup.Lead.Syllables) {
+            syllable.GibberishText = gibberishifySyllable(syllable.Text);
+          }
+
+          if (vocalGroup.Background !== undefined) {
+            for (const bg of vocalGroup.Background) {
+              for (const syllable of bg.Syllables) {
+                syllable.GibberishText = gibberishifySyllable(syllable.Text);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 };

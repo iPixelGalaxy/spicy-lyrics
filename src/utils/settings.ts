@@ -195,6 +195,16 @@ function generalSettings(SettingsSection: any) {
     storage.set("settingsOnTop", settings.getFieldValue("settings-on-top") as string);
   });
 
+  settings.addToggle(
+    "gibberish-mode",
+    "Gibberish Mode (Wenomechainsama)",
+    Defaults.GibberishMode,
+    () => {
+      storage.set("gibberishMode", settings.getFieldValue("gibberish-mode") as string);
+    }
+  );
+
+
   settings.addButton(
     "save-n-reload",
     "Save your current settings and reload.",

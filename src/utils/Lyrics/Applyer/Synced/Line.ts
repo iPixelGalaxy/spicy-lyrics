@@ -31,6 +31,7 @@ interface LyricsLineData {
   StartTime: number;
   EndTime: number;
   RomanizedText?: string;
+  GibberishText?: string;
   OppositeAligned?: boolean;
 }
 
@@ -163,6 +164,7 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
   data.Content.forEach((line, index, arr) => {
     const lineElem = document.createElement("div");
     lineElem.textContent =
+      Defaults.GibberishMode && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
     lineElem.classList.add("line");
 

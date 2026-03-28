@@ -197,6 +197,14 @@ async function main() {
     Defaults.hide_npv_bg = storage.get("hide_npv_bg") === "true";
   }
 
+  if (!storage.get("gibberishMode")) {
+    storage.set("gibberishMode", "false");
+  }
+
+  if (storage.get("gibberishMode")) {
+    Defaults.GibberishMode = storage.get("gibberishMode") === "true";
+  }
+
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
   window._spicy_lyrics_metadata = {}
 

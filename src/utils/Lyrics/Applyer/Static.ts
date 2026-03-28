@@ -29,6 +29,7 @@ export interface StaticLyricsData {
   Lines: Array<{
     Text: string;
     RomanizedText?: string;
+    GibberishText?: string;
   }>;
   offline?: boolean;
   classes?: string;
@@ -68,6 +69,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
     const lineElem = document.createElement("div");
 
     lineElem.textContent =
+      Defaults.GibberishMode && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {

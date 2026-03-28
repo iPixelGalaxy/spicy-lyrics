@@ -56,6 +56,13 @@ import { PopupModal } from "./components/Modal.ts";
 import { ProjectVersion } from "../project/config.ts";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
 
+/* 
+  upcoming feature leak..?
+
+  import { initCliSocket } from "./components/cli-sync/index.ts";
+  import "./components/cli-sync/socket/manager.ts";
+*/
+
 async function main() {
   await Platform.OnSpotifyReady;
 
@@ -622,28 +629,28 @@ async function main() {
 
   {
     if (!ButtonList) return;
-  
+
     const fullscreenButton = ButtonList[1].Button;
     fullscreenButton.element.style.order = "100001";
     fullscreenButton.element.id = "SpicyLyrics_FullscreenButton";
-  
+
     const popupLyricsButton = ButtonList[2].Button;
     if (popupLyricsButton) {
       popupLyricsButton.element.style.order = "100000";
       popupLyricsButton.element.id = "SpicyLyrics_PopupLyricsButton";
     }
-  
+
     const hideUnwantedButtons = (container: Element) => {
       for (const element of container.children) {
         const testId = element.attributes.getNamedItem("data-testid")?.value;
-        
+
         const isFullscreen = testId === "fullscreen-mode-button";
         const isPip = Defaults.PopupLyricsAllowed && testId === "pip-toggle-button";
-        const isGenericControl = 
+        const isGenericControl =
           element.classList.contains("control-button") &&
           !element.classList.contains("volume-bar__icon-button") &&
           !element.classList.contains("main-devicePicker-controlButton");
-  
+
         if (
           (isFullscreen || isPip || isGenericControl) &&
           element.id !== "SpicyLyrics_FullscreenButton" &&
@@ -653,19 +660,19 @@ async function main() {
         }
       }
     };
-  
+
     let observer: MutationObserver | null = null;
-  
+
     const startObservingDOM = () => {
       const controlsContainer = document.querySelector<HTMLElement>(
         ".main-nowPlayingBar-extraControls"
       );
-  
+
       if (!controlsContainer) {
-        setTimeout(startObservingDOM, 100); 
+        setTimeout(startObservingDOM, 100);
         return;
       }
-  
+
       hideUnwantedButtons(controlsContainer);
 
       const MAX_MUTATION_BATCHES = 100;
@@ -711,7 +718,7 @@ async function main() {
         if (observer) stopObserving(observer, "timeout");
       }, MAX_OBSERVE_MS);
     };
-  
+
     startObservingDOM();
   }
 
@@ -1231,7 +1238,6 @@ async function main() {
 
   runThemeMatcher();
 
-  
 }
 
 main();

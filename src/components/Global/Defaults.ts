@@ -31,7 +31,8 @@ const Defaults = {
   ViewControlsPosition: "Top",
   SettingsOnTop: true,
   DeveloperMode: false,
-  GibberishMode: false,
+  MemeFormat: "Off" as string,
+  MemeFormat_Default: 0,
 };
 
 export default Defaults;

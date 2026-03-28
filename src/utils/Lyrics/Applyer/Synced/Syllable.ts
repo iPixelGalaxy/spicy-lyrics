@@ -28,6 +28,7 @@ import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
+import { uwuify } from "../../../uwuify.ts";
 
 // Define the data structure for syllable lyrics
 interface SyllableData {
@@ -67,16 +68,33 @@ interface LyricsData {
   styles?: Record<string, string>;
 }
 
+let _resolveTextLogCount = 0;
 function resolveText(
   syllable: SyllableData,
   useRomanized: boolean
 ): string {
-  if (Defaults.GibberishMode && syllable.GibberishText !== undefined) return syllable.GibberishText;
-  if (useRomanized && syllable.RomanizedText !== undefined) return syllable.RomanizedText;
-  return syllable.Text;
+  if (Defaults.MemeFormat === "Gibberish" && syllable.GibberishText !== undefined) {
+    if (_resolveTextLogCount < 30) {
+      console.log(`[Gibberish/resolveText] ✅ Using GibberishText: "${syllable.Text}" → "${syllable.GibberishText}"`);
+      _resolveTextLogCount++;
+    }
+    return syllable.GibberishText;
+  }
+  if (Defaults.MemeFormat === "Gibberish" && syllable.GibberishText === undefined) {
+    if (_resolveTextLogCount < 30) {
+      console.log(`[Gibberish/resolveText] ❌ MemeFormat is Gibberish but GibberishText is UNDEFINED for "${syllable.Text}"`);
+      _resolveTextLogCount++;
+    }
+  }
+  let text = useRomanized && syllable.RomanizedText !== undefined ? syllable.RomanizedText : syllable.Text;
+  if (Defaults.MemeFormat === "Weeb") text = uwuify(text);
+  return text;
 }
 
 export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = false): void {
+  console.log(`[Gibberish/ApplySyllable] Called. MemeFormat="${Defaults.MemeFormat}", UseRomanized=${UseRomanized}, lines=${data.Content.length}`);
+  console.log(`[Gibberish/ApplySyllable] First line syllables:`, data.Content[0]?.Lead?.Syllables?.slice(0, 5).map((s: any) => ({ Text: s.Text, GibberishText: s.GibberishText })));
+  _resolveTextLogCount = 0;
   if (!Defaults.LyricsContainerExists) return;
   EmitNotApplyed();
 
@@ -239,7 +257,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
       const IfLetterCapable = IsLetterCapable(letterLength, totalDuration);
 
       // In Gibberish Mode all syllables are treated as part of one joined word
-      const isPartOfWord = Defaults.GibberishMode || lead.IsPartOfWord;
+      const isPartOfWord = Defaults.MemeFormat === "Gibberish" || lead.IsPartOfWord;
 
       if (IfLetterCapable) {
         word = document.createElement("div");
@@ -291,7 +309,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
       }
 
       const prev = aL[iL - 1];
-      const prevIsPartOfWord = Defaults.GibberishMode || prev?.IsPartOfWord;
+      const prevIsPartOfWord = Defaults.MemeFormat === "Gibberish" || prev?.IsPartOfWord;
 
       if (isPartOfWord || (prevIsPartOfWord && currentWordGroup)) {
         if (!currentWordGroup) {
@@ -348,7 +366,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
           const IfLetterCapable = IsLetterCapable(letterLength, totalDuration);
 
           // In Gibberish Mode all syllables join together
-          const bwIsPartOfWord = Defaults.GibberishMode || bw.IsPartOfWord;
+          const bwIsPartOfWord = Defaults.MemeFormat === "Gibberish" || bw.IsPartOfWord;
 
           if (IfLetterCapable) {
             bwE = document.createElement("div");
@@ -403,7 +421,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
           }
 
           const prevBG = bA[bI - 1];
-          const prevBGIsPartOfWord = Defaults.GibberishMode || prevBG?.IsPartOfWord;
+          const prevBGIsPartOfWord = Defaults.MemeFormat === "Gibberish" || prevBG?.IsPartOfWord;
 
           if (bwIsPartOfWord || (prevBGIsPartOfWord && currentBGWordGroup)) {
             if (!currentBGWordGroup) {

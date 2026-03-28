@@ -197,12 +197,12 @@ async function main() {
     Defaults.hide_npv_bg = storage.get("hide_npv_bg") === "true";
   }
 
-  if (!storage.get("gibberishMode")) {
-    storage.set("gibberishMode", "false");
+  if (!storage.get("memeFormat")) {
+    storage.set("memeFormat", "Off");
   }
 
-  if (storage.get("gibberishMode")) {
-    Defaults.GibberishMode = storage.get("gibberishMode") === "true";
+  if (storage.get("memeFormat")) {
+    Defaults.MemeFormat = storage.get("memeFormat") as string;
   }
 
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;

@@ -3,14 +3,15 @@
  *
  * Converts English (and any Latin-script) lyrics into phonetically-smashed
  * gibberish that looks like how a non-English speaker might transcribe what
- * they hear. Words in a line get joined together, phonetically mangled,
- * vowels shifted, and consonants simplified — nothing survives intact.
+ * they hear. Words get phonetically mangled per-word FIRST (so ending rules
+ * work), then joined together, then a universal vowel-shift pass ensures
+ * nothing survives looking like real English.
  */
 
 // ── Word-level contractions & common words ──────────────────────────────
-// These fire BEFORE spaces are removed so \b works correctly.
+// Applied BEFORE joining so \b anchors work.
 const WordReplacements: [RegExp, string][] = [
-  // Contractions — smash hard
+  // Contractions
   [/\bi'm\b/gi, "am"],
   [/\bi'll\b/gi, "al"],
   [/\bi've\b/gi, "av"],
@@ -171,7 +172,6 @@ const WordReplacements: [RegExp, string][] = [
   [/\bhigher\b/gi, "haia"],
   [/\bdown\b/gi, "daun"],
   [/\btown\b/gi, "taun"],
-  [/\bknown\b/gi, "non"],
   [/\bsound\b/gi, "saun"],
   [/\bfound\b/gi, "faun"],
   [/\bground\b/gi, "graun"],
@@ -201,7 +201,6 @@ const WordReplacements: [RegExp, string][] = [
   [/\bneed\b/gi, "nid"],
   [/\bfree\b/gi, "fri"],
   [/\bsee\b/gi, "si"],
-  [/\bbeen\b/gi, "bin"],
   [/\btree\b/gi, "tri"],
   [/\bthree\b/gi, "tri"],
   [/\bhere\b/gi, "hia"],
@@ -212,11 +211,106 @@ const WordReplacements: [RegExp, string][] = [
   [/\bhear\b/gi, "hia"],
   [/\byear\b/gi, "yia"],
   [/\bdear\b/gi, "dia"],
+  [/\bleft\b/gi, "lef"],
+  [/\bhead\b/gi, "hed"],
+  [/\bdead\b/gi, "ded"],
+  [/\bread\b/gi, "red"],
+  [/\bsaid\b/gi, "sed"],
+  [/\bhalf\b/gi, "haf"],
+  [/\btalk\b/gi, "tok"],
+  [/\bwalk\b/gi, "wok"],
+  [/\bscary\b/gi, "skeri"],
+  [/\bhappy\b/gi, "hapi"],
+  [/\bcrazy\b/gi, "kresi"],
+  [/\bbaby\b/gi, "bebi"],
+  [/\blady\b/gi, "ledi"],
+  [/\bbody\b/gi, "badi"],
+  [/\bsorry\b/gi, "sori"],
+  [/\bstory\b/gi, "stori"],
+  [/\bglory\b/gi, "glori"],
+  [/\bworry\b/gi, "wori"],
+  [/\bhurry\b/gi, "hari"],
+  [/\bhello\b/gi, "helo"],
+  [/\byellow\b/gi, "yelo"],
+  [/\bfollow\b/gi, "folo"],
+  [/\bshadow\b/gi, "shado"],
+  [/\bwindow\b/gi, "windo"],
+  [/\btomorrow\b/gi, "tumoro"],
+  [/\bhaven\b/gi, "hafn"],
+  [/\bheaven\b/gi, "hefn"],
+  [/\bseven\b/gi, "sefn"],
+  [/\bopen\b/gi, "opn"],
+  [/\bbroken\b/gi, "brokn"],
+  [/\btaken\b/gi, "tekn"],
+  [/\bfallen\b/gi, "foln"],
+  [/\bgolden\b/gi, "goldn"],
+  [/\blisten\b/gi, "lisn"],
+  [/\boften\b/gi, "ofn"],
+  [/\bchild\b/gi, "chaild"],
+  [/\bwild\b/gi, "waild"],
+  [/\bmind\b/gi, "maind"],
+  [/\bfind\b/gi, "faind"],
+  [/\bkind\b/gi, "kaind"],
+  [/\bbehind\b/gi, "bihaind"],
+  [/\bblind\b/gi, "blaind"],
+  [/\bwind\b/gi, "wind"],
+  [/\bdream\b/gi, "drim"],
+  [/\bscream\b/gi, "skrim"],
+  [/\bstream\b/gi, "strim"],
+  [/\bteam\b/gi, "tim"],
+  [/\bmean\b/gi, "min"],
+  [/\bclean\b/gi, "klin"],
+  [/\bocean\b/gi, "oshun"],
+  [/\bplace\b/gi, "ples"],
+  [/\bface\b/gi, "fes"],
+  [/\bspace\b/gi, "spes"],
+  [/\bgrace\b/gi, "gres"],
+  [/\bthing\b/gi, "tin"],
+  [/\bring\b/gi, "rin"],
+  [/\bsing\b/gi, "sin"],
+  [/\bbring\b/gi, "brin"],
+  [/\bking\b/gi, "kin"],
+  [/\bwing\b/gi, "win"],
+  [/\bstring\b/gi, "strin"],
+  [/\bswing\b/gi, "swin"],
+  [/\bwrong\b/gi, "ron"],
+  [/\bstrong\b/gi, "stron"],
+  [/\bsong\b/gi, "son"],
+  [/\blong\b/gi, "lon"],
+  [/\balong\b/gi, "alon"],
+  [/\bbelong\b/gi, "bilon"],
+  [/\bpiece\b/gi, "pis"],
+  [/\bvoice\b/gi, "voys"],
+  [/\bchoice\b/gi, "choys"],
+  [/\bnoise\b/gi, "noyz"],
+  [/\bhorse\b/gi, "hos"],
+  [/\bcourse\b/gi, "kos"],
+  [/\bforce\b/gi, "fos"],
+  [/\bonce\b/gi, "wans"],
+  [/\bdance\b/gi, "dans"],
+  [/\bchance\b/gi, "chans"],
+  [/\bsince\b/gi, "sins"],
+  [/\bprince\b/gi, "prins"],
+  [/\bwhite\b/gi, "wait"],
+  [/\bwrite\b/gi, "rait"],
+  [/\bquite\b/gi, "kwait"],
+  [/\bsmile\b/gi, "smail"],
+  [/\bstyle\b/gi, "stail"],
+  [/\bcause\b/gi, "koz"],
+  [/\bpause\b/gi, "poz"],
+  [/\bclose\b/gi, "klos"],
+  [/\bthose\b/gi, "dos"],
+  [/\brose\b/gi, "ros"],
+  [/\blose\b/gi, "lus"],
+  [/\bchoose\b/gi, "chus"],
+  [/\bhouse\b/gi, "haus"],
+  [/\bmouse\b/gi, "maus"],
 ];
 
-// ── Phonetic pattern rules (applied after word-level, after joining) ────
-const PhoneticRules: [RegExp, string][] = [
-  // Long multi-char combos — longest first
+// ── Per-word phonetic rules (applied to each word BEFORE joining) ───────
+// These use $ anchors and \b so they MUST run while words are separate.
+const PerWordPhoneticRules: [RegExp, string][] = [
+  // Multi-char patterns
   [/ough/g, "o"],
   [/augh/g, "af"],
   [/ight/g, "ai"],
@@ -227,14 +321,8 @@ const PhoneticRules: [RegExp, string][] = [
   [/tious/g, "shus"],
   [/ious/g, "yus"],
   [/eous/g, "yus"],
-  [/ence/g, "ens"],
-  [/ance/g, "ans"],
   [/ture/g, "cha"],
   [/sure/g, "sha"],
-  [/ness/g, "nes"],
-  [/ment/g, "men"],
-  [/able/g, "abo"],
-  [/ible/g, "ibo"],
 
   // Digraphs & silent combos
   [/wh/g, "w"],
@@ -245,25 +333,31 @@ const PhoneticRules: [RegExp, string][] = [
   [/wr/g, "r"],
   [/mb$/g, "m"],
   [/mn/g, "n"],
-  [/sc([eiy])/g, "s$1"],
 
-  // th → t everywhere
+  // th → t
   [/th/g, "t"],
 
-  // Ending patterns
+  // Ending patterns ($ anchors work here because words are still separate)
+  [/ness$/g, "nes"],
+  [/ment$/g, "men"],
+  [/able$/g, "abo"],
+  [/ible$/g, "ibo"],
   [/ble$/g, "bo"],
   [/ple$/g, "po"],
   [/tle$/g, "to"],
-  [/ing/g, "in"],
-  [/ful/g, "fo"],
-  [/ally/g, "ali"],
-  [/ely/g, "li"],
+  [/ful$/g, "fo"],
+  [/ally$/g, "ali"],
+  [/ously$/g, "usli"],
+  [/ely$/g, "li"],
   [/ly$/g, "li"],
-  [/ery/g, "ri"],
-  [/ary/g, "ari"],
-  [/ory/g, "ori"],
+  [/ery$/g, "ri"],
+  [/ary$/g, "ari"],
+  [/ory$/g, "ori"],
+  [/ity$/g, "iti"],
+  [/ety$/g, "eti"],
 
-  // -er, -or, -ar endings → a
+  // -er, -or, -ar, -re endings → a
+  [/ier$/g, "ia"],
   [/er$/g, "a"],
   [/or$/g, "a"],
   [/ar$/g, "a"],
@@ -271,10 +365,13 @@ const PhoneticRules: [RegExp, string][] = [
   [/re$/g, "a"],
 
   // -ed endings
+  [/ied$/g, "id"],
   [/([aeiou])ted$/g, "$1d"],
   [/([aeiou])ded$/g, "$1d"],
-  [/ied$/g, "id"],
   [/([^aeiou])ed$/g, "$1"],
+
+  // -ing
+  [/ing$/g, "in"],
 
   // Vowel digraphs — aggressively reduce
   [/eigh/g, "e"],
@@ -298,38 +395,78 @@ const PhoneticRules: [RegExp, string][] = [
   [/([bcdfghjklmnpqrstvwxyz])e$/g, "$1"],
 ];
 
-// ── Aggressive vowel shifting (the secret sauce) ────────────────────────
-// Applied last to mutate any remaining "normal-looking" vowels.
-const VowelShifts: [RegExp, string][] = [
-  // Unstressed interior vowels get swapped around
-  [/([bcdfghjklmnpqrstvwxyz])a([bcdfghjklmnpqrstvwxyz])a/g, "$1a$2o"],
-  [/([bcdfghjklmnpqrstvwxyz])e([bcdfghjklmnpqrstvwxyz])e/g, "$1e$2a"],
-  [/([bcdfghjklmnpqrstvwxyz])i([bcdfghjklmnpqrstvwxyz])i/g, "$1i$2e"],
-  [/([bcdfghjklmnpqrstvwxyz])o([bcdfghjklmnpqrstvwxyz])o/g, "$1o$2a"],
-  [/([bcdfghjklmnpqrstvwxyz])u([bcdfghjklmnpqrstvwxyz])u/g, "$1u$2o"],
-
-  // Drop weak interior vowels in longer words (consonant clusters feel more gibberish)
-  // Only drop if surrounded by single consonants (keeps it pronounceable)
-  [/([bcdfghjklmnpqrstvwxyz])e([bcdfghjklmnpqrstvwxyz][aeiou])/g, "$1$2"],
-];
-
 /**
- * Core phonetic simplification — applied to any text chunk.
+ * Universal vowel rotation — the nuclear option.
+ *
+ * Shifts vowels that sit between consonants (CVC pattern) so that
+ * every surviving "normal" word gets mutated.  The shift is deterministic
+ * (same input → same output) but looks alien.
+ *
+ *   a → o,  e → a,  i → e,  o → u,  u → i
+ *
+ * We skip the very first vowel of the string so the word onset stays
+ * vaguely recognisable (mirrors how the meme keeps the first sound).
  */
-function phoneticSimplify(text: string): string {
-  let result = text.toLowerCase();
+function rotateVowels(text: string): string {
+  const vowelMap: Record<string, string> = {
+    a: "o",
+    e: "a",
+    i: "e",
+    o: "u",
+    u: "i",
+  };
 
-  // Strip all punctuation
-  result = result.replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "");
+  let hitFirst = false;
+  let result = "";
+  let rotatedCount = 0;
+  let skippedFirst = "";
 
-  // Apply phonetic rules
-  for (const [pattern, replacement] of PhoneticRules) {
-    result = result.replace(pattern, replacement);
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if ("aeiou".includes(ch)) {
+      if (!hitFirst) {
+        hitFirst = true;
+        skippedFirst = ch;
+        result += ch;
+      } else {
+        const mapped = vowelMap[ch] ?? ch;
+        if (mapped !== ch) rotatedCount++;
+        result += mapped;
+      }
+    } else {
+      result += ch;
+    }
   }
 
-  // Apply vowel shifts to make it even more alien
-  for (const [pattern, replacement] of VowelShifts) {
+  console.log(`[Gibberish/rotateVowels] Skipped first vowel: "${skippedFirst}", rotated ${rotatedCount} vowels | "${text}" → "${result}"`);
+
+  return result;
+}
+
+/**
+ * Apply per-word phonetic mangling to a single word.
+ */
+function mangleWord(word: string): string {
+  let result = word.toLowerCase();
+
+  // Strip punctuation
+  result = result.replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "");
+
+  if (result.length === 0) return result;
+
+  const beforePhonetic = result;
+
+  // Apply phonetic rules ($ anchors work because this is a single word)
+  for (const [pattern, replacement] of PerWordPhoneticRules) {
+    const before = result;
     result = result.replace(pattern, replacement);
+    if (result !== before) {
+      console.log(`[Gibberish/mangleWord] Rule ${pattern} → "${replacement}" | "${before}" → "${result}"`);
+    }
+  }
+
+  if (result === beforePhonetic) {
+    console.log(`[Gibberish/mangleWord] No phonetic rules matched for "${beforePhonetic}"`);
   }
 
   return result;
@@ -337,52 +474,64 @@ function phoneticSimplify(text: string): string {
 
 /**
  * Transform a full line of lyrics into gibberish.
- * Words are joined together and phonetically mangled, then capitalised.
+ * Each word is mangled individually (so $ anchors work), then they're
+ * joined, then a universal vowel rotation ensures nothing looks normal.
  *
  * Used for Line-synced and Static lyrics.
  */
 export function gibberishifyLine(text: string): string {
   if (!text || text.trim().length === 0) return text;
 
+  console.log(`[Gibberish] ── INPUT: "${text}"`);
+
   let result = text;
 
-  // Apply word-level replacements first (while spaces exist)
+  // Phase 1: Word-level dictionary replacements (while spaces exist)
+  const beforeDict = result;
   for (const [pattern, replacement] of WordReplacements) {
+    const before = result;
     result = result.replace(pattern, replacement);
+    if (result !== before) {
+      console.log(`[Gibberish/Phase1-Dict] ${pattern} → "${replacement}" | "${before}" → "${result}"`);
+    }
+  }
+  if (result === beforeDict) {
+    console.log(`[Gibberish/Phase1-Dict] No dictionary replacements matched`);
+  }
+  console.log(`[Gibberish] After Phase 1 (dict): "${result}"`);
+
+  // Phase 2: Per-word phonetic mangling ($ anchors need word boundaries)
+  const words = result.split(/\s+/);
+  console.log(`[Gibberish/Phase2-Mangle] Words to mangle:`, words);
+  const mangledWords = words.map((w) => {
+    const mangled = mangleWord(w);
+    if (mangled !== w.toLowerCase()) {
+      console.log(`[Gibberish/Phase2-Mangle] "${w}" → "${mangled}"`);
+    } else {
+      console.log(`[Gibberish/Phase2-Mangle] "${w}" → "${mangled}" (unchanged)`);
+    }
+    return mangled;
+  });
+
+  // Phase 3: Join words together
+  result = mangledWords.join("");
+  console.log(`[Gibberish] After Phase 3 (join): "${result}"`);
+
+  // Phase 4: Universal vowel rotation (skip first vowel)
+  const beforeRotation = result;
+  result = rotateVowels(result);
+  console.log(`[Gibberish] After Phase 4 (vowel rotate): "${result}" ${result === beforeRotation ? "(NO CHANGE)" : ""}`);
+
+  // Phase 5: Final cleanup — collapse double consonants created by joining
+  const beforeCleanup = result;
+  result = result.replace(/([bcdfghjklmnpqrstvwxyz])\1/g, "$1");
+  if (result !== beforeCleanup) {
+    console.log(`[Gibberish] After Phase 5 (cleanup): "${result}"`);
   }
 
-  // Remove spaces (join words)
-  result = result.replace(/\s+/g, "");
-
-  // Phonetic simplify the joined result
-  result = phoneticSimplify(result);
-
-  // Capitalize first letter
-  if (result.length > 0) {
-    result = result.charAt(0).toUpperCase() + result.slice(1);
-  }
+  console.log(`[Gibberish] ── OUTPUT: "${result}"`);
+  console.log(`[Gibberish] ──────────────────────────────────`);
 
   return result;
 }
 
-/**
- * Transform a single syllable / word fragment into gibberish.
- * Does NOT join words — that is handled by the applyer via IsPartOfWord.
- *
- * Used for Syllable-synced lyrics where each syllable has its own timing.
- */
-export function gibberishifySyllable(text: string): string {
-  if (!text || text.trim().length === 0) return text;
-
-  let result = text;
-
-  // Apply word-level replacements
-  for (const [pattern, replacement] of WordReplacements) {
-    result = result.replace(pattern, replacement);
-  }
-
-  // Phonetic simplify
-  result = phoneticSimplify(result);
-
-  return result;
-}

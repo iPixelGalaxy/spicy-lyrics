@@ -8,7 +8,7 @@ import Fullscreen from "../../components/Utils/Fullscreen.ts";
 import { Query } from "../API/Query.ts";
 import { SetWaitingForHeight } from "../Scrolling/ScrollToActiveLine.ts";
 import storage from "../storage.ts";
-import { ProcessLyrics } from "./ProcessLyrics.ts";
+import { ProcessLyrics, ApplyMemeFormat } from "./ProcessLyrics.ts";
 
 export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore", 12, {
   Unit: "Days",
@@ -104,6 +104,7 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
           PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
           PageView.AppendViewControls(true);
           storage.set("currentlyFetching", "false");
+          ApplyMemeFormat(lyricsData);
           return [lyricsData, 200];
         }
       }
@@ -137,7 +138,9 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
         PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
         PageView.AppendViewControls(true);
         storage.set("currentlyFetching", "false");
-        return [{ ...lyricsFromCache, fromCache: true }, 200];
+        const cachedData = { ...lyricsFromCache, fromCache: true };
+        ApplyMemeFormat(cachedData);
+        return [cachedData, 200];
       }
     } catch (error) {
       console.error("Error parsing saved lyrics data:", error);

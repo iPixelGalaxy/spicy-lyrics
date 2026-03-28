@@ -10,6 +10,7 @@ export async function setSettingsMenu() {
   const { SettingsSection } = await import("../edited_packages/spcr-settings/settingsSection.tsx");
 
   generalSettings(SettingsSection);
+  funSettings(SettingsSection);
   devSettings(SettingsSection);
   //infos(SettingsSection);
 }
@@ -195,21 +196,35 @@ function generalSettings(SettingsSection: any) {
     storage.set("settingsOnTop", settings.getFieldValue("settings-on-top") as string);
   });
 
-  settings.addToggle(
-    "gibberish-mode",
-    "Gibberish Mode (Wenomechainsama)",
-    Defaults.GibberishMode,
-    () => {
-      storage.set("gibberishMode", settings.getFieldValue("gibberish-mode") as string);
-    }
-  );
-
-
   settings.addButton(
     "save-n-reload",
     "Save your current settings and reload.",
     "Save & Reload",
     () => {
+      window.location.reload();
+    }
+  );
+
+  settings.pushSettings();
+}
+
+function funSettings(SettingsSection: any) {
+  const settings = new SettingsSection("Spicy Lyrics - Fun Settings", "spicy-lyrics-fun-settings");
+
+  settings.addDropDown(
+    "meme-format",
+    "Meme Format",
+    ["Off", "Weeb (・`ω´・)", "Gibberish (Wenomechainsama)"],
+    Defaults.MemeFormat === "Gibberish" ? 2 : Defaults.MemeFormat === "Weeb" ? 1 : 0,
+    () => {
+      const value = settings.getFieldValue("meme-format") as string;
+      const processedValue =
+        value === "Weeb (・`ω´・)"
+          ? "Weeb"
+          : value === "Gibberish (Wenomechainsama)"
+            ? "Gibberish"
+            : "Off";
+      storage.set("memeFormat", processedValue);
       window.location.reload();
     }
   );

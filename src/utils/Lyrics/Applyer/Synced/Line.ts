@@ -1,5 +1,6 @@
 import Defaults from "../../../../components/Global/Defaults.ts";
 import { PageContainer } from "../../../../components/Pages/PageView.ts";
+import { uwuify } from "../../../uwuify.ts";
 import { applyStyles, removeAllStyles } from "../../../CSS/Styles.ts";
 import {
   ClearScrollSimplebar,
@@ -31,6 +32,7 @@ interface LyricsLineData {
   StartTime: number;
   EndTime: number;
   RomanizedText?: string;
+  GibberishText?: string;
   OppositeAligned?: boolean;
 }
 
@@ -160,10 +162,21 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
     LyricsContainer.appendChild(musicalLine);
   }
 
+  console.log(`[Gibberish/ApplyLine] Called. MemeFormat="${Defaults.MemeFormat}", lines=${data.Content.length}`);
+  if (data.Content.length > 0) {
+    const firstVocal = data.Content.find((l: any) => l.Type === "Vocal" || l.Text);
+    console.log(`[Gibberish/ApplyLine] First vocal line:`, { Text: firstVocal?.Text, GibberishText: firstVocal?.GibberishText });
+  }
   data.Content.forEach((line, index, arr) => {
     const lineElem = document.createElement("div");
-    lineElem.textContent =
+    let lineContent =
+      Defaults.MemeFormat === "Gibberish" && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
+    if (Defaults.MemeFormat === "Weeb") lineContent = uwuify(lineContent);
+    if (index < 3) {
+      console.log(`[Gibberish/ApplyLine] Line ${index}: "${line.Text}" → displayed as "${lineContent}" (GibberishText=${line.GibberishText !== undefined ? `"${line.GibberishText}"` : "UNDEFINED"})`);
+    }
+    lineElem.textContent = lineContent;
     lineElem.classList.add("line");
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {

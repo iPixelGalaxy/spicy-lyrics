@@ -1,5 +1,6 @@
 import Defaults from "../../../components/Global/Defaults.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
+import { uwuify } from "../../uwuify.ts";
 import { type StyleProperties, applyStyles, removeAllStyles } from "../../CSS/Styles.ts";
 import {
   ClearScrollSimplebar,
@@ -29,6 +30,7 @@ export interface StaticLyricsData {
   Lines: Array<{
     Text: string;
     RomanizedText?: string;
+    GibberishText?: string;
   }>;
   offline?: boolean;
   classes?: string;
@@ -67,8 +69,11 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   data.Lines.forEach((line) => {
     const lineElem = document.createElement("div");
 
-    lineElem.textContent =
+    let lineContent =
+      Defaults.MemeFormat === "Gibberish" && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
+    if (Defaults.MemeFormat === "Weeb") lineContent = uwuify(lineContent);
+    lineElem.textContent = lineContent;
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
       lineElem.classList.add("rtl");

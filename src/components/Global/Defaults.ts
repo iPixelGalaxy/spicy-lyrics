@@ -41,6 +41,8 @@ const Defaults = {
   ReplaceSpotifyPlaybar: false,
   CoverArtAnimation: true,
   UseOldBackgroundAnimation: false,
+  MemeFormat: "Off" as string,
+  MemeFormat_Default: 0,
 };
 
 export default Defaults;

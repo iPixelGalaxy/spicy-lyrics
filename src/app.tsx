@@ -272,6 +272,15 @@ async function main() {
 
   Defaults.ReleaseYearPosition = storage.get("releaseYearPosition")?.toString() ?? "Off";
 
+  if (!storage.get("memeFormat")) {
+    storage.set("memeFormat", "Off");
+  }
+
+  if (storage.get("memeFormat")) {
+    Defaults.MemeFormat = storage.get("memeFormat") as string;
+  }
+
+
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
   window._spicy_lyrics_metadata = {}
 

@@ -46,7 +46,11 @@ Spicy Lyrics replaces Spotify's plain, static lyrics with a fully animated, imme
 
 ## What's New
 
-### v100.10.18 — Latest
+### v100.10.19 — Latest
+
+- **Added Fun Options** Meme Format Options: Weeb, Gibberish (Gibberish is lowkey cooked, this one would require quite a bit of work to get right)
+
+### v100.10.18
 
 - **Merged mainline Spicy Lyrics 5.22.0** — pulled the latest official release into the dev branch, including sidebar lyrics improvements, dynamic background fixes, and updated audio analysis caching
 - **RTL lyrics fixes** — Arabic and other right-to-left lyrics now animate in the correct direction, syllable splits in the middle of words grow outward properly, and RTL lines no longer clip during animation

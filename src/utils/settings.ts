@@ -85,7 +85,7 @@ export function showSettingsPanel() {
   if (document.querySelector(".SpicyLyricsSettingsOverlay")) return;
 
   const modalPadding = 24;
-  const preferredWidth = 1100;
+  const preferredWidth = 1160;
   const preferredHeightRatio = 0.72;
   const minimumHeight = 420;
   const page = document.querySelector<HTMLElement>("#SpicyLyricsPage");
@@ -486,49 +486,6 @@ export async function setSettingsMenu() {
   const { SettingsSection } = await import("../edited_packages/spcr-settings/settingsSection.tsx");
 
   generalSettings(SettingsSection);
-  funSettings(SettingsSection);
-  devSettings(SettingsSection);
-  //infos(SettingsSection);
-}
-
-function devSettings(SettingsSection: any) {
-  const settings = new SettingsSection(
-    "Spicy Lyrics - Developer Settings",
-    "spicy-lyrics-dev-settings"
-  );
-
-  settings.addButton(
-    "remove-current-lyrics-all-caches",
-    "Clear Lyrics for the current song from all caches",
-    "Clear",
-    async () => await RemoveCurrentLyrics_AllCaches(true)
-  );
-
-  settings.addButton(
-    "remove-cached-lyrics",
-    "Clear Cached Lyrics (Lyrics Stay in Cache for 3 days)",
-    "Clear Cached Lyrics",
-    async () => await RemoveLyricsCache(true)
-  );
-
-  settings.addButton(
-    "remove-current-song-lyrics-from-localStorage",
-    "Clear Current Song Lyrics from internal state",
-    "Clear Current Lyrics",
-    () => RemoveCurrentLyrics_StateCache(true)
-  );
-
-  settings.addToggle("dev-mode", "TTML Maker mode (previously Dev Mode)", Defaults.DevMode, () => {
-    storage.set("devMode", settings.getFieldValue("dev-mode") as string);
-    window.location.reload();
-  });
-
-  settings.addToggle("developer-mode", "Developer Mode", Defaults.DeveloperMode, () => {
-    storage.set("developerMode", settings.getFieldValue("developer-mode") as string);
-    window.location.reload();
-  });
-
-  settings.pushSettings();
 }
 
 function generalSettings(SettingsSection: any) {
@@ -543,40 +500,3 @@ function generalSettings(SettingsSection: any) {
   settings.pushSettings();
   attachDevModeGesture();
 }
-
-function funSettings(SettingsSection: any) {
-  const settings = new SettingsSection("Spicy Lyrics - Fun Settings", "spicy-lyrics-fun-settings");
-
-  settings.addDropDown(
-    "meme-format",
-    "Meme Format",
-    ["Off", "Weeb (・`ω´・)", "Gibberish (Wenomechainsama)"],
-    Defaults.MemeFormat === "Gibberish" ? 2 : Defaults.MemeFormat === "Weeb" ? 1 : 0,
-    () => {
-      const value = settings.getFieldValue("meme-format") as string;
-      const processedValue =
-        value === "Weeb (・`ω´・)"
-          ? "Weeb"
-          : value === "Gibberish (Wenomechainsama)"
-            ? "Gibberish"
-            : "Off";
-      storage.set("memeFormat", processedValue);
-      window.location.reload();
-    }
-  );
-
-  settings.pushSettings();
-}
-
-/* function infos(SettingsSection: any) {
-  const settings = new SettingsSection("Spicy Lyrics - Info", "spicy-lyrics-settings-info");
-
-  settings.addButton(
-    "more-info",
-    "*If you're using a custom font modification, turn that on",
-    "",
-    () => {}
-  );
-
-  settings.pushSettings();
-} */

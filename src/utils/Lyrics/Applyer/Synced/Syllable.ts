@@ -319,7 +319,10 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
     let currentWordGroup: HTMLSpanElement | null = null;
 
-    const syllableMode = (data as any).userUploaded ? "Default" : Defaults.SyllableRendering;
+    const syllableMode =
+      (data as any).userUploaded || Defaults.MemeFormat === "Gibberish"
+        ? "Default"
+        : Defaults.SyllableRendering;
     const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
 
     processedLeadSyllables.forEach((lead, iL, aL) => {
@@ -336,8 +339,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
       const IfLetterCapable = IsLetterCapable(letterLength, totalDuration);
 
-      // In Gibberish Mode all syllables are treated as part of one joined word
-      const isPartOfWord = Defaults.MemeFormat === "Gibberish" || lead.IsPartOfWord;
+      const isPartOfWord = Defaults.MemeFormat === "Gibberish" ? iL < aL.length - 1 : !!lead.IsPartOfWord;
 
       if (IfLetterCapable) {
         word = document.createElement("div");
@@ -389,7 +391,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
       }
 
       const prev = aL[iL - 1];
-      const prevIsPartOfWord = Defaults.MemeFormat === "Gibberish" || prev?.IsPartOfWord;
+      const prevIsPartOfWord = Defaults.MemeFormat === "Gibberish" ? iL > 0 : !!prev?.IsPartOfWord;
 
       if (isPartOfWord || (prevIsPartOfWord && currentWordGroup)) {
         if (!currentWordGroup) {
@@ -447,8 +449,8 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
           const IfLetterCapable = IsLetterCapable(letterLength, totalDuration);
 
-          // In Gibberish Mode all syllables join together
-          const bwIsPartOfWord = Defaults.MemeFormat === "Gibberish" || bw.IsPartOfWord;
+          const bwIsPartOfWord =
+            Defaults.MemeFormat === "Gibberish" ? bI < bA.length - 1 : !!bw.IsPartOfWord;
 
           if (IfLetterCapable) {
             bwE = document.createElement("div");
@@ -503,7 +505,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
           }
 
           const prevBG = bA[bI - 1];
-          const prevBGIsPartOfWord = Defaults.MemeFormat === "Gibberish" || prevBG?.IsPartOfWord;
+          const prevBGIsPartOfWord = Defaults.MemeFormat === "Gibberish" ? bI > 0 : !!prevBG?.IsPartOfWord;
 
           if (bwIsPartOfWord || (prevBGIsPartOfWord && currentBGWordGroup)) {
             if (!currentBGWordGroup) {

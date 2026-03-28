@@ -245,43 +245,86 @@ const Romanize = async (
   }
 };
 
-/**
- * Distribute a gibberish-ified line string across syllable objects proportionally.
- * Each syllable gets a slice of the gibberish text based on its character-weight
- * relative to the total, ensuring every syllable gets at least 1 character.
- */
-function distributeLine(gibberishLine: string, syllables: any[]): void {
-  if (!syllables.length || !gibberishLine) return;
+function distributeJoinedText(text: string, groups: any[], getLength: (group: any) => number): string[] {
+  if (!groups.length) return [];
 
-  // Total original character count (spaces not counted — they were stripped)
-  const charCounts = syllables.map((s: any) => Math.max(1, (s.Text ?? "").replace(/\s/g, "").length));
-  const totalChars = charCounts.reduce((sum: number, c: number) => sum + c, 0);
+  const lengths = groups.map((group) => Math.max(1, getLength(group)));
+  const totalLength = lengths.reduce((sum: number, len: number) => sum + len, 0);
+  const sliceLengths = new Array(groups.length).fill(0);
 
-  const gibLen = gibberishLine.length;
-  let cursor = 0;
+  if (text.length >= groups.length) {
+    sliceLengths.fill(1);
 
-  for (let i = 0; i < syllables.length; i++) {
-    const isLast = i === syllables.length - 1;
+    const remainingChars = text.length - groups.length;
+    if (remainingChars > 0) {
+      let consumedWeight = 0;
+      let assignedExtra = 0;
 
-    if (isLast) {
-      // Last syllable gets everything remaining
-      syllables[i].GibberishText = gibberishLine.slice(cursor);
-    } else {
-      // Proportional slice, minimum 1 char, leave room for remaining syllables
-      const proportion = charCounts[i] / totalChars;
-      let sliceLen = Math.max(1, Math.round(gibLen * proportion));
+      for (let i = 0; i < lengths.length; i++) {
+        const isLast = i === lengths.length - 1;
 
-      // Don't consume so much that later syllables get nothing
-      const remaining = gibLen - cursor;
-      const syllablesLeft = syllables.length - i;
-      if (sliceLen > remaining - syllablesLeft) {
-        sliceLen = Math.max(1, remaining - syllablesLeft);
+        if (isLast) {
+          sliceLengths[i] += remainingChars - assignedExtra;
+          break;
+        }
+
+        consumedWeight += lengths[i];
+
+        const targetAssignedExtra = Math.round((remainingChars * consumedWeight) / totalLength);
+        const extraForThisGroup = Math.max(0, targetAssignedExtra - assignedExtra);
+
+        sliceLengths[i] += extraForThisGroup;
+        assignedExtra += extraForThisGroup;
       }
-
-      syllables[i].GibberishText = gibberishLine.slice(cursor, cursor + sliceLen);
-      cursor += sliceLen;
+    }
+  } else {
+    for (let i = 0; i < text.length; i++) {
+      sliceLengths[i] = 1;
     }
   }
+
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const sliceLen of sliceLengths) {
+    parts.push(text.slice(cursor, cursor + sliceLen));
+    cursor += sliceLen;
+  }
+
+  if (parts.length > 0 && cursor < text.length) {
+    parts[parts.length - 1] += text.slice(cursor);
+  }
+
+  return parts;
+}
+
+function getSyllableWeightText(text: string): string {
+  return (text ?? "")
+    .toLowerCase()
+    .replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "")
+    .replace(/\s/g, "");
+}
+
+function distributeLine(gibberishLine: string, syllables: any[]): string {
+  if (!syllables.length) return gibberishLine;
+
+  if (!gibberishLine) {
+    for (const syllable of syllables) {
+      syllable.GibberishText = "";
+    }
+    return gibberishLine;
+  }
+
+  const parts = distributeJoinedText(
+    gibberishLine,
+    syllables,
+    (syllable) => getSyllableWeightText(syllable.Text ?? "").length
+  );
+
+  syllables.forEach((syllable: any, index: number) => {
+    syllable.GibberishText = parts[index] ?? "";
+  });
+
+  return gibberishLine;
 }
 
 export const ProcessLyrics = async (lyrics: any) => {
@@ -434,10 +477,9 @@ export function ApplyMemeFormat(lyrics: any): void {
         }
         console.log(`[Gibberish/Syllable] Line ${syllableLineCount} original: "${lineText}" (${vocalGroup.Lead.Syllables.length} syllables)`);
         const gibberishLine = gibberishifyLine(lineText);
-        vocalGroup.Lead.GibberishText = gibberishLine;
 
-        // Distribute the line-level gibberish across syllables proportionally
-        distributeLine(gibberishLine, vocalGroup.Lead.Syllables);
+        // Distribute the gibberish across syllables without crossing word boundaries.
+        vocalGroup.Lead.GibberishText = distributeLine(gibberishLine, vocalGroup.Lead.Syllables);
         console.log(`[Gibberish/Syllable] Line ${syllableLineCount} distributed:`, vocalGroup.Lead.Syllables.map((s: any) => `"${s.Text}"→"${s.GibberishText}"`));
 
         if (vocalGroup.Background !== undefined) {
@@ -448,7 +490,7 @@ export function ApplyMemeFormat(lyrics: any): void {
               bgText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
             }
             const bgGibberish = gibberishifyLine(bgText);
-            distributeLine(bgGibberish, bg.Syllables);
+            bg.GibberishText = distributeLine(bgGibberish, bg.Syllables);
           }
         }
       }

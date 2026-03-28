@@ -50,6 +50,8 @@ import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts"
 import { setSettingsMenu } from "./utils/settings.ts";
 import storage from "./utils/storage.ts";
 import "./css/polyfills/tippy-polyfill.css";
+import "./css/polyfills/generic-modal-polyfill.css";
+import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
 import { IsPIP, OpenPopupLyrics, ClosePopupLyrics } from "./components/Utils/PopupLyrics.ts";
 import ReactDOM from "react-dom/client";
 import { PopupModal } from "./components/Modal.ts";

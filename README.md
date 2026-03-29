@@ -46,7 +46,11 @@ Spicy Lyrics replaces Spotify's plain, static lyrics with a fully animated, imme
 
 ## What's New
 
-### v100.10.19 — Latest
+### v100.10.20 — Latest
+
+- **Merged latest changes from 5.22.2**
+
+### v100.10.19
 
 - **Added Fun Options** Meme Format Options: Weeb, Gibberish (Gibberish is lowkey cooked, this one would require quite a bit of work to get right)
 

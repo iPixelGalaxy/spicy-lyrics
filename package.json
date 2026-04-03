@@ -4,7 +4,8 @@
   "scripts": {
     "sc": "spicetify-creator",
     "dev": "spicetify-creator dev",
-    "build": "spicetify-creator build",
+    "build": "bun run ./scripts/build.ts",
+    "build:creator": "spicetify-creator build",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt"

@@ -117,6 +117,33 @@ const GetContentType = (): string => {
   return "unknown";
 };
 
+const LOCAL_FLAC_METADATA_KEYS = [
+  "file_format",
+  "format",
+  "codec",
+  "container",
+  "mime_type",
+  "media_format",
+  "extension",
+  "filename",
+  "local_file_path",
+  "path",
+  "url",
+  "entity_uri",
+  "media.type",
+  "audio.format",
+] as const;
+
+const hasFlacSignature = (value: unknown): boolean => {
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "flac" ||
+    normalized === "audio/flac" ||
+    normalized.endsWith(".flac")
+  );
+};
+
 export type CoverSizes = "standard" | "small" | "large" | "xlarge";
 export type Artist = {
   type: "artist";
@@ -133,6 +160,30 @@ export const SpotifyPlayer = {
   GetContentType: GetContentType,
   GetMediaType: (): string => {
     return Spicetify?.Player?.data?.item?.mediaType;
+  },
+  GetTrackMetadata: (): Record<string, unknown> => {
+    return (Spicetify?.Player?.data?.item?.metadata ?? {}) as Record<
+      string,
+      unknown
+    >;
+  },
+  IsLocalTrack: (): boolean => {
+    const item = Spicetify?.Player?.data?.item;
+    if (!item) return false;
+    return Boolean(item.isLocal) || item.uri?.startsWith("spotify:local:");
+  },
+  IsLocalFlacTrack: (): boolean => {
+    const item = Spicetify?.Player?.data?.item;
+    if (!item || !SpotifyPlayer.IsLocalTrack()) return false;
+
+    const metadata = SpotifyPlayer.GetTrackMetadata();
+    for (const key of LOCAL_FLAC_METADATA_KEYS) {
+      if (hasFlacSignature(metadata[key])) {
+        return true;
+      }
+    }
+
+    return [item.name, metadata.title].some((value) => hasFlacSignature(value));
   },
   GetDuration: (): number => {
     if (Spicetify?.Player?.data?.item?.duration?.milliseconds) {
@@ -180,8 +231,69 @@ export const SpotifyPlayer = {
   GetAlbumName: (): string | undefined => {
     return Spicetify?.Player?.data?.item?.metadata?.album_title;
   },
+  GetAlbumUri: (): string | undefined => {
+    return Spicetify?.Player?.data?.item?.metadata?.album_uri;
+  },
+  GetAlbumReleaseYearSync: (): string | undefined => {
+    const item: any = Spicetify?.Player?.data?.item;
+    if (!item) return undefined;
+
+    const metadata: any = item?.metadata;
+    const yearCandidate =
+      metadata?.album_year ??
+      metadata?.albumYear ??
+      metadata?.album_release_year ??
+      metadata?.albumReleaseYear ??
+      metadata?.release_year ??
+      metadata?.releaseYear ??
+      metadata?.year;
+    if (typeof yearCandidate === "string" && /^\d{4}$/.test(yearCandidate)) {
+      return yearCandidate;
+    }
+
+    const dateCandidate =
+      item?.album?.release_date ??
+      metadata?.album_date ??
+      metadata?.albumDate ??
+      metadata?.album_release_date ??
+      metadata?.albumReleaseDate ??
+      metadata?.release_date ??
+      metadata?.releaseDate;
+
+    if (typeof dateCandidate !== "string") return undefined;
+    const year = dateCandidate.slice(0, 4);
+    return /^\d{4}$/.test(year) ? year : undefined;
+  },
+  GetAlbumReleaseYear: async (albumUri?: string): Promise<string | undefined> => {
+    try {
+      const resolvedAlbumUri = albumUri ?? SpotifyPlayer.GetAlbumUri();
+      if (!resolvedAlbumUri) return undefined;
+      const result = await (Spicetify as any).GraphQL.Request(
+        (Spicetify as any).GraphQL.Definitions.getAlbum,
+        { uri: resolvedAlbumUri, locale: "", offset: 0, limit: 1 }
+      );
+      const isoString: string | undefined = result?.data?.albumUnion?.date?.isoString;
+      if (!isoString) return undefined;
+      const year = isoString.slice(0, 4);
+      return /^\d{4}$/.test(year) ? year : undefined;
+    } catch {
+      return undefined;
+    }
+  },
   GetId: (): string | undefined => {
     return Spicetify?.Player?.data?.item?.uri?.split(":")[2];
+  },
+  GetReleaseYear: async (trackId: string): Promise<string | undefined> => {
+    try {
+      const resp = await (Spicetify as any).CosmosAsync.get(
+        `https://api.spotify.com/v1/tracks/${trackId}`
+      );
+      const releaseDate: string | undefined = resp?.album?.release_date;
+      const year = releaseDate ? releaseDate.slice(0, 4) : undefined;
+      return year && /^\d{4}$/.test(year) ? year : undefined;
+    } catch {
+      return undefined;
+    }
   },
   GetArtists: (): Artist[] | undefined => {
     return Spicetify?.Player?.data?.item?.artists as Artist[];

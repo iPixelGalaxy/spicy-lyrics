@@ -4,6 +4,7 @@ import "../../css/Loaders/DotLoader.css";
 import Whentil from "@spikerko/tools/Whentil";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
+  ApplyLyricsIfCurrent,
   cleanupApplyLyricsAbortController,
 } from "../../utils/Lyrics/Global/Applyer.ts";
 import {
@@ -18,7 +19,7 @@ import {
   ResetLastLine,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
-import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
+import ApplyDynamicBackground, { CleanupDynamicBackgroundKey, KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 import Session from "../Global/Session.ts";
@@ -62,14 +63,16 @@ export const Tooltips: {
   FullscreenToggle: TippyInstance | null;
   CinemaView: TippyInstance | null;
   NowBarSideToggle: TippyInstance | null;
-  DevTools: TippyInstance | null;
+  LoadTTML: TippyInstance | null;
+  Settings: TippyInstance | null;
 } = {
   Close: null,
   NowBarToggle: null,
   FullscreenToggle: null,
   CinemaView: null,
   NowBarSideToggle: null,
-  DevTools: null,
+  LoadTTML: null,
+  Settings: null,
 };
 
 const PageView = {
@@ -100,6 +103,150 @@ export const GetPageRoot = () =>
 
 let PageResizeListener: ResizeObserver | null = null;
 export let PageContainer: HTMLElement | null = null;
+let LyricsShortcutAbortController: AbortController | null = null;
+
+function isEditableShortcutTarget(target: EventTarget | null) {
+  const element = target instanceof Element ? target : null;
+  if (!element) return false;
+
+  if (
+    element.closest(
+      "input, textarea, select, [role='textbox'], [role='searchbox']"
+    )
+  ) {
+    return true;
+  }
+
+  return element instanceof HTMLElement && element.isContentEditable;
+}
+
+function isDialogShortcutTarget(target: EventTarget | null) {
+  const element = target instanceof Element ? target : null;
+  if (!element) return false;
+
+  return !!element.closest(
+    ".SpicyLyricsSettingsOverlay, .SpicyLyricsSettingsContainer, .SpicyLyricsTTMLModalOverlay, .GenericModal, [role='dialog']"
+  );
+}
+
+async function toggleLyricsRomanization() {
+  if (
+    Defaults.LyricsRenderer !== "Spicy" ||
+    !PageContainer?.classList.contains("Lyrics_RomanizationAvailable")
+  ) {
+    return;
+  }
+
+  const songUri = SpotifyPlayer.GetUri();
+  if (!songUri) return;
+
+  PageContainer?.querySelector(".LyricsContainer .LyricsContent")?.classList.add(
+    "HiddenTransitioned"
+  );
+
+  const lyrics = await fetchLyrics(songUri);
+
+  setRomanizedStatus(!isRomanized);
+  await ApplyLyricsIfCurrent(songUri, lyrics);
+
+  setTimeout(() => {
+    AppendViewControls();
+    PageContainer?.querySelector(".LyricsContainer .LyricsContent")?.classList.remove(
+      "HiddenTransitioned"
+    );
+  }, 45);
+}
+
+async function promoteCinemaViewToFullscreen() {
+  Fullscreen.CinemaViewOpen = false;
+  await EnterSpicyLyricsFullscreen();
+  PageView.AppendViewControls(true);
+  setTimeout(Compactify, 250);
+}
+
+function openLyricsFullscreenFromShortcut() {
+  if (!PageView.IsOpened || IsPIP) return;
+
+  if (Fullscreen.IsOpen) {
+    if (Fullscreen.CinemaViewOpen) {
+      void promoteCinemaViewToFullscreen();
+    } else {
+      Fullscreen.Close();
+    }
+    return;
+  }
+
+  if (isSpicySidebarMode) {
+    CloseSidebarLyrics();
+    Whentil.When(
+      () => !isSpicySidebarMode,
+      () => {
+        Session.Navigate({ pathname: "/SpicyLyrics" });
+        Whentil.When(
+          () => !!PageContainer,
+          () => {
+            setTimeout(() => {
+              Fullscreen.Open();
+            }, 100);
+          }
+        );
+      }
+    );
+    return;
+  }
+
+  Fullscreen.Open();
+}
+
+function HandleLyricsViewShortcuts(event: KeyboardEvent) {
+  if (
+    !PageView.IsOpened ||
+    !PageContainer ||
+    event.defaultPrevented ||
+    event.repeat
+  ) {
+    return;
+  }
+
+  if (event.ctrlKey || event.metaKey || event.altKey) {
+    return;
+  }
+
+  if (
+    isEditableShortcutTarget(event.target) ||
+    isDialogShortcutTarget(event.target)
+  ) {
+    return;
+  }
+
+  switch (event.key.toLowerCase()) {
+    case "f":
+      event.preventDefault();
+      openLyricsFullscreenFromShortcut();
+      break;
+    case "r":
+      if (!PageContainer.classList.contains("Lyrics_RomanizationAvailable")) {
+        return;
+      }
+      event.preventDefault();
+      void toggleLyricsRomanization();
+      break;
+  }
+}
+
+function SetupLyricsViewShortcuts() {
+  LyricsShortcutAbortController?.abort();
+  LyricsShortcutAbortController = new AbortController();
+
+  window.addEventListener("keydown", HandleLyricsViewShortcuts, {
+    signal: LyricsShortcutAbortController.signal,
+  });
+}
+
+function CleanupLyricsViewShortcuts() {
+  LyricsShortcutAbortController?.abort();
+  LyricsShortcutAbortController = null;
+}
 
 async function OpenPage(
   AppendTo: HTMLElement | undefined = undefined,
@@ -144,10 +291,11 @@ async function OpenPage(
         <div class="SpicyLoader">
             <div id="DotLoader"></div>
         </div>
-        <div class="ContentBox WaitingForHeight">
+        <div class="ContentBox">
             <div class="NowBar">
                 <div class="CenteredView">
                     <div class="Header">
+                        <div class="VolumeSlider"></div>
                         <div class="MediaBox">
                             <div class="MediaContent"></div>
                             <div class="MediaImageContainer">
@@ -155,14 +303,20 @@ async function OpenPage(
                               <div class="ti_ToImage ib_ImageBox"></div>
                             </div>
                         </div>
+                        <div class="VolumeSliderUnder"></div>
+                        <div class="InlineTimeline"></div>
+                        <div class="InlinePlaybar"></div>
                         <div class="Metadata">
                             <div class="SongName">
                                 <span></span>
                             </div>
-                            <div class="Artists">
-                                <span></span>
+                            <div class="ArtistsRow">
+                                <div class="Artists">
+                                    <span></span>
+                                </div>
                             </div>
                         </div>
+                        <div class="InlinePlaybackControls"></div>
                     </div>
                 </div>
             </div>
@@ -220,8 +374,7 @@ async function OpenPage(
     */
   PageContainer = elem;
 
-  const SkipSpicyFont = storage.get("skip-spicy-font");
-  if (SkipSpicyFont !== "true") {
+  if (storage.get("customFontEnabled") !== "true") {
     elem.classList.add("UseSpicyFont");
   }
 
@@ -255,7 +408,7 @@ async function OpenPage(
   {
     const currentUri = Spicetify?.Player?.data?.item?.uri;
     if (currentUri) {
-      fetchLyrics(currentUri).then(ApplyLyrics);
+      fetchLyrics(currentUri).then((lyrics) => ApplyLyricsIfCurrent(currentUri, lyrics));
     }
   }
 
@@ -301,6 +454,7 @@ async function OpenPage(
   }
 
   PageContainer = elem;
+  SetupLyricsViewShortcuts();
 
   const contentType = SpotifyPlayer.GetContentType();
   if (contentType === "episode") {
@@ -337,6 +491,7 @@ function DestroyPage() {
   if (!PageView.IsOpened) return;
 
   cleanupApplyLyricsAbortController();
+  CleanupLyricsViewShortcuts();
 
   if (isSpicySidebarMode) {
     cleanupSidebarLyricsObservers();
@@ -345,15 +500,14 @@ function DestroyPage() {
   if (Fullscreen.IsOpen) Fullscreen.Close();
   if (!PageContainer) return;
 
-  KawarpMap.get("lpagebg")?.dispose();
-  KawarpMap.delete("lpagebg");
+  CleanupDynamicBackgroundKey("lpagebg");
   ResetLastLine();
   CleanupScrollEvents();
   PageResizeListener?.disconnect(); // Disconnect the observer
   PageView.IsOpened = false;
   Defaults.LyricsContainerExists = false;
   DestroyAllLyricsContainers();
-  CleanUpIsByCommunity();
+  CleanUpIsByCommunity(true);
 
   const legacyPage = document.querySelector<HTMLElement>(
     ".Root__main-view .main-view-container .os-host"
@@ -412,7 +566,6 @@ function AppendViewControls(ReAppend: boolean = false) {
   const isNoLyrics =
     storage.get("currentLyricsData")?.toString() ===
     `NO_LYRICS:${SpotifyPlayer.GetId()}`;
-  const isDevMode = storage.get("devMode") === "true";
   elem.innerHTML = `
         ${
           Fullscreen.IsOpen || Fullscreen.CinemaViewOpen
@@ -468,11 +621,8 @@ function AppendViewControls(ReAppend: boolean = false) {
               }</button>`
             : ""
         }
-        ${
-          isDevMode
-            ? `<button id="DevTools" class="ViewControl">${Icons.DevTools}</button>`
-            : ""
-        }
+        <button id="LoadTTML" class="ViewControl">${Icons.LoadTTML}</button>
+        <button id="Settings" class="ViewControl">${Icons.Settings}</button>
         <button id="Close" class="ViewControl">${Icons.Close}</button>
     `;
 
@@ -587,23 +737,7 @@ function AppendViewControls(ReAppend: boolean = false) {
           });
         }
         romanizationToggle.addEventListener("click", async () => {
-          const songUri = SpotifyPlayer.GetUri();
-          if (!songUri) return;
-          PageContainer?.querySelector(
-            ".LyricsContainer .LyricsContent"
-          )?.classList.add("HiddenTransitioned");
-          const lyrics = await fetchLyrics(songUri);
-
-          setRomanizedStatus(!isRomanized);
-
-          ApplyLyrics(lyrics);
-
-          setTimeout(() => {
-            AppendViewControls();
-            PageContainer?.querySelector(
-              ".LyricsContainer .LyricsContent"
-            )?.classList.remove("HiddenTransitioned");
-          }, 45);
+          await toggleLyricsRomanization();
         });
       } catch (err) {
         console.warn("Failed to setup Close tooltip:", err);
@@ -754,43 +888,132 @@ function AppendViewControls(ReAppend: boolean = false) {
       }
     }
 
-    const devToolsButton = elem.querySelector("#DevTools");
-    if (devToolsButton && isDevMode) {
+    const loadTTMLButton = elem.querySelector("#LoadTTML");
+    if (loadTTMLButton) {
       try {
         if (!isPip) {
-          Tooltips.DevTools = Spicetify.Tippy(devToolsButton, {
+          Tooltips.LoadTTML = Spicetify.Tippy(loadTTMLButton, {
             ...Spicetify.TippyProps,
-            content: `DevTools`,
+            content: `Load TTML`,
           });
         }
-        devToolsButton.addEventListener("click", () => {
+        const showLoadTTMLModal = () => {
+          document.querySelector(".SpicyLyricsTTMLModalOverlay")?.remove();
+
+          const overlay = document.createElement("div");
+          overlay.className = "SpicyLyricsSettingsOverlay SpicyLyricsTTMLModalOverlay";
+          overlay.addEventListener("click", () => overlay.remove());
+
+          const container = document.createElement("div");
+          container.className = "SpicyLyricsSettingsContainer";
+          container.addEventListener("click", (e) => e.stopPropagation());
+
+          function updateTTMLPosition() {
+            const page = document.querySelector("#SpicyLyricsPage");
+            const maxWidth = 680;
+            const availW = page ? page.getBoundingClientRect().width : window.innerWidth;
+            const availH = page ? page.getBoundingClientRect().height : window.innerHeight;
+            const originX = page ? page.getBoundingClientRect().left : 0;
+            const originY = page ? page.getBoundingClientRect().top : 0;
+            const panelWidth = Math.min(maxWidth, availW - 80);
+            container.style.width = `${panelWidth}px`;
+            container.style.left = `${originX + (availW - panelWidth) / 2}px`;
+            container.style.top = `${originY + availH / 2}px`;
+            container.style.transform = "translateY(-50%)";
+          }
+
+          updateTTMLPosition();
+          window.addEventListener("resize", updateTTMLPosition);
+
+          const removalObserver = new MutationObserver(() => {
+            if (!document.contains(overlay)) {
+              window.removeEventListener("resize", updateTTMLPosition);
+              removalObserver.disconnect();
+            }
+          });
+          removalObserver.observe(document.body, { childList: true });
+
+          const header = document.createElement("div");
+          header.className = "SpicyLyricsSettingsHeader";
+          const title = document.createElement("span");
+          title.textContent = "Load TTML";
+          const closeBtn = document.createElement("button");
+          closeBtn.className = "SpicyLyricsSettingsHeaderClose";
+          closeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+          closeBtn.addEventListener("click", () => overlay.remove());
+          header.appendChild(title);
+          header.appendChild(closeBtn);
+
+          const scroll = document.createElement("div");
+          scroll.className = "SpicyLyricsSettingsScroll";
+          scroll.style.overflowY = "visible";
+
+          function makeRow(label: string, btnText: string, onClick: () => void) {
+            const row = document.createElement("div");
+            row.className = "sl-settings-row";
+            const lbl = document.createElement("span");
+            lbl.className = "sl-settings-label";
+            lbl.textContent = label;
+            const btn = document.createElement("button");
+            btn.className = "sl-btn";
+            btn.textContent = btnText;
+            btn.addEventListener("click", onClick);
+            row.appendChild(lbl);
+            row.appendChild(btn);
+            scroll.appendChild(row);
+          }
+
+          function makeGroup(name: string) {
+            const h = document.createElement("h3");
+            h.className = "sl-settings-group";
+            h.textContent = name;
+            scroll.appendChild(h);
+          }
+
+          makeGroup("Load");
+          makeRow("Temporarily load TTML for the current song", "Load Temporary", () => (window as any).__spicy_ttml_upload_temp?.());
+          makeRow("Load TTML for the current session (persists until restart)", "Load Session", () => (window as any).__spicy_ttml_upload_session?.());
+          makeRow("Load TTML for the current song (saved permanently)", "Load Persistent", () => (window as any).__spicy_ttml_upload_persistent?.());
+          makeRow("Reset TTML for the current song", "Reset TTML", () => (window as any).__spicy_ttml_reset?.());
+          makeGroup("Database");
+          makeRow("Browse and manage saved TTML entries", "Browse Database", () => (window as any).__spicy_ttml_explore_db?.());
+          makeGroup("Help");
+          makeRow("Need help creating TTML files?", "Open Guide", () => window.open("https://lyrprep.spicylyrics.org/guide", "_blank"));
+
+          container.appendChild(header);
+          container.appendChild(scroll);
+          overlay.appendChild(container);
+          document.body.appendChild(overlay);
+        };
+        loadTTMLButton.addEventListener("click", () => {
           if (IsPIP) {
             globalThis.focus();
           }
-
-          Spicetify.PopupModal.display({
-            title: "Spicy Lyrics DevTools",
-            isLarge: true,
-            content: `
-                            <div class="SpicyLyricsDevToolsContainer">
-                                <div class="Setting">
-                                    <div class="SettingName"><span>Load TTML (for the current song)</span></div>
-                                    <div class="SettingValue">
-                                        <button onclick="window._spicy_lyrics.execute('upload-ttml')">Load TTML</button>
-                                    </div>
-                                </div>
-                                <div class="Setting">
-                                    <div class="SettingName"><span>Reset TTML (for the current song)</span></div>
-                                    <div class="SettingValue">
-                                        <button onclick="window._spicy_lyrics.execute('reset-ttml')">Reset TTML</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `,
-          });
+          showLoadTTMLModal();
         });
       } catch (err) {
-        console.warn("Failed to setup DevTools tooltip:", err);
+        console.warn("Failed to setup LoadTTML tooltip:", err);
+      }
+    }
+
+    const settingsButton = elem.querySelector("#Settings");
+    if (settingsButton) {
+      try {
+        if (!isPip) {
+          Tooltips.Settings = Spicetify.Tippy(settingsButton, {
+            ...Spicetify.TippyProps,
+            content: `Settings`,
+          });
+        }
+        settingsButton.addEventListener("click", async () => {
+          if (IsPIP) {
+            globalThis.focus();
+          }
+          const { showSettingsPanel } = await import("../../utils/settings.ts");
+          showSettingsPanel();
+        });
+      } catch (err) {
+        console.warn("Failed to setup Settings tooltip:", err);
       }
     }
   }

@@ -1,5 +1,9 @@
 import { Timeout } from "@spikerko/web-modules/Scheduler";
 import { Signal } from "@spikerko/web-modules/Signal";
+import {
+  DynamicBackground as LegacyDynamicBackground,
+  type DynamicBackgroundOptions,
+} from "@spikerko/tools/DynamicBackground";
 import Defaults from "../Global/Defaults.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
@@ -10,12 +14,12 @@ import { BackgroundAnimationController, type AudioAnalysisData } from "./Backgro
 import { getDynamicAudioAnalysis } from "../../utils/audioAnalysis.ts";
 
 export const KawarpOptionsStatic: KawarpOptions = {
-  warpIntensity: 1,
+  warpIntensity: 0.67,
   blurPasses: 8,
   animationSpeed: 0.1,
-  saturation: 1.5,
+  saturation: 0.67,
   dithering: 0.008,
-  transitionDuration: 1000,
+  transitionDuration: 500,
   // tintColor: [0.16, 0.16, 0.24],
   tintIntensity: 0, // 0.15
   scale: 1,
@@ -26,6 +30,61 @@ let cachedColorBackgroundEl: HTMLElement | null = null;
 
 export const KawarpMap = new Map<HTMLElement | string, Kawarp>();
 const animSpeedController = new BackgroundAnimationController();
+const LegacyBackgroundMap = new Map<HTMLElement | string, LegacyDynamicBackground>();
+const OLD_BACKGROUND_ANIMATION_SPEED = 0.1;
+const ACTIVE_BACKGROUND_ANIMATION_SPEED = 1;
+const LegacyDynamicBackgroundConfig: DynamicBackgroundOptions = {
+  transition: Defaults.PrefersReducedMotion ? 0 : 1.5,
+  blur: 45,
+  speed: 0.25,
+  cacheLimit: 5,
+};
+
+function disposeKawarpForKey(key: HTMLElement | string) {
+  const instance = KawarpMap.get(key);
+  if (!instance) return;
+  instance.dispose();
+  KawarpMap.delete(key);
+}
+
+function disposeLegacyBackgroundForKey(key: HTMLElement | string) {
+  const instance = LegacyBackgroundMap.get(key);
+  if (!instance) return;
+  instance.Destroy();
+  LegacyBackgroundMap.delete(key);
+}
+
+export function CleanupDynamicBackgroundKey(key: HTMLElement | string) {
+  disposeKawarpForKey(key);
+  disposeLegacyBackgroundForKey(key);
+}
+
+function removeExistingDynamicBackground(element: HTMLElement, tag?: string) {
+  const dynamicBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg");
+  if (!dynamicBg) return;
+
+  if (dynamicBg instanceof HTMLCanvasElement) {
+    CleanupDynamicBackgroundKey(tag ?? dynamicBg);
+  }
+
+  if (tag) {
+    CleanupDynamicBackgroundKey(tag);
+  }
+
+  dynamicBg.remove();
+}
+
+export const SyncDynamicBackgroundAnimationMode = () => {
+  const targetSpeed = Defaults.UseOldBackgroundAnimation
+    ? OLD_BACKGROUND_ANIMATION_SPEED
+    : (SpotifyPlayer.IsPlaying ? ACTIVE_BACKGROUND_ANIMATION_SPEED : OLD_BACKGROUND_ANIMATION_SPEED);
+
+  KawarpMap.forEach((kawarpInstance) => {
+    void kawarpInstance.setOptions({
+      animationSpeed: targetSpeed
+    });
+  });
+};
 
 export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string) {
   if (!element) return;
@@ -40,7 +99,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       : undefined;
 
   const TrackId = SpotifyPlayer.GetId() ?? undefined;
-  
+
   if (Defaults.StaticBackground) {
     if (Defaults.StaticBackgroundType === "Color") {
       // First, create/init the background with black as a fallback
@@ -116,8 +175,39 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       dynamicBg.classList.remove("Hidden");
     });
   } else {
+    if (Defaults.UseOldBackgroundAnimation) {
+      const legacyKey = tag ?? element;
+      const existingLegacyInstance = LegacyBackgroundMap.get(legacyKey);
+
+      if (existingLegacyInstance) {
+        const container = existingLegacyInstance.GetCanvasElement();
+        if (container.getAttribute("data-cover-id") === currentImgCover) {
+          return;
+        }
+
+        container.classList.add("spicy-dynamic-bg");
+        container.setAttribute("data-cover-id", currentImgCover ?? "");
+        await existingLegacyInstance.Update({
+          image: currentImgCover ?? "",
+        });
+        return;
+      }
+
+      removeExistingDynamicBackground(element, tag);
+      const legacyInstance = new LegacyDynamicBackground(LegacyDynamicBackgroundConfig);
+      const legacyContainer = legacyInstance.GetCanvasElement();
+      legacyContainer.classList.add("spicy-dynamic-bg");
+      legacyContainer.setAttribute("data-cover-id", currentImgCover ?? "");
+      legacyInstance.AppendToElement(element);
+      LegacyBackgroundMap.set(legacyKey, legacyInstance);
+      await legacyInstance.Update({
+        image: currentImgCover ?? "",
+      });
+      return;
+    }
+
     const existingElement = element.querySelector<HTMLElement>(".spicy-dynamic-bg");
-  
+
     if (existingElement) {
       const existingBgData = existingElement.getAttribute("data-cover-id") ?? null;
 
@@ -133,6 +223,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       if (kawarpInstance) {
         existingElement.setAttribute("data-cover-id", currentImgCover ?? "");
         await kawarpInstance.loadImage(currentImgCover);
+        SyncDynamicBackgroundAnimationMode();
         kawarpInstance.start();
         return;
       }
@@ -151,7 +242,26 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     )
     element.appendChild(canvas);
     await kawarpInstance.loadImage(currentImgCover);
+    SyncDynamicBackgroundAnimationMode();
     kawarpInstance.start();
+  }
+}
+
+export async function ReapplyDynamicBackgrounds() {
+  const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
+  if (contentBox) {
+    removeExistingDynamicBackground(contentBox, "lpagebg");
+    await ApplyDynamicBackground(contentBox, "lpagebg");
+  }
+
+  const nowPlayingBar = document.querySelector<HTMLElement>(".Root__right-sidebar aside.NowPlayingView") ??
+    document.querySelector<HTMLElement>(
+      ".Root__right-sidebar aside#Desktop_PanelContainer_Id:has(.main-nowPlayingView-coverArtContainer)"
+    );
+
+  if (nowPlayingBar) {
+    removeExistingDynamicBackground(nowPlayingBar, "npvbg");
+    await ApplyDynamicBackground(nowPlayingBar, "npvbg");
   }
 }
 
@@ -261,7 +371,7 @@ const setDynamicBackgroundAnimationSpeed = (speed: number) => {
 };
 
 const resetDynamicBackgroundAnimationSpeed = () => {
-  setDynamicBackgroundAnimationSpeed(1);
+  setDynamicBackgroundAnimationSpeed(ACTIVE_BACKGROUND_ANIMATION_SPEED);
 };
 
 Global.Event.listen("playback:songchange", () => {
@@ -275,7 +385,12 @@ Global.Event.listen("playback:songchange", () => {
 });
 
 const applyPlayPauseAnimationSpeed = (isPaused: boolean) => {
-  setDynamicBackgroundAnimationSpeed(isPaused ? 0.1 : 1);
+  if (Defaults.UseOldBackgroundAnimation) {
+    setDynamicBackgroundAnimationSpeed(OLD_BACKGROUND_ANIMATION_SPEED);
+    return;
+  }
+
+  setDynamicBackgroundAnimationSpeed(isPaused ? OLD_BACKGROUND_ANIMATION_SPEED : ACTIVE_BACKGROUND_ANIMATION_SPEED);
 };
 
 Global.Event.listen("playback:playpause", (e: { data?: { isPaused?: boolean } }) => {
@@ -283,6 +398,11 @@ Global.Event.listen("playback:playpause", (e: { data?: { isPaused?: boolean } })
 });
 
 Global.Event.listen("playback:progress", async (e) => {
+  if (Defaults.UseOldBackgroundAnimation) {
+    setDynamicBackgroundAnimationSpeed(OLD_BACKGROUND_ANIMATION_SPEED);
+    return;
+  }
+
   const songId = SpotifyPlayer.GetId();
   if (!songId) {
     resetDynamicBackgroundAnimationSpeed();

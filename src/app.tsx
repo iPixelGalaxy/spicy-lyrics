@@ -15,6 +15,7 @@ import "./components/Utils/GlobalExecute.ts";
 
 import Whentil from "@spikerko/tools/Whentil";
 import ApplyDynamicBackground, {
+  CleanupDynamicBackgroundKey,
   GetStaticBackground,
   KawarpMap,
 } from "./components/DynamicBG/dynamicBackground.ts";
@@ -40,15 +41,22 @@ import App from "./ready.ts";
 import { IsPlaying } from "./utils/Addons.ts";
 import { requestPositionSync } from "./utils/Gets/GetProgress.ts";
 import { IntervalManager } from "./utils/IntervalManager.ts";
-import fetchLyrics from "./utils/Lyrics/fetchLyrics.ts";
-import ApplyLyrics from "./utils/Lyrics/Global/Applyer.ts";
+import fetchLyrics, {
+  getSongKey,
+} from "./utils/Lyrics/fetchLyrics.ts";
+import { ApplyLyricsIfCurrent } from "./utils/Lyrics/Global/Applyer.ts";
 import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 // Unused import removed: import sleep from "./utils/sleep";
 import { setSettingsMenu } from "./utils/settings.ts";
+import {
+  DEFAULT_LYRICS_SOURCE_ORDER,
+  normalizeLyricsSourceOrder,
+  normalizeDisabledLyricsSourceIds,
+  stringifyLyricsSourceOrder,
+} from "./utils/Lyrics/LyricsSourcePreferences.ts";
 import storage from "./utils/storage.ts";
-import { CheckForUpdates } from "./utils/version/CheckForUpdates.tsx";
 import "./css/polyfills/tippy-polyfill.css";
 import "./css/polyfills/generic-modal-polyfill.css";
 import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
@@ -126,6 +134,22 @@ async function main() {
     Defaults.PopupLyricsAllowed = storage.get("disablePopupLyrics") !== "true";
   }
 
+  if (!storage.get("alwaysShowInFullscreen")) {
+    storage.set("alwaysShowInFullscreen", "None");
+  }
+
+  if (storage.get("alwaysShowInFullscreen")) {
+    Defaults.AlwaysShowInFullscreen = storage.get("alwaysShowInFullscreen").toString() as string;
+  }
+
+  if (!storage.get("showVolumeSliderFullscreen")) {
+    storage.set("showVolumeSliderFullscreen", "Off");
+  }
+
+  if (storage.get("showVolumeSliderFullscreen")) {
+    Defaults.ShowVolumeSliderFullscreen = storage.get("showVolumeSliderFullscreen").toString();
+  }
+
   if (!storage.get("lyricsRenderer")) {
     storage.set("lyricsRenderer", "Spicy");
   }
@@ -189,6 +213,38 @@ async function main() {
     Defaults.MinimalLyricsMode = storage.get("minimalLyricsMode") === "true";
   }
 
+  if (!storage.get("buildChannel")) {
+    storage.set("buildChannel", "Stable");
+  }
+
+  if (storage.get("buildChannel")) {
+    Defaults.BuildChannel = storage.get("buildChannel").toString() as string;
+  }
+
+  if (!storage.get("replaceSpotifyPlaybar")) {
+    storage.set("replaceSpotifyPlaybar", "false");
+  }
+
+  if (storage.get("replaceSpotifyPlaybar")) {
+    Defaults.ReplaceSpotifyPlaybar = storage.get("replaceSpotifyPlaybar") === "true";
+  }
+
+  if (!storage.get("coverArtAnimation")) {
+    storage.set("coverArtAnimation", "true");
+  }
+
+  if (storage.get("coverArtAnimation")) {
+    Defaults.CoverArtAnimation = storage.get("coverArtAnimation") === "true";
+  }
+
+  if (!storage.get("useOldBackgroundAnimation")) {
+    storage.set("useOldBackgroundAnimation", "false");
+  }
+
+  if (storage.get("useOldBackgroundAnimation")) {
+    Defaults.UseOldBackgroundAnimation = storage.get("useOldBackgroundAnimation") === "true";
+  }
+
   if (!storage.get("hide_npv_bg")) {
     storage.set("hide_npv_bg", "false");
   }
@@ -196,6 +252,78 @@ async function main() {
   if (storage.get("hide_npv_bg")) {
     Defaults.hide_npv_bg = storage.get("hide_npv_bg") === "true";
   }
+
+  if (storage.get("rightAlignLyrics")) {
+    const val = storage.get("rightAlignLyrics").toString();
+    Defaults.RightAlignLyrics = val === "true" || val === true;
+  }
+
+  if (!storage.get("escapeKeyFunction")) {
+    storage.set("escapeKeyFunction", "Default");
+  }
+
+  if (storage.get("escapeKeyFunction")) {
+    Defaults.EscapeKeyFunction = storage.get("escapeKeyFunction").toString() as string;
+  }
+
+  if (storage.get("developerMode")) {
+    Defaults.DeveloperMode = storage.get("developerMode") === "true";
+  }
+
+  if (!storage.get("syllableRendering")) {
+    storage.set("syllableRendering", "Default");
+  }
+
+  if (storage.get("syllableRendering")) {
+    Defaults.SyllableRendering = storage.get("syllableRendering").toString();
+  }
+
+  if (!storage.get("enableExperimentalWordSync")) {
+    storage.set("enableExperimentalWordSync", "false");
+  }
+
+  if (storage.get("enableExperimentalWordSync")) {
+    Defaults.EnableExperimentalWordSync = storage.get("enableExperimentalWordSync") === "true";
+  }
+
+  if (!storage.get("lyricsSourceOrder")) {
+    storage.set(
+      "lyricsSourceOrder",
+      stringifyLyricsSourceOrder(DEFAULT_LYRICS_SOURCE_ORDER)
+    );
+  }
+
+  if (storage.get("lyricsSourceOrder")) {
+    Defaults.LyricsSourceOrder = normalizeLyricsSourceOrder(
+      storage.get("lyricsSourceOrder")?.toString()
+    );
+  }
+
+  if (!storage.get("ignoreMusixmatchWordSync")) {
+    storage.set("ignoreMusixmatchWordSync", "false");
+  }
+
+  if (storage.get("ignoreMusixmatchWordSync")) {
+    Defaults.IgnoreMusixmatchWordSync =
+      storage.get("ignoreMusixmatchWordSync") === "true";
+  }
+
+  if (storage.get("disabledLyricsSources")) {
+    Defaults.DisabledLyricsSourceIds = normalizeDisabledLyricsSourceIds(
+      storage.get("disabledLyricsSources")?.toString()
+    );
+  }
+
+  Defaults.ReleaseYearPosition = storage.get("releaseYearPosition")?.toString() ?? "Off";
+
+  if (!storage.get("memeFormat")) {
+    storage.set("memeFormat", "Off");
+  }
+
+  if (storage.get("memeFormat")) {
+    Defaults.MemeFormat = storage.get("memeFormat") as string;
+  }
+
 
   Defaults.SpicyLyricsVersion = window._spicy_lyrics_metadata?.LoadedVersion ?? ProjectVersion;
   window._spicy_lyrics_metadata = {}
@@ -222,14 +350,23 @@ async function main() {
     document.body.classList.add("sl_settings_top");
   }
 
-  // Lets set out the Settings Menu
-  setSettingsMenu();
-
-  const OldStyleFont = storage.get("old-style-font");
-  if (OldStyleFont !== "true") {
-    LoadFonts();
-    ApplyFontPixel();
+  if (storage.get("customFontEnabled") === "true") {
+    Defaults.CustomFontEnabled = true;
   }
+
+  if (storage.get("customFont")) {
+    Defaults.CustomFont = storage.get("customFont").toString();
+  }
+
+  await setSettingsMenu();
+
+  if (Defaults.CustomFontEnabled && Defaults.CustomFont) {
+    document.documentElement.style.setProperty("--spicy-custom-font", Defaults.CustomFont);
+  }
+
+  LoadFonts();
+  ApplyFontPixel();
+  (window as any).__spicy_load_fonts = () => { LoadFonts(); ApplyFontPixel(); };
 
   const skeletonStyle = document.createElement("style");
   skeletonStyle.innerHTML = `
@@ -273,16 +410,16 @@ async function main() {
 
         @keyframes Marquee_Artists {
           0% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 0));
           }
           10% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 0));
           }
           90% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 1));
           }
           100% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + var(--artists-anim-ref, 81cqw), 0px) * 1));
           }
         }
 
@@ -369,10 +506,12 @@ async function main() {
 
         @keyframes MB_anim_enter {
           0% {
-            transform: translate(100%, 0);
+            transform: translate(var(--mb-enter-x, 3%), 0) scale(0.998);
+            opacity: 0;
           }
           100% {
-            transform: translate(0, 0);
+            transform: translate(0, 0) scale(1);
+            opacity: 1;
           }
         }
   `;
@@ -651,26 +790,6 @@ async function main() {
       }
     );
 
-    const fromVersion = storage.get("fromVersion") as string;
-    if (fromVersion !== Defaults.SpicyLyricsVersion) {
-      const div = document.createElement("div");
-      const reactRoot = ReactDOM.createRoot(div);
-      reactRoot.render(
-        <UpdateDialog fromVersion={fromVersion} spicyLyricsVersion={Defaults.SpicyLyricsVersion} />
-      );
-
-      PopupModal.display({
-        title: "Spicy Lyrics Updated!",
-        content: div,
-        isLarge: true,
-        onClose: () => {
-          reactRoot.unmount();
-        }
-      });
-    }
-
-    storage.set("fromVersion", Defaults.SpicyLyricsVersion);
-
     // Lets set out Dynamic Background (spicy-dynamic-bg) to the now playing bar
     let lastImgUrl: string | null;
     let lastNowPlayingBarElement: HTMLElement | null = null;
@@ -725,11 +844,7 @@ async function main() {
     const CleanupNowBarDynamicBgLets = () => {
       const nowPlayingBar = getNowPlayingBarElement() ?? lastNowPlayingBarElement;
 
-      const kawarpInstance = KawarpMap.get("npvbg");
-      if (kawarpInstance) {
-        kawarpInstance.dispose();
-        KawarpMap.delete("npvbg");
-      }
+      CleanupDynamicBackgroundKey("npvbg");
       nowPlayingBar?.querySelector<HTMLElement>(".spicy-dynamic-bg")?.remove();
       nowPlayingBar?.classList.remove("spicy-dynamic-bg-in-this");
       lastNowPlayingBarElement = null;
@@ -857,7 +972,7 @@ async function main() {
 
       const songUri = event?.data?.item?.uri;
       if (songUri) {
-        fetchLyrics(songUri).then(ApplyLyrics);
+        fetchLyrics(songUri).then((lyrics) => ApplyLyricsIfCurrent(songUri, lyrics));
       }
 
       if (
@@ -891,10 +1006,9 @@ async function main() {
       }
     }
     Global.Event.listen("playback:songchange", onSongChange);
-
     const initUri = SpotifyPlayer.GetUri();
     if (initUri) {
-      fetchLyrics(initUri).then(ApplyLyrics);
+      fetchLyrics(initUri).then((lyrics) => ApplyLyricsIfCurrent(initUri, lyrics));
     }
 
     if (
@@ -916,7 +1030,8 @@ async function main() {
     window.addEventListener("online", () => {
       storage.set("lastFetchedUri", null);
 
-      fetchLyrics(Spicetify.Player.data?.item?.uri).then(ApplyLyrics);
+      const currentUri = Spicetify.Player.data?.item?.uri;
+      fetchLyrics(currentUri).then((lyrics) => ApplyLyricsIfCurrent(currentUri, lyrics));
     });
 
     new IntervalManager(ScrollingIntervalTime, () => {
@@ -1111,15 +1226,19 @@ async function main() {
         }
         lastTimeout = setTimeout(async () => {
           const currentSongLyrics = storage.get("currentLyricsData");
+          const currentUri = SpotifyPlayer.GetUri() ?? "";
+          const currentSongKey = getSongKey(currentUri);
           if (
             currentSongLyrics &&
             currentSongLyrics.toString() !== `NO_LYRICS:${SpotifyPlayer.GetId()}`
           ) {
             const parsedLyrics = JSON.parse(currentSongLyrics.toString());
-            if (parsedLyrics?.id !== SpotifyPlayer.GetId()) {
-              const refetchUri = SpotifyPlayer.GetUri();
+            if (parsedLyrics?.id !== currentSongKey) {
+              const refetchUri = currentUri;
               if (refetchUri) {
-                fetchLyrics(refetchUri).then(ApplyLyrics);
+                fetchLyrics(refetchUri).then((lyrics) =>
+                  ApplyLyricsIfCurrent(refetchUri, lyrics)
+                );
               }
             }
           }
@@ -1151,21 +1270,6 @@ async function main() {
       });
       Spicetify.Platform.History.listen(Session.RecordNavigation);
       Session.RecordNavigation(Spicetify.Platform.History.location);
-
-      Global.Event.listen("session:navigation", (data: Location) => {
-        if (data.pathname === "/SpicyLyrics/Update") {
-          storage.set("fromVersion", Defaults.SpicyLyricsVersion);
-          window._spicy_lyrics_metadata = {};
-          Session.GoBack();
-          window.location.reload();
-        }
-      });
-
-      const CheckForUpdates_Intervaled = async () => {
-        await CheckForUpdates();
-        setTimeout(CheckForUpdates_Intervaled, 300 * 1000);
-      };
-      setTimeout(async () => await CheckForUpdates_Intervaled(), 1000);
     }
   };
 
@@ -1192,10 +1296,6 @@ async function main() {
 
   runThemeMatcher();
 
-
-  /* if (storage.get("developerMode") === "true") {
-    connectionIndicatorInit();
-  } */
 }
 
 main();

@@ -39,12 +39,12 @@ export class BackgroundAnimationController {
     private readonly BEAT_PULSE_MAX = 1.5;
     private readonly BEAT_PULSE_DECAY = 5.0;
     private readonly MIN_BEAT_CONFIDENCE = 0.4;
-    
+
     /**
      * Finds the active element in a time-based array (Sections, Beats, Segments)
      */
     private getActiveElement<T extends TimeInterval>(elements: T[], currentTime: number): T | null {
-        return elements.find(el => 
+        return elements.find(el =>
             currentTime >= el.start && currentTime < (el.start + el.duration)
         ) || null;
     }
@@ -54,7 +54,7 @@ export class BackgroundAnimationController {
      * Example: -40dB -> ~0.5, 0dB -> 1.2
      */
     private getLoudnessFactor(dB: number): number {
-        const normalized = Math.max(0, (dB + 40) / 40); 
+        const normalized = Math.max(0, (dB + 40) / 40);
         return 0.5 + (normalized * 0.7);
     }
 
@@ -71,7 +71,7 @@ export class BackgroundAnimationController {
         if (currentSection) {
             const tempoMultiplier = currentSection.tempo / this.BASE_TEMPO;
             const loudnessMultiplier = this.getLoudnessFactor(currentSection.loudness);
-            
+
             currentSpeed = tempoMultiplier * loudnessMultiplier;
         } else {
             currentSpeed = (data.track.tempo / this.BASE_TEMPO) * this.getLoudnessFactor(data.track.loudness);
@@ -82,7 +82,7 @@ export class BackgroundAnimationController {
             const progressIntoBeat = (currentTime - currentBeat.start) / currentBeat.duration;
             const pulseDecay = Math.exp(-this.BEAT_PULSE_DECAY * progressIntoBeat);
             const beatPulseAddition = this.BEAT_PULSE_MAX * pulseDecay * currentBeat.confidence;
-            
+
             currentSpeed += beatPulseAddition;
         }
 
@@ -90,7 +90,7 @@ export class BackgroundAnimationController {
         /* const currentSegment = this.getActiveElement(data.segments, currentTime);
         if (currentSegment) {
             if (currentSegment.loudness_max > -10 && currentSegment.loudness_max_time < 0.05) {
-                currentSpeed += 0.25; 
+                currentSpeed += 0.25;
             }
         } */
 

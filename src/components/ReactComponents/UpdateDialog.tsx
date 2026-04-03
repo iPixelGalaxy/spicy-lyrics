@@ -14,12 +14,12 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ fromVersion, spicyLyricsVer
       </div>
       <button
         className="card btn btn-release"
-        onClick={() =>
+        onClick={() => {
           window.open(
-            `https://github.com/Spikerko/spicy-lyrics/releases/tag/${spicyLyricsVersion}`,
+            "https://github.com/iPixelGalaxy/spicy-lyrics#whats-new",
             "_blank"
-          )
-        }
+          );
+        }}
       >
         Release Notes →
       </button>

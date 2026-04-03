@@ -1,3 +1,5 @@
+import { DEFAULT_LYRICS_SOURCE_ORDER, type LyricsSourceProviderId } from "../../utils/Lyrics/LyricsSourcePreferences.ts";
+
 export const isDev = false;
 
 const Defaults = {
@@ -8,8 +10,6 @@ const Defaults = {
   },
   CurrentLyricsType: "None",
   LyricsContainerExists: false,
-  SkipSpicyFont: false,
-  OldStyleFont: false,
   SpicyLyricsVersion: "0.0.0",
   show_topbar_notifications: true,
   PrefersReducedMotion: false,
@@ -31,6 +31,24 @@ const Defaults = {
   ViewControlsPosition: "Top",
   SettingsOnTop: true,
   DeveloperMode: false,
+  RightAlignLyrics: false,
+  EscapeKeyFunction: "Default" as string,
+  BuildChannel: "Stable" as string,
+  SyllableRendering: "Default" as string,
+  CustomFontEnabled: false,
+  CustomFont: "",
+  AlwaysShowInFullscreen: "None" as string,
+  ShowVolumeSliderFullscreen: "Off" as string,
+  ReleaseYearPosition: "Off" as string,
+  ReplaceSpotifyPlaybar: false,
+  CoverArtAnimation: true,
+  UseOldBackgroundAnimation: false,
+  MemeFormat: "Off" as string,
+  MemeFormat_Default: 0,
+  EnableExperimentalWordSync: false,
+  LyricsSourceOrder: [...DEFAULT_LYRICS_SOURCE_ORDER],
+  DisabledLyricsSourceIds: ["musixmatch", "spotify", "lrclib", "netease"] as LyricsSourceProviderId[],
+  IgnoreMusixmatchWordSync: false,
 };
 
 export default Defaults;

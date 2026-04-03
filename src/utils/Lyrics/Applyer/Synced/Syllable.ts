@@ -23,16 +23,20 @@ import {
   setRomanizedStatus,
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
+import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
+import { ApplyLyricsSourceInfo } from "../Credits/ApplyLyricsSourceInfo.ts";
 import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
+import { uwuify } from "../../../uwuify.ts";
 
 // Define the data structure for syllable lyrics
 interface SyllableData {
   Text: string;
   RomanizedText?: string;
+  GibberishText?: string;
   StartTime: number;
   EndTime: number;
   IsPartOfWord?: boolean;
@@ -61,12 +65,117 @@ interface LyricsData {
   Content: LineData[];
   StartTime: number;
   SongWriters?: string[];
-  source?: "spt" | "spl" | "aml";
+  source?: string;
+  sourceDisplayName?: string;
+  fetchProvider?: string;
   classes?: string;
   styles?: Record<string, string>;
 }
 
+const hasDigit = (text: string) => /\d/.test(text);
+
+function reduceSyllables(syllables: SyllableData[], mode: string): SyllableData[] {
+  if (mode === "Default" || !mode) return syllables;
+
+  if (mode === "Merge Words") {
+    const result: SyllableData[] = [];
+    let i = 0;
+    while (i < syllables.length) {
+      const current = { ...syllables[i] };
+      while (i < syllables.length - 1 && syllables[i].IsPartOfWord) {
+        const next = syllables[i + 1];
+        if (current.Text.endsWith("-") || next.Text.startsWith("-")) break;
+        if (hasDigit(current.Text) || hasDigit(next.Text)) break;
+        current.Text += next.Text;
+        if (current.RomanizedText !== undefined || next.RomanizedText !== undefined) {
+          const currentRoman = current.RomanizedText ?? current.Text.slice(0, -next.Text.length);
+          const nextRoman = next.RomanizedText ?? next.Text;
+          current.RomanizedText = currentRoman + nextRoman;
+        }
+        current.EndTime = next.EndTime;
+        i++;
+      }
+      if (!syllables[i].IsPartOfWord) current.IsPartOfWord = false;
+      result.push(current);
+      i++;
+    }
+    return result;
+  }
+
+  if (mode === "Reduce Splits") {
+    const result: SyllableData[] = [];
+    let i = 0;
+    while (i < syllables.length) {
+      const current = { ...syllables[i] };
+      const duration = current.EndTime - current.StartTime;
+      if (
+        duration < 0.2 &&
+        i < syllables.length - 1 &&
+        current.IsPartOfWord &&
+        !current.Text.endsWith("-") &&
+        !hasDigit(current.Text) &&
+        !hasDigit(syllables[i + 1].Text)
+      ) {
+        const next = syllables[i + 1];
+        current.Text += next.Text;
+        if (current.RomanizedText !== undefined || next.RomanizedText !== undefined) {
+          const currentRoman = current.RomanizedText ?? current.Text.slice(0, -next.Text.length);
+          const nextRoman = next.RomanizedText ?? next.Text;
+          current.RomanizedText = currentRoman + nextRoman;
+        }
+        current.EndTime = next.EndTime;
+        current.IsPartOfWord = next.IsPartOfWord;
+        i += 2;
+      } else {
+        i++;
+      }
+      result.push(current);
+    }
+    const hasShort = result.some(
+      (s, idx) =>
+        s.EndTime - s.StartTime < 0.2 &&
+        s.IsPartOfWord &&
+        !s.Text.endsWith("-") &&
+        !hasDigit(s.Text) &&
+        idx < result.length - 1 &&
+        !hasDigit(result[idx + 1].Text)
+    );
+    if (hasShort && result.length < syllables.length) {
+      return reduceSyllables(result, mode);
+    }
+    return result;
+  }
+
+  return syllables;
+}
+
+let _resolveTextLogCount = 0;
+function resolveText(
+  syllable: SyllableData,
+  useRomanized: boolean
+): string {
+  if (Defaults.MemeFormat === "Gibberish" && syllable.GibberishText !== undefined) {
+    if (_resolveTextLogCount < 30) {
+      console.log(`[Gibberish/resolveText] ✅ Using GibberishText: "${syllable.Text}" → "${syllable.GibberishText}"`);
+      _resolveTextLogCount++;
+    }
+    return syllable.GibberishText;
+  }
+  if (Defaults.MemeFormat === "Gibberish" && syllable.GibberishText === undefined) {
+    if (_resolveTextLogCount < 30) {
+      console.log(`[Gibberish/resolveText] ❌ MemeFormat is Gibberish but GibberishText is UNDEFINED for "${syllable.Text}"`);
+      _resolveTextLogCount++;
+    }
+  }
+  let text = useRomanized && syllable.RomanizedText !== undefined ? syllable.RomanizedText : syllable.Text;
+  if (Defaults.MemeFormat === "Weeb") text = uwuify(text);
+  return text;
+}
+
 export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = false): void {
+  console.log(`[Gibberish/ApplySyllable] Called. MemeFormat="${Defaults.MemeFormat}", UseRomanized=${UseRomanized}, lines=${data.Content.length}`);
+  console.log(`[Gibberish/ApplySyllable] First line syllables:`, data.Content[0]?.Lead?.Syllables?.slice(0, 5).map((s: any) => ({ Text: s.Text, GibberishText: s.GibberishText })));
+  _resolveTextLogCount = 0;
   if (!Defaults.LyricsContainerExists) return;
   EmitNotApplyed();
 
@@ -214,7 +323,15 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
     let currentWordGroup: HTMLSpanElement | null = null;
 
-    line.Lead.Syllables.forEach((lead, iL, aL) => {
+    const syllableMode =
+      (data as any).userUploaded ||
+      (data as any).experimentalWordSync ||
+      Defaults.MemeFormat === "Gibberish"
+        ? "Default"
+        : Defaults.SyllableRendering;
+    const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
+
+    processedLeadSyllables.forEach((lead, iL, aL) => {
       let word = document.createElement("span");
 
       if (isRtl(lead.Text) && !lineElem.classList.contains("rtl")) {
@@ -223,23 +340,22 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
       const totalDuration = ConvertTime(lead.EndTime) - ConvertTime(lead.StartTime);
 
-      const letterLength = (
-        UseRomanized && lead.RomanizedText !== undefined ? lead.RomanizedText : lead.Text
-      ).split("").length;
+      const resolvedLeadText = resolveText(lead, UseRomanized);
+      const letterLength = resolvedLeadText.split("").length;
 
       const IfLetterCapable = IsLetterCapable(letterLength, totalDuration);
 
+      const isPartOfWord = Defaults.MemeFormat === "Gibberish" ? iL < aL.length - 1 : !!lead.IsPartOfWord;
+
       if (IfLetterCapable) {
         word = document.createElement("div");
-        const letters = (
-          UseRomanized && lead.RomanizedText !== undefined ? lead.RomanizedText : lead.Text
-        ).split(""); // Split word into individual letters
+        const letters = resolvedLeadText.split(""); // Split word into individual letters
 
         Emphasize(letters, word, lead);
 
         iL === aL.length - 1
           ? word.classList.add("LastWordInLine")
-          : lead.IsPartOfWord
+          : isPartOfWord
             ? word.classList.add("PartOfWord")
             : null;
 
@@ -250,8 +366,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
           word.style.transform = `translateY(calc(var(--DefaultLyricsSize) * 0.02))`;
         }
       } else {
-        word.textContent =
-          UseRomanized && lead.RomanizedText !== undefined ? lead.RomanizedText : lead.Text;
+        word.textContent = resolvedLeadText;
 
         if (!Defaults.SimpleLyricsMode) {
           word.style.setProperty("--gradient-position", `-20%`);
@@ -265,7 +380,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
         iL === aL.length - 1
           ? word.classList.add("LastWordInLine")
-          : lead.IsPartOfWord
+          : isPartOfWord
             ? word.classList.add("PartOfWord")
             : null;
 
@@ -282,8 +397,9 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
       }
 
       const prev = aL[iL - 1];
+      const prevIsPartOfWord = Defaults.MemeFormat === "Gibberish" ? iL > 0 : !!prev?.IsPartOfWord;
 
-      if (lead.IsPartOfWord || (prev?.IsPartOfWord && currentWordGroup)) {
+      if (isPartOfWord || (prevIsPartOfWord && currentWordGroup)) {
         if (!currentWordGroup) {
           const group = document.createElement("span");
           group.classList.add("word-group");
@@ -293,7 +409,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
         currentWordGroup.appendChild(word);
 
-        if (!lead.IsPartOfWord && prev?.IsPartOfWord) {
+        if (!isPartOfWord && prevIsPartOfWord) {
           currentWordGroup = null;
         }
       } else {
@@ -323,7 +439,9 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
         let currentBGWordGroup: HTMLSpanElement | null = null;
 
-        bg.Syllables.forEach((bw, bI, bA) => {
+        const processedBGSyllables = reduceSyllables(bg.Syllables, syllableMode);
+
+        processedBGSyllables.forEach((bw, bI, bA) => {
           let bwE = document.createElement("span");
 
           if (isRtl(bw.Text) && !lineE.classList.contains("rtl")) {
@@ -332,23 +450,23 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
           const totalDuration = ConvertTime(bw.EndTime) - ConvertTime(bw.StartTime);
 
-          const letterLength = (
-            UseRomanized && bw.RomanizedText !== undefined ? bw.RomanizedText : bw.Text
-          ).split("").length;
+          const resolvedBwText = resolveText(bw, UseRomanized);
+          const letterLength = resolvedBwText.split("").length;
 
           const IfLetterCapable = IsLetterCapable(letterLength, totalDuration);
 
+          const bwIsPartOfWord =
+            Defaults.MemeFormat === "Gibberish" ? bI < bA.length - 1 : !!bw.IsPartOfWord;
+
           if (IfLetterCapable) {
             bwE = document.createElement("div");
-            const letters = (
-              UseRomanized && bw.RomanizedText !== undefined ? bw.RomanizedText : bw.Text
-            ).split(""); // Split word into individual letters
+            const letters = resolvedBwText.split(""); // Split word into individual letters
 
             Emphasize(letters, bwE, bw, true);
 
             bI === bA.length - 1
               ? bwE.classList.add("LastWordInLine")
-              : bw.IsPartOfWord
+              : bwIsPartOfWord
                 ? bwE.classList.add("PartOfWord")
                 : null;
 
@@ -359,8 +477,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
               bwE.style.transform = `translateY(calc(var(--font-size) * 0.02))`;
             }
           } else {
-            bwE.textContent =
-              UseRomanized && bw.RomanizedText !== undefined ? bw.RomanizedText : bw.Text;
+            bwE.textContent = resolvedBwText;
 
             if (!Defaults.SimpleLyricsMode) {
               bwE.style.setProperty("--gradient-position", `0%`);
@@ -388,14 +505,15 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
             bI === bA.length - 1
               ? bwE.classList.add("LastWordInLine")
-              : bw.IsPartOfWord
+              : bwIsPartOfWord
                 ? bwE.classList.add("PartOfWord")
                 : null;
           }
 
           const prevBG = bA[bI - 1];
+          const prevBGIsPartOfWord = Defaults.MemeFormat === "Gibberish" ? bI > 0 : !!prevBG?.IsPartOfWord;
 
-          if (bw.IsPartOfWord || (prevBG?.IsPartOfWord && currentBGWordGroup)) {
+          if (bwIsPartOfWord || (prevBGIsPartOfWord && currentBGWordGroup)) {
             if (!currentBGWordGroup) {
               const group = document.createElement("span");
               group.classList.add("word-group");
@@ -405,7 +523,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
 
             currentBGWordGroup.appendChild(bwE);
 
-            if (!bw.IsPartOfWord && prevBG?.IsPartOfWord) {
+            if (!bwIsPartOfWord && prevBGIsPartOfWord) {
               currentBGWordGroup = null;
             }
           } else {
@@ -509,6 +627,8 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
   });
 
   ApplyLyricsCredits(data, LyricsContainer);
+  ApplyLyricsSourceInfo(data as any, LyricsContainer);
+  ApplyExperimentalWordSyncNotice(data as any, LyricsContainer);
   ApplyIsByCommunity(data, LyricsContainer);
 
   if (LyricsContainerParent) {

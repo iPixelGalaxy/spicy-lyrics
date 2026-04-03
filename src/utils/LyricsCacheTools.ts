@@ -1,7 +1,7 @@
 import { SpotifyPlayer } from "../components/Global/SpotifyPlayer.ts";
-import PageView, { ShowNotification } from "../components/Pages/PageView.ts";
+import PageView, { PageContainer, ShowNotification } from "../components/Pages/PageView.ts";
 import fetchLyrics, { LyricsStore } from "./Lyrics/fetchLyrics.ts";
-import ApplyLyrics from "./Lyrics/Global/Applyer.ts";
+import { ApplyLyricsIfCurrent } from "./Lyrics/Global/Applyer.ts";
 import storage from "./storage.ts";
 
 export const RemoveCurrentLyrics_AllCaches = async (ui: boolean = false) => {
@@ -23,7 +23,7 @@ export const RemoveCurrentLyrics_AllCaches = async (ui: boolean = false) => {
     if (PageView.IsOpened) {
       const uri = SpotifyPlayer.GetUri();
       if (uri && uri !== undefined) {
-        fetchLyrics(uri).then(ApplyLyrics);
+        fetchLyrics(uri).then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics));
       }
     }
   } catch (error) {
@@ -33,6 +33,36 @@ export const RemoveCurrentLyrics_AllCaches = async (ui: boolean = false) => {
             <p>Lyrics for the current song, couldn't be removed from all available caches</p>
             <p style="opacity: 0.75;">Check the console for more info</p>
         `,
+          "error"
+        )
+      : null;
+    console.error("SpicyLyrics:", error);
+  }
+};
+
+export const RemoveAllLyricsCaches = async (ui: boolean = false) => {
+  try {
+    await LyricsStore.Destroy();
+    storage.set("currentLyricsData", null);
+    ui
+      ? ShowNotification(
+          "All cached lyrics and the current loaded lyrics have been cleared",
+          "success"
+        )
+      : null;
+    if (PageView.IsOpened) {
+      const uri = SpotifyPlayer.GetUri();
+      if (uri && uri !== undefined) {
+        fetchLyrics(uri).then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics));
+      }
+    }
+  } catch (error) {
+    ui
+      ? ShowNotification(
+          `
+                <p>All cached lyrics could not be cleared</p>
+                <p style="opacity: 0.75;">Check the console for more info</p>
+            `,
           "error"
         )
       : null;
@@ -52,7 +82,7 @@ export const RemoveLyricsCache = async (ui: boolean = false) => {
     if (PageView.IsOpened) {
       const uri = SpotifyPlayer.GetUri();
       if (uri && uri !== undefined) {
-        fetchLyrics(uri).then(ApplyLyrics);
+        fetchLyrics(uri).then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics));
       }
     }
   } catch (error) {
@@ -81,7 +111,7 @@ export const RemoveCurrentLyrics_StateCache = (ui: boolean = false) => {
     if (PageView.IsOpened) {
       const uri = SpotifyPlayer.GetUri();
       if (uri && uri !== undefined) {
-        fetchLyrics(uri).then(ApplyLyrics);
+        fetchLyrics(uri).then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics));
       }
     }
   } catch (error) {
@@ -95,5 +125,33 @@ export const RemoveCurrentLyrics_StateCache = (ui: boolean = false) => {
         )
       : null;
     console.error("SpicyLyrics:", error);
+  }
+};
+
+export const ReloadCurrentLyrics = () => {
+  if (!PageView.IsOpened) return;
+  const uri = SpotifyPlayer.GetUri();
+  if (!uri) return;
+
+  const container = PageContainer?.querySelector<HTMLElement>(".LyricsContainer");
+
+  const doReload = () => {
+    storage.set("currentLyricsData", null);
+    fetchLyrics(uri).then((lyrics) => {
+      ApplyLyricsIfCurrent(uri, lyrics).then(() => {
+        if (container) {
+          container.style.opacity = "1";
+          setTimeout(() => { container.style.transition = ""; }, 250);
+        }
+      });
+    });
+  };
+
+  if (container) {
+    container.style.transition = "opacity 0.2s ease";
+    container.style.opacity = "0";
+    setTimeout(doReload, 200);
+  } else {
+    doReload();
   }
 };

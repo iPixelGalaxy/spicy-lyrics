@@ -1,22 +1,119 @@
 import { GetExpireStore } from "@spikerko/tools/Cache";
 import Defaults, { isDev } from "../../components/Global/Defaults.ts";
-import Platform from "../../components/Global/Platform.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import PageView, { PageContainer } from "../../components/Pages/PageView.ts";
 import { IsCompactMode } from "../../components/Utils/CompactMode.ts";
 import Fullscreen from "../../components/Utils/Fullscreen.ts";
-import { Query } from "../API/Query.ts";
 import { SetWaitingForHeight } from "../Scrolling/ScrollToActiveLine.ts";
 import storage from "../storage.ts";
-import { ProcessLyrics } from "./ProcessLyrics.ts";
+import { fetchLyricsFromProviders } from "./ExternalSources.ts";
+import { ProcessLyrics, ApplyMemeFormat } from "./ProcessLyrics.ts";
 
 export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore", 12, {
   Unit: "Days",
   Duration: 3,
 }, isDev as true);
 
+export const UserTTMLStore = GetExpireStore<any>("SpicyLyrics_UserTTMLStore", 12, {
+  Unit: "Days",
+  Duration: 365,
+}, isDev as true);
+
+export const SessionTTMLStore = new Map<string, any>();
+const LYRICS_SOURCE_CACHE_VERSION = 2;
+const inFlightLyricsFetches = new Map<
+  string,
+  Promise<[object | string, number] | null>
+>();
+
+export function getSongKey(uri: string): string {
+  if (!uri || !uri.trim() || !uri.startsWith("spotify:")) return "";
+  if (uri.startsWith("spotify:local:")) return uri;
+  const parts = uri.split(":");
+  if (parts.length < 3 || !parts[2]) return "";
+  return parts[2];
+}
+
+function getTrackIdFromUri(uri: string): string {
+  const songKey = getSongKey(uri);
+  if (!songKey) return "";
+  if (uri.startsWith("spotify:local:")) return songKey;
+  return uri.split(":")[2] ?? songKey;
+}
+
+
+function getActiveLyricsSourceOrder() {
+  if (!Defaults.DisabledLyricsSourceIds.length) return Defaults.LyricsSourceOrder;
+  const disabled = new Set(Defaults.DisabledLyricsSourceIds);
+  return Defaults.LyricsSourceOrder.filter((p) => !disabled.has(p));
+}
+
+function getLyricsSourceCacheSignature(): string {
+  return JSON.stringify({
+    version: LYRICS_SOURCE_CACHE_VERSION,
+    order: Defaults.LyricsSourceOrder,
+    disabled: Defaults.DisabledLyricsSourceIds,
+    ignoreMusixmatchWordSync: Defaults.IgnoreMusixmatchWordSync,
+  });
+}
+
+function isProviderFetchedLyricsCache(data: any): boolean {
+  return (
+    !!data &&
+    typeof data === "object" &&
+    typeof data.Type === "string" &&
+    (
+      typeof data.fetchProvider === "string" ||
+      typeof data.source === "string" ||
+      typeof data.sourceDisplayName === "string"
+    )
+  );
+}
+
+function attachLyricsSourceCacheMetadata(lyrics: any): any {
+  if (!isProviderFetchedLyricsCache(lyrics)) {
+    return lyrics;
+  }
+
+  return {
+    ...lyrics,
+    LyricsSourceCacheSignature: getLyricsSourceCacheSignature(),
+  };
+}
+
+function isLyricsCacheCompatible(data: any): boolean {
+  if (!isProviderFetchedLyricsCache(data)) {
+    return true;
+  }
+
+  return data.LyricsSourceCacheSignature === getLyricsSourceCacheSignature();
+}
+
+
 export default async function fetchLyrics(uri: string): Promise<[object | string, number] | null> {
+  const fetchKey = getTrackIdFromUri(uri) || uri;
+  const existingFetch = inFlightLyricsFetches.get(fetchKey);
+  if (existingFetch) {
+    return existingFetch;
+  }
+
+  const promise = fetchLyricsInternal(uri);
+  inFlightLyricsFetches.set(fetchKey, promise);
+
+  try {
+    return await promise;
+  } finally {
+    if (inFlightLyricsFetches.get(fetchKey) === promise) {
+      inFlightLyricsFetches.delete(fetchKey);
+    }
+  }
+}
+
+async function fetchLyricsInternal(uri: string): Promise<[object | string, number] | null> {
   const IsSpicyRenderer = Defaults.LyricsRenderer === "Spicy";
+  const hasExternalFallbacks = getActiveLyricsSourceOrder().some((provider) => provider !== "spicy");
+  const songKey = getSongKey(uri);
+  const isLocalTrack = uri.startsWith("spotify:local:");
 
   //if (!PageContainer) return;
   const LyricsContent =
@@ -48,23 +145,12 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
   }
 
   const contentType = SpotifyPlayer.GetContentType();
-  if (contentType !== "track") {
+  if (!isLocalTrack && contentType !== "track") {
     storage.set("currentlyFetching", "false");
     if (contentType === "episode") {
       return ["episode-track", 400];
     }
     return ["unknown-track", 400];
-  }
-
-  if (uri.startsWith("spotify:local:")) {
-    storage.set("currentlyFetching", "false");
-    return ["local-track", 400];
-  }
-
-  const currFetching = storage.get("currentlyFetching");
-  if (currFetching === "true") {
-    storage.set("currentlyFetching", "false");
-    return null;
   }
 
   storage.set("currentlyFetching", "true");
@@ -73,7 +159,63 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
     LyricsContent.classList.add("HiddenTransitioned");
   }
 
-  const trackId = uri.split(":")[2];
+  const trackId = isLocalTrack ? songKey : uri.split(":")[2];
+
+  // Check persistent user TTML first (Cache API, survives restarts)
+  if (UserTTMLStore && songKey) {
+    try {
+      const userTTML = await UserTTMLStore.GetItem(songKey);
+      if (userTTML) {
+        const lyricsData = { ...userTTML, id: trackId };
+        storage.set("currentLyricsData", JSON.stringify(lyricsData));
+        storage.set("currentlyFetching", "false");
+
+        if (lyricsData?.IncludesRomanization) {
+          PageContainer?.classList.add("Lyrics_RomanizationAvailable");
+        } else {
+          PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
+        }
+
+        HideLoaderContainer();
+        Defaults.CurrentLyricsType = lyricsData.Type;
+        PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
+        PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+        PageView.AppendViewControls(true);
+        return [lyricsData, 200];
+      }
+    } catch (error) {
+      console.error("Error reading user TTML store:", error);
+    }
+  }
+
+  // Check session TTML (in-memory, cleared on restart)
+  if (songKey && SessionTTMLStore.has(songKey)) {
+    const sessionData = SessionTTMLStore.get(songKey);
+    if (sessionData) {
+      const lyricsData = { ...sessionData, id: trackId, fromCache: true };
+      storage.set("currentLyricsData", JSON.stringify(lyricsData));
+      storage.set("currentlyFetching", "false");
+
+      if (lyricsData?.IncludesRomanization) {
+        PageContainer?.classList.add("Lyrics_RomanizationAvailable");
+      } else {
+        PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
+      }
+
+      HideLoaderContainer();
+      Defaults.CurrentLyricsType = lyricsData.Type;
+      PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
+      PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+      PageView.AppendViewControls(true);
+      return [lyricsData, 200];
+    }
+  }
+
+  if (isLocalTrack) {
+    storage.set("currentlyFetching", "false");
+    HideLoaderContainer();
+    return ["local-track", 400];
+  }
 
   // Check if there's already data in localStorage
   const savedLyricsData = storage.get("currentLyricsData")?.toString();
@@ -83,14 +225,14 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
       if (savedLyricsData.includes("NO_LYRICS")) {
         const split = savedLyricsData.split(":");
         const id = split[1];
-        if (id === trackId) {
+        if (id === trackId && !hasExternalFallbacks) {
           storage.set("currentlyFetching", "false");
-          return ["lyrics-not-found", 404];
+          return isLocalTrack ? ["local-track", 400] : ["lyrics-not-found", 404];
         }
       } else {
         const lyricsData = JSON.parse(savedLyricsData);
         // Return the stored lyrics if the ID matches the track ID
-        if (lyricsData?.id === trackId) {
+        if (lyricsData?.id === trackId && isLyricsCacheCompatible(lyricsData)) {
           if (lyricsData?.IncludesRomanization) {
             PageContainer?.classList.add("Lyrics_RomanizationAvailable");
           } else {
@@ -104,7 +246,12 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
           PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
           PageView.AppendViewControls(true);
           storage.set("currentlyFetching", "false");
+          ApplyMemeFormat(lyricsData);
           return [lyricsData, 200];
+        }
+
+        if (lyricsData?.id === trackId && !isLyricsCacheCompatible(lyricsData)) {
+          storage.set("currentLyricsData", null);
         }
       }
     } catch (error) {
@@ -119,10 +266,18 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
       const lyricsFromCacheRes = await LyricsStore.GetItem(trackId);
       if (lyricsFromCacheRes) {
         if (lyricsFromCacheRes?.Value === "NO_LYRICS") {
-          storage.set("currentlyFetching", "false");
-          return ["lyrics-not-found", 404];
+          if (!hasExternalFallbacks) {
+            storage.set("currentlyFetching", "false");
+            return isLocalTrack ? ["local-track", 400] : ["lyrics-not-found", 404];
+          } else {
+            throw { isOutdatedLyricsCache: true };
+          }
         }
         const lyricsFromCache = lyricsFromCacheRes ?? {};
+        if (!isLyricsCacheCompatible(lyricsFromCache)) {
+          void LyricsStore.RemoveItem(trackId).catch(() => {});
+          throw { isOutdatedLyricsCache: true };
+        }
 
         if (lyricsFromCache?.IncludesRomanization) {
           PageContainer?.classList.add("Lyrics_RomanizationAvailable");
@@ -130,19 +285,25 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
           PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
         }
 
-        storage.set("currentLyricsData", JSON.stringify(lyricsFromCache));
+        const lyricsFromCacheWithId = { ...lyricsFromCache, id: trackId };
+        storage.set("currentLyricsData", JSON.stringify(lyricsFromCacheWithId));
         storage.set("currentlyFetching", "false");
         Defaults.CurrentLyricsType = lyricsFromCache.Type;
         PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
         PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
         PageView.AppendViewControls(true);
         storage.set("currentlyFetching", "false");
-        return [{ ...lyricsFromCache, fromCache: true }, 200];
+        const cachedData = { ...lyricsFromCacheWithId, fromCache: true };
+        ApplyMemeFormat(cachedData);
+        return [cachedData, 200];
       }
     } catch (error) {
-      console.error("Error parsing saved lyrics data:", error);
-      storage.set("currentlyFetching", "false");
-      return ["unknown-error", 0];
+      if ((error as any)?.isOutdatedLyricsCache) {
+      } else {
+        console.error("Error parsing saved lyrics data:", error);
+        storage.set("currentlyFetching", "false");
+        return ["unknown-error", 0];
+      }
     }
   }
 
@@ -160,77 +321,30 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
     const lyricsAccessToken = storage.get("lyricsApiAccessToken") ?? Defaults.LyricsContent.api.accessToken; */
 
   try {
-    const Token = await Platform.GetSpotifyAccessToken();
-
-    let lyricsText = "";
-    let status = 0;
-
-    const queries = await Query(
-      [
-        {
-          operation: "lyrics",
-          variables: {
-            id: trackId,
-            auth: "SpicyLyrics-WebAuth",
-          },
-        },
-      ],
-      {
-        "SpicyLyrics-WebAuth": `Bearer ${Token}`,
-      }
+    const providerResult = await fetchLyricsFromProviders(
+      uri,
+      getActiveLyricsSourceOrder()
     );
 
-    const lyricsQuery = queries.get("0");
-    if (!lyricsQuery) {
-      console.error("[Spicy Lyrics] Lyrics query not found");
+    if (!providerResult?.lyrics) {
       HideLoaderContainer();
       storage.set("currentlyFetching", "false");
-      return ["lyrics-not-found", 404];
+      return isLocalTrack ? ["local-track", 400] : ["lyrics-not-found", 404];
     }
 
-    status = lyricsQuery.httpStatus;
-
-    if (lyricsQuery.format !== "json") {
-      lyricsText = "";
-    }
-
-    lyricsText = JSON.stringify(lyricsQuery.data);
-
-    if (status !== 200) {
-      if (status === 404) {
-        HideLoaderContainer();
-        storage.set("currentlyFetching", "false");
-        return ["lyrics-not-found", 404];
-      }
-      HideLoaderContainer();
-      storage.set("currentlyFetching", "false");
-      return ["status-not-200", status];
-    }
-
-    if (lyricsText === null) {
-      HideLoaderContainer();
-      storage.set("currentlyFetching", "false");
-      return ["lyrics-not-found", 404];
-    }
-    if (lyricsText === "") {
-      HideLoaderContainer();
-      storage.set("currentlyFetching", "false");
-      return ["lyrics-not-found", 404];
-    }
-
-    // const providerLyrics = JSON.parse(lyricsText);
-    const lyrics = JSON.parse(lyricsText);
+    const lyrics = providerResult.lyrics;
 
     IsSpicyRenderer ? await ProcessLyrics(lyrics) : null;
 
-    storage.set("currentLyricsData", JSON.stringify(lyrics));
+    const lyricsWithId = attachLyricsSourceCacheMetadata({ ...lyrics, id: trackId });
+    storage.set("currentLyricsData", JSON.stringify(lyricsWithId));
     storage.set("currentlyFetching", "false");
 
     HideLoaderContainer();
 
     if (LyricsStore) {
       try {
-        await LyricsStore.SetItem(trackId, lyrics);
+        await LyricsStore.SetItem(trackId, lyricsWithId);
       } catch (error) {
         console.error("Error saving lyrics to cache:", error);
       }
@@ -242,7 +356,7 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
     PageView.AppendViewControls(true);
     HideLoaderContainer();
     storage.set("currentlyFetching", "false");
-    return [{ ...lyrics, fromCache: false }, 200];
+    return [{ ...lyricsWithId, fromCache: false }, 200];
   } catch (error) {
     console.error("Error fetching lyrics:", error);
     storage.set("currentlyFetching", "false");

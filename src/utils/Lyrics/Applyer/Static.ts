@@ -1,5 +1,6 @@
 import Defaults from "../../../components/Global/Defaults.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
+import { uwuify } from "../../uwuify.ts";
 import { type StyleProperties, applyStyles, removeAllStyles } from "../../CSS/Styles.ts";
 import {
   ClearScrollSimplebar,
@@ -18,6 +19,7 @@ import {
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "./CreateLyricsContainer.ts";
 import { ApplyIsByCommunity } from "./Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
+import { ApplyLyricsSourceInfo } from "./Credits/ApplyLyricsSourceInfo.ts";
 import { EmitApply, EmitNotApplyed } from "./OnApply.ts";
 
 /**
@@ -29,11 +31,14 @@ export interface StaticLyricsData {
   Lines: Array<{
     Text: string;
     RomanizedText?: string;
+    GibberishText?: string;
   }>;
   offline?: boolean;
   classes?: string;
   styles?: StyleProperties;
-  source?: "spt" | "spl" | "aml";
+  source?: string;
+  sourceDisplayName?: string;
+  fetchProvider?: string;
 }
 
 /**
@@ -67,8 +72,11 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   data.Lines.forEach((line) => {
     const lineElem = document.createElement("div");
 
-    lineElem.textContent =
+    let lineContent =
+      Defaults.MemeFormat === "Gibberish" && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
+    if (Defaults.MemeFormat === "Weeb") lineContent = uwuify(lineContent);
+    lineElem.textContent = lineContent;
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
       lineElem.classList.add("rtl");
@@ -87,6 +95,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   });
 
   ApplyLyricsCredits(data, LyricsContainer);
+  ApplyLyricsSourceInfo(data, LyricsContainer);
   ApplyIsByCommunity(data, LyricsContainer);
   if (LyricsContainerParent) {
     LyricsContainerInstance.Append(LyricsContainerParent);

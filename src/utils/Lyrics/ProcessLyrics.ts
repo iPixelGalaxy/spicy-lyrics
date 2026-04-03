@@ -5,6 +5,8 @@ import langs from "langs";
 import { RetrievePackage } from "../ImportPackage.ts";
 import * as KuromojiAnalyzer from "./KuromojiAnalyzer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
+import Defaults from "../../components/Global/Defaults.ts";
+import { gibberishifyLine } from "./GibberishTransform.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -92,6 +94,10 @@ const preloadRomanizationPackages = async (
 export type RomanizeOptions = {
   skipTextTests?: boolean;
   packages?: RomanizationPackages;
+};
+
+type ProcessLyricsOptions = {
+  updatePageState?: boolean;
 };
 
 const RomanizeKorean = async (
@@ -243,7 +249,89 @@ const Romanize = async (
   }
 };
 
-export const ProcessLyrics = async (lyrics: any) => {
+function distributeJoinedText(text: string, groups: any[], getLength: (group: any) => number): string[] {
+  if (!groups.length) return [];
+
+  const lengths = groups.map((group) => Math.max(1, getLength(group)));
+  const totalLength = lengths.reduce((sum: number, len: number) => sum + len, 0);
+  const sliceLengths = new Array(groups.length).fill(0);
+
+  if (text.length >= groups.length) {
+    sliceLengths.fill(1);
+
+    const remainingChars = text.length - groups.length;
+    if (remainingChars > 0) {
+      let consumedWeight = 0;
+      let assignedExtra = 0;
+
+      for (let i = 0; i < lengths.length; i++) {
+        const isLast = i === lengths.length - 1;
+
+        if (isLast) {
+          sliceLengths[i] += remainingChars - assignedExtra;
+          break;
+        }
+
+        consumedWeight += lengths[i];
+
+        const targetAssignedExtra = Math.round((remainingChars * consumedWeight) / totalLength);
+        const extraForThisGroup = Math.max(0, targetAssignedExtra - assignedExtra);
+
+        sliceLengths[i] += extraForThisGroup;
+        assignedExtra += extraForThisGroup;
+      }
+    }
+  } else {
+    for (let i = 0; i < text.length; i++) {
+      sliceLengths[i] = 1;
+    }
+  }
+
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const sliceLen of sliceLengths) {
+    parts.push(text.slice(cursor, cursor + sliceLen));
+    cursor += sliceLen;
+  }
+
+  if (parts.length > 0 && cursor < text.length) {
+    parts[parts.length - 1] += text.slice(cursor);
+  }
+
+  return parts;
+}
+
+function getSyllableWeightText(text: string): string {
+  return (text ?? "")
+    .toLowerCase()
+    .replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "")
+    .replace(/\s/g, "");
+}
+
+function distributeLine(gibberishLine: string, syllables: any[]): string {
+  if (!syllables.length) return gibberishLine;
+
+  if (!gibberishLine) {
+    for (const syllable of syllables) {
+      syllable.GibberishText = "";
+    }
+    return gibberishLine;
+  }
+
+  const parts = distributeJoinedText(
+    gibberishLine,
+    syllables,
+    (syllable) => getSyllableWeightText(syllable.Text ?? "").length
+  );
+
+  syllables.forEach((syllable: any, index: number) => {
+    syllable.GibberishText = parts[index] ?? "";
+  });
+
+  return gibberishLine;
+}
+
+export const ProcessLyrics = async (lyrics: any, options?: ProcessLyricsOptions) => {
   const romanizationPromises: Promise<string | undefined>[] = [];
   let romanizeOptions: RomanizeOptions | undefined;
 
@@ -349,9 +437,69 @@ export const ProcessLyrics = async (lyrics: any) => {
   }
 
   await Promise.all(romanizationPromises);
-  if (lyrics.IncludesRomanization === true) {
-    PageContainer?.classList.add("Lyrics_RomanizationAvailable");
-  } else {
-    PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
+  if (options?.updatePageState !== false) {
+    if (lyrics.IncludesRomanization === true) {
+      PageContainer?.classList.add("Lyrics_RomanizationAvailable");
+    } else {
+      PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
+    }
   }
+
+  // ── Meme Format (Gibberish) ────────────────────────────────────────────
+  ApplyMemeFormat(lyrics);
 };
+
+/**
+ * Apply meme format transformations (Gibberish mode) to lyrics data.
+ * Extracted as a separate export so it can run on cached lyrics too,
+ * without re-running the full romanization pipeline.
+ */
+export function ApplyMemeFormat(lyrics: any): void {
+  console.log(`[Gibberish/ApplyMemeFormat] MemeFormat = "${Defaults.MemeFormat}", lyrics.Type = "${lyrics.Type}"`);
+  if (Defaults.MemeFormat !== "Gibberish") return;
+
+  console.log(`[Gibberish/ApplyMemeFormat] ✅ Gibberish mode is ACTIVE, processing ${lyrics.Type} lyrics...`);
+
+  if (lyrics.Type === "Static") {
+    for (const lyricMetadata of lyrics.Lines) {
+      lyricMetadata.GibberishText = gibberishifyLine(lyricMetadata.Text);
+    }
+  } else if (lyrics.Type === "Line") {
+    for (const vocalGroup of lyrics.Content) {
+      if (vocalGroup.Type === "Vocal") {
+        vocalGroup.GibberishText = gibberishifyLine(vocalGroup.Text);
+      }
+    }
+  } else if (lyrics.Type === "Syllable") {
+    let syllableLineCount = 0;
+    for (const vocalGroup of lyrics.Content) {
+      if (vocalGroup.Type === "Vocal") {
+        syllableLineCount++;
+        // Build the full line text, gibberish-ify it as one unit
+        let lineText = vocalGroup.Lead.Syllables[0]?.Text ?? "";
+        for (let i = 1; i < vocalGroup.Lead.Syllables.length; i++) {
+          const syl = vocalGroup.Lead.Syllables[i];
+          lineText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
+        }
+        console.log(`[Gibberish/Syllable] Line ${syllableLineCount} original: "${lineText}" (${vocalGroup.Lead.Syllables.length} syllables)`);
+        const gibberishLine = gibberishifyLine(lineText);
+
+        // Distribute the gibberish across syllables without crossing word boundaries.
+        vocalGroup.Lead.GibberishText = distributeLine(gibberishLine, vocalGroup.Lead.Syllables);
+        console.log(`[Gibberish/Syllable] Line ${syllableLineCount} distributed:`, vocalGroup.Lead.Syllables.map((s: any) => `"${s.Text}"→"${s.GibberishText}"`));
+
+        if (vocalGroup.Background !== undefined) {
+          for (const bg of vocalGroup.Background) {
+            let bgText = bg.Syllables[0]?.Text ?? "";
+            for (let i = 1; i < bg.Syllables.length; i++) {
+              const syl = bg.Syllables[i];
+              bgText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
+            }
+            const bgGibberish = gibberishifyLine(bgText);
+            bg.GibberishText = distributeLine(bgGibberish, bg.Syllables);
+          }
+        }
+      }
+    }
+  }
+}

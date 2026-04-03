@@ -9,7 +9,12 @@ import { EmitApply, EmitNotApplyed } from "../Applyer/OnApply.ts";
 import { ApplyStaticLyrics, type StaticLyricsData } from "../Applyer/Static.ts";
 import { ApplyLineLyrics } from "../Applyer/Synced/Line.ts";
 import { ApplySyllableLyrics } from "../Applyer/Synced/Syllable.ts";
-import { ClearLyricsPageContainer } from "../fetchLyrics.ts";
+import {
+  ConvertLineLyricsToExperimentalWordSync,
+  ConvertStaticLyricsToExperimentalWordSync,
+} from "../ExperimentalWordSync.ts";
+import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
+import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
 import { ClearLyricsContentArrays, isRomanized } from "../lyrics.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
 import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx";
@@ -34,6 +39,48 @@ export const cleanupApplyLyricsAbortController = () => {
     currentAbortController.abort();
     currentAbortController = null
   }
+}
+
+export function ShouldApplyLyricsForUri(
+  expectedUri: string | undefined,
+  lyricsContent: [object | string, number] | null
+): boolean {
+  if (!expectedUri || !lyricsContent) {
+    return false;
+  }
+
+  const currentUri = SpotifyPlayer.GetUri() ?? "";
+  if (getSongKey(expectedUri) !== getSongKey(currentUri)) {
+    return false;
+  }
+
+  const [descriptor] = lyricsContent;
+  if (!descriptor || typeof descriptor === "string") {
+    return true;
+  }
+
+  const descriptorId = typeof (descriptor as any).id === "string"
+    ? (descriptor as any).id
+    : null;
+  if (!descriptorId) {
+    return true;
+  }
+
+  const currentId = currentUri.startsWith("spotify:local:")
+    ? getSongKey(currentUri)
+    : SpotifyPlayer.GetId();
+  return descriptorId === currentId;
+}
+
+export async function ApplyLyricsIfCurrent(
+  expectedUri: string | undefined,
+  lyricsContent: [object | string, number] | null
+): Promise<void> {
+  if (!ShouldApplyLyricsForUri(expectedUri, lyricsContent)) {
+    return;
+  }
+
+  await ApplyLyrics(lyricsContent);
 }
 
 /**
@@ -158,9 +205,43 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
     return;
   }
 
-  const lyrics = descriptor as LyricsData;
+  let lyrics = descriptor as LyricsData;
+
+  if (
+    Defaults.EnableExperimentalWordSync &&
+    (lyrics.Type === "Line" || lyrics.Type === "Static")
+  ) {
+    const analysisTrackId =
+      typeof lyrics.id === "string" && lyrics.id.length > 0
+        ? lyrics.id
+        : SpotifyPlayer.GetId() ?? "";
+    const audioAnalysis = analysisTrackId
+      ? await getDynamicAudioAnalysis(analysisTrackId)
+      : null;
+
+    if (lyrics.Type === "Line") {
+      lyrics = ConvertLineLyricsToExperimentalWordSync(
+        lyrics,
+        audioAnalysis
+      ) as LyricsData;
+    } else if (lyrics.Type === "Static") {
+      lyrics = ConvertStaticLyricsToExperimentalWordSync(
+        lyrics,
+        audioAnalysis,
+        SpotifyPlayer.GetDuration() / 1000
+      ) as LyricsData;
+    }
+  }
+
+  Defaults.CurrentLyricsType = lyrics.Type;
 
   const romanize = isRomanized;
+
+  if (Defaults.RightAlignLyrics && lyrics.Content) {
+    for (const item of (lyrics as any).Content) {
+      item.OppositeAligned = !item.OppositeAligned;
+    }
+  }
 
   if (lyrics.Type === "Syllable") {
     ApplySyllableLyrics(lyrics as any, romanize);

@@ -63,13 +63,25 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.22 — Latest
+### v100.10.23 — Latest
+
+- **Lyrics sources split by origin** — the Spicy Lyrics source now covers community lyrics only, Apple Music and Spotify are their own separate toggleable sources
+- **New default source order** — Spicy Lyrics → Musixmatch → Apple Music → Spotify → LRCLIB → Netease
+- **Smarter defaults** — Spicy Lyrics, Musixmatch, Apple Music, and Spotify are enabled out of the box; LRCLIB and Netease remain off by default
+- **Ignore Musixmatch word sync enabled by default** — word sync from Musixmatch is ignored unless you opt back in
+- **Auto Musixmatch token on first load** — a fresh token is fetched automatically if none is stored
+- **Prioritize Apple Music Quality toggle** — when enabled (on by default), Apple Music lyrics are preferred over Musixmatch when they are of equal or greater quality; Apple Music only wins ties if its lyrics have real pauses between lines, so back-to-back continuous syncs (typical of Musixmatch-sourced timings) don't incorrectly trigger the preference
+
+---
+
+<details>
+<summary>v100.10.22</summary>
 
 - **Addition Lyric Sources** — HOLY MOLY 👀
 - **At least one source always stays enabled** — the last remaining enabled source's toggle is locked so you can't accidentally disable everything
 - **Default source is Spicy Lyrics only** — new installs (and anyone who hasn't customised the setting) start with only the Spicy Lyrics source active; others can be turned on as needed
 
----
+</details>
 
 <details>
 <summary>v100.10.21</summary>

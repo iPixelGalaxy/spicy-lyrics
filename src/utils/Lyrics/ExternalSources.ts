@@ -826,7 +826,7 @@ function getMusixmatchKaraokeLines(richsync: any): TimedWordLine[] | null {
   return lines.length > 0 ? lines : null;
 }
 
-async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
+async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyricsResult | null> {
   try {
     const token = await Platform.GetSpotifyAccessToken();
     const queries = await Query(
@@ -872,8 +872,24 @@ async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult |
   }
 }
 
+async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
+  const raw = await fetchSpicyLyricsRaw(trackId);
+  if (!raw) return null;
+  // Community-only: source must be "spl"
+  if (raw.lyrics?.source !== "spl") return null;
+  return raw;
+}
+
+async function fetchAppleMusicLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
+  const raw = await fetchSpicyLyricsRaw(trackId);
+  if (!raw) return null;
+  // Apple Music only: source must be "aml"
+  if (raw.lyrics?.source !== "aml") return null;
+  return raw;
+}
+
 async function fetchSpicySongWriters(trackId: string): Promise<string[] | null> {
-  const spicyResult = await fetchSpicyLyrics(trackId);
+  const spicyResult = await fetchSpicyLyricsRaw(trackId);
   return tryGetSongWriters(spicyResult?.lyrics);
 }
 
@@ -1361,13 +1377,15 @@ export async function fetchLyricsFromProviders(
         ? await fetchSpicyLyrics(trackInfo.id)
         : provider === "musixmatch"
           ? await fetchMusixmatchLyrics(trackInfo)
-          : provider === "spotify"
-            ? await fetchSpotifyLyrics(trackInfo)
-            : provider === "lrclib"
-              ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-              : provider === "netease"
-                ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                : null;
+          : provider === "apple"
+            ? await fetchAppleMusicLyrics(trackInfo.id)
+            : provider === "spotify"
+              ? await fetchSpotifyLyrics(trackInfo)
+              : provider === "lrclib"
+                ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                : provider === "netease"
+                  ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                  : null;
 
     if (!result?.lyrics) {
       continue;
@@ -1379,7 +1397,7 @@ export async function fetchLyricsFromProviders(
       bestScore = score;
     }
 
-    if (provider === "spicy" || provider === "musixmatch") {
+    if (provider === "spicy" || provider === "musixmatch" || provider === "apple") {
       hadPreferredResult = true;
     }
 

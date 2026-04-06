@@ -1,6 +1,7 @@
 export type LyricsSourceProviderId =
   | "spicy"
   | "musixmatch"
+  | "apple"
   | "spotify"
   | "lrclib"
   | "netease";
@@ -13,6 +14,7 @@ type LyricsSourceDefinition = {
 export const DEFAULT_LYRICS_SOURCE_ORDER: LyricsSourceProviderId[] = [
   "spicy",
   "musixmatch",
+  "apple",
   "spotify",
   "lrclib",
   "netease",
@@ -25,12 +27,17 @@ export const LYRICS_SOURCE_PROVIDER_DEFINITIONS: Record<
   spicy: {
     label: "Spicy Lyrics",
     description:
-      "Uses the main Spicy Lyrics source first, including community and supported upstream sources.",
+      "Community-contributed lyrics sourced directly from the Spicy Lyrics community.",
   },
   musixmatch: {
     label: "Musixmatch",
     description:
       "Uses Musixmatch as a fallback and can provide richer synced or word-timed lyrics when available.",
+  },
+  apple: {
+    label: "Apple Music",
+    description:
+      "Fetches Apple Music lyrics via the Spicy Lyrics backend when available.",
   },
   spotify: {
     label: "Spotify",
@@ -90,6 +97,16 @@ export function normalizeLyricsSourceOrder(
       deduped.splice(spicyIndex + 1, 0, "musixmatch");
     } else {
       deduped.unshift("musixmatch");
+    }
+  }
+
+  if (!deduped.includes("apple")) {
+    const musixmatchIndex = deduped.indexOf("musixmatch");
+    if (musixmatchIndex >= 0) {
+      deduped.splice(musixmatchIndex + 1, 0, "apple");
+    } else {
+      const spicyIndex = deduped.indexOf("spicy");
+      deduped.splice(spicyIndex >= 0 ? spicyIndex + 1 : 0, 0, "apple");
     }
   }
 

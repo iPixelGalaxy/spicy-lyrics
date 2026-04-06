@@ -67,11 +67,15 @@ const NETEASE_CREDIT_REGEX = new RegExp(
 );
 
 /**
- * Returns true if the lyrics have at least one meaningful pause between consecutive
- * lines — i.e. a line's EndTime is noticeably earlier than the next line's StartTime.
- * Continuous/back-to-back syncs (typical of Musixmatch-sourced timings) return false.
+ * Returns true if the lyrics have at least one genuine line-ending pause — a gap
+ * between consecutive lines that falls within a meaningful window.
+ *
+ * Gaps below minGapSec are timing artifacts from back-to-back Musixmatch-sourced
+ * syncs and are ignored. Gaps at or above maxGapSec are instrumental sections/tags,
+ * not line pauses, and are also ignored. Only gaps strictly within the window
+ * [minGapSec, maxGapSec) are counted as real Apple Music line-ending data.
  */
-function hasLineGaps(lyrics: any, minGapSec = 1.5): boolean {
+function hasLineGaps(lyrics: any, minGapSec = 0.3, maxGapSec = 5.0): boolean {
   const content = Array.isArray(lyrics?.Content) ? lyrics.Content : [];
   if (content.length < 2) return false;
 
@@ -94,7 +98,10 @@ function hasLineGaps(lyrics: any, minGapSec = 1.5): boolean {
           ? next.Lead.StartTime
           : null;
 
-    if (currentEnd !== null && nextStart !== null && nextStart - currentEnd > minGapSec) {
+    if (currentEnd === null || nextStart === null) continue;
+
+    const gap = nextStart - currentEnd;
+    if (gap >= minGapSec && gap < maxGapSec) {
       return true;
     }
   }

@@ -66,6 +66,42 @@ const NETEASE_CREDIT_REGEX = new RegExp(
   "i"
 );
 
+/**
+ * Returns true if the lyrics have at least one meaningful pause between consecutive
+ * lines — i.e. a line's EndTime is noticeably earlier than the next line's StartTime.
+ * Continuous/back-to-back syncs (typical of Musixmatch-sourced timings) return false.
+ */
+function hasLineGaps(lyrics: any, minGapSec = 0.05): boolean {
+  const content = Array.isArray(lyrics?.Content) ? lyrics.Content : [];
+  if (content.length < 2) return false;
+
+  for (let i = 0; i < content.length - 1; i++) {
+    const current = content[i];
+    const next = content[i + 1];
+
+    // Line type stores timing directly; Syllable type nests it under Lead.
+    const currentEnd =
+      typeof current.EndTime === "number"
+        ? current.EndTime
+        : typeof current.Lead?.EndTime === "number"
+          ? current.Lead.EndTime
+          : null;
+
+    const nextStart =
+      typeof next.StartTime === "number"
+        ? next.StartTime
+        : typeof next.Lead?.StartTime === "number"
+          ? next.Lead.StartTime
+          : null;
+
+    if (currentEnd !== null && nextStart !== null && nextStart - currentEnd > minGapSec) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getLyricsTypeScore(lyrics: any): number {
   if (!lyrics || typeof lyrics !== "object") {
     return 0;
@@ -1420,17 +1456,21 @@ export async function fetchLyricsFromProviders(
       if (prioritizeApple && appleIsInOrder && !appleTried) {
         continue;
       }
-      // If apple has a result of equal or greater quality, prefer it.
-      if (prioritizeApple && appleResult && appleScore >= score) {
-        return appleResult;
+      // Prefer Apple Music if it scored strictly higher, or tied and has real line-ending gaps.
+      if (prioritizeApple && appleResult) {
+        if (appleScore > score || (appleScore === score && hasLineGaps(appleResult.lyrics))) {
+          return appleResult;
+        }
       }
       return result;
     }
   }
 
-  // Final tiebreak: if prioritizing Apple Music and it matched or exceeded the best, prefer it.
-  if (prioritizeApple && appleResult && appleScore >= bestScore) {
-    return appleResult;
+  // Final tiebreak: prefer Apple Music if it scored strictly higher, or tied and has real gaps.
+  if (prioritizeApple && appleResult) {
+    if (appleScore > bestScore || (appleScore === bestScore && hasLineGaps(appleResult.lyrics))) {
+      return appleResult;
+    }
   }
 
   return bestResult;

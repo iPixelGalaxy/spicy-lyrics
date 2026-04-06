@@ -954,7 +954,7 @@ async function fetchSpotifyLyrics(
       typeof lyrics.provider === "string" ? lyrics.provider.trim() : "";
     const providerName =
       rawProvider.toLowerCase() === "musixmatch"
-        ? "Musixmatch"
+        ? "Spotify (through Musixmatch)"
         : rawProvider || "Spotify";
 
     const isNoteOnlyLine = (text: string) => /^[♪♫♬♩\s]*$/.test(text);

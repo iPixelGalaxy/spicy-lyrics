@@ -55,7 +55,9 @@ import {
   normalizeLyricsSourceOrder,
   normalizeDisabledLyricsSourceIds,
   stringifyLyricsSourceOrder,
+  stringifyDisabledLyricsSourceIds,
 } from "./utils/Lyrics/LyricsSourcePreferences.ts";
+import { refreshMusixmatchToken } from "./utils/Lyrics/ExternalSources.ts";
 import storage from "./utils/storage.ts";
 import "./css/polyfills/tippy-polyfill.css";
 import "./css/polyfills/generic-modal-polyfill.css";
@@ -300,7 +302,7 @@ async function main() {
   }
 
   if (!storage.get("ignoreMusixmatchWordSync")) {
-    storage.set("ignoreMusixmatchWordSync", "false");
+    storage.set("ignoreMusixmatchWordSync", "true");
   }
 
   if (storage.get("ignoreMusixmatchWordSync")) {
@@ -308,10 +310,26 @@ async function main() {
       storage.get("ignoreMusixmatchWordSync") === "true";
   }
 
+  if (!storage.get("disabledLyricsSources")) {
+    storage.set(
+      "disabledLyricsSources",
+      stringifyDisabledLyricsSourceIds(Defaults.DisabledLyricsSourceIds)
+    );
+  }
+
   if (storage.get("disabledLyricsSources")) {
     Defaults.DisabledLyricsSourceIds = normalizeDisabledLyricsSourceIds(
       storage.get("disabledLyricsSources")?.toString()
     );
+  }
+
+  if (!storage.get("musixmatchToken")) {
+    void refreshMusixmatchToken(true);
+  }
+
+  if (storage.get("prioritizeAppleMusicQuality")) {
+    Defaults.PrioritizeAppleMusicQuality =
+      storage.get("prioritizeAppleMusicQuality") === "true";
   }
 
   Defaults.ReleaseYearPosition = storage.get("releaseYearPosition")?.toString() ?? "Off";

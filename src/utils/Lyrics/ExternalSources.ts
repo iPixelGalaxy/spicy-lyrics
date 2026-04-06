@@ -66,6 +66,42 @@ const NETEASE_CREDIT_REGEX = new RegExp(
   "i"
 );
 
+/**
+ * Returns true if the lyrics have at least one meaningful pause between consecutive
+ * lines — i.e. a line's EndTime is noticeably earlier than the next line's StartTime.
+ * Continuous/back-to-back syncs (typical of Musixmatch-sourced timings) return false.
+ */
+function hasLineGaps(lyrics: any, minGapSec = 0.05): boolean {
+  const content = Array.isArray(lyrics?.Content) ? lyrics.Content : [];
+  if (content.length < 2) return false;
+
+  for (let i = 0; i < content.length - 1; i++) {
+    const current = content[i];
+    const next = content[i + 1];
+
+    // Line type stores timing directly; Syllable type nests it under Lead.
+    const currentEnd =
+      typeof current.EndTime === "number"
+        ? current.EndTime
+        : typeof current.Lead?.EndTime === "number"
+          ? current.Lead.EndTime
+          : null;
+
+    const nextStart =
+      typeof next.StartTime === "number"
+        ? next.StartTime
+        : typeof next.Lead?.StartTime === "number"
+          ? next.Lead.StartTime
+          : null;
+
+    if (currentEnd !== null && nextStart !== null && nextStart - currentEnd > minGapSec) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getLyricsTypeScore(lyrics: any): number {
   if (!lyrics || typeof lyrics !== "object") {
     return 0;
@@ -826,7 +862,7 @@ function getMusixmatchKaraokeLines(richsync: any): TimedWordLine[] | null {
   return lines.length > 0 ? lines : null;
 }
 
-async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
+async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyricsResult | null> {
   try {
     const token = await Platform.GetSpotifyAccessToken();
     const queries = await Query(
@@ -872,8 +908,24 @@ async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult |
   }
 }
 
+async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
+  const raw = await fetchSpicyLyricsRaw(trackId);
+  if (!raw) return null;
+  // Community-only: source must be "spl"
+  if (raw.lyrics?.source !== "spl") return null;
+  return raw;
+}
+
+async function fetchAppleMusicLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
+  const raw = await fetchSpicyLyricsRaw(trackId);
+  if (!raw) return null;
+  // Apple Music only: source must be "aml"
+  if (raw.lyrics?.source !== "aml") return null;
+  return raw;
+}
+
 async function fetchSpicySongWriters(trackId: string): Promise<string[] | null> {
-  const spicyResult = await fetchSpicyLyrics(trackId);
+  const spicyResult = await fetchSpicyLyricsRaw(trackId);
   return tryGetSongWriters(spicyResult?.lyrics);
 }
 
@@ -1345,9 +1397,15 @@ export async function fetchLyricsFromProviders(
     return null;
   }
 
+  const prioritizeApple = Defaults.PrioritizeAppleMusicQuality;
+  const appleIsInOrder = order.includes("apple");
+
   let bestResult: ExternalLyricsResult | null = null;
   let bestScore = 0;
   let hadPreferredResult = false;
+  let appleResult: ExternalLyricsResult | null = null;
+  let appleScore = 0;
+  let appleTried = false;
 
   for (const provider of order) {
     // If a preferred source (spicy/musixmatch) already gave us something,
@@ -1361,13 +1419,23 @@ export async function fetchLyricsFromProviders(
         ? await fetchSpicyLyrics(trackInfo.id)
         : provider === "musixmatch"
           ? await fetchMusixmatchLyrics(trackInfo)
-          : provider === "spotify"
-            ? await fetchSpotifyLyrics(trackInfo)
-            : provider === "lrclib"
-              ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-              : provider === "netease"
-                ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                : null;
+          : provider === "apple"
+            ? await fetchAppleMusicLyrics(trackInfo.id)
+            : provider === "spotify"
+              ? await fetchSpotifyLyrics(trackInfo)
+              : provider === "lrclib"
+                ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                : provider === "netease"
+                  ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                  : null;
+
+    if (provider === "apple") {
+      appleTried = true;
+      if (result?.lyrics) {
+        appleResult = result;
+        appleScore = getLyricsTypeScore(result.lyrics);
+      }
+    }
 
     if (!result?.lyrics) {
       continue;
@@ -1379,12 +1447,29 @@ export async function fetchLyricsFromProviders(
       bestScore = score;
     }
 
-    if (provider === "spicy" || provider === "musixmatch") {
+    if (provider === "spicy" || provider === "musixmatch" || provider === "apple") {
       hadPreferredResult = true;
     }
 
     if (score >= 3) {
+      // When prioritizing Apple Music quality, don't early-exit until apple has been tried.
+      if (prioritizeApple && appleIsInOrder && !appleTried) {
+        continue;
+      }
+      // Prefer Apple Music if it scored strictly higher, or tied and has real line-ending gaps.
+      if (prioritizeApple && appleResult) {
+        if (appleScore > score || (appleScore === score && hasLineGaps(appleResult.lyrics))) {
+          return appleResult;
+        }
+      }
       return result;
+    }
+  }
+
+  // Final tiebreak: prefer Apple Music if it scored strictly higher, or tied and has real gaps.
+  if (prioritizeApple && appleResult) {
+    if (appleScore > bestScore || (appleScore === bestScore && hasLineGaps(appleResult.lyrics))) {
+      return appleResult;
     }
   }
 

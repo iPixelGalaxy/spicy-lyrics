@@ -99,10 +99,12 @@ function showLyricsSourcePreferencesPanel() {
   let workingDisabled = new Set<LyricsSourceProviderId>(Defaults.DisabledLyricsSourceIds);
   let workingMusixmatchToken = storage.get("musixmatchToken")?.toString().trim() ?? "";
   let workingIgnoreMusixmatchWordSync = Defaults.IgnoreMusixmatchWordSync;
+  let workingPrioritizeAppleMusic = Defaults.PrioritizeAppleMusicQuality;
   const initialOrder = stringifyLyricsSourceOrder(workingOrder);
   const initialDisabled = JSON.stringify([...workingDisabled].sort());
   const initialMusixmatchToken = workingMusixmatchToken;
   const initialIgnoreMusixmatchWordSync = workingIgnoreMusixmatchWordSync;
+  const initialPrioritizeAppleMusic = workingPrioritizeAppleMusic;
   let musixmatchStatusText = workingMusixmatchToken
     ? "Using a saved custom Musixmatch token."
     : "No custom token saved. The built-in fallback token will be used.";
@@ -204,16 +206,19 @@ function showLyricsSourcePreferencesPanel() {
     storage.set("disabledLyricsSources", JSON.stringify([...workingDisabled]));
     storage.set("musixmatchToken", workingMusixmatchToken);
     storage.set("ignoreMusixmatchWordSync", workingIgnoreMusixmatchWordSync.toString());
+    storage.set("prioritizeAppleMusicQuality", workingPrioritizeAppleMusic.toString());
 
     Defaults.LyricsSourceOrder = normalizedOrder;
     Defaults.DisabledLyricsSourceIds = normalizeDisabledLyricsSourceIds(serializedDisabled);
     Defaults.IgnoreMusixmatchWordSync = workingIgnoreMusixmatchWordSync;
+    Defaults.PrioritizeAppleMusicQuality = workingPrioritizeAppleMusic;
 
     const changed =
       serializedOrder !== initialOrder ||
       serializedDisabled !== initialDisabled ||
       workingMusixmatchToken !== initialMusixmatchToken ||
-      workingIgnoreMusixmatchWordSync !== initialIgnoreMusixmatchWordSync;
+      workingIgnoreMusixmatchWordSync !== initialIgnoreMusixmatchWordSync ||
+      workingPrioritizeAppleMusic !== initialPrioritizeAppleMusic;
 
     if (changed && !cacheCleared) {
       cacheCleared = true;
@@ -378,6 +383,61 @@ function showLyricsSourcePreferencesPanel() {
         tokenBlock.appendChild(ignoreWordSyncRow);
         tokenBlock.appendChild(status);
         info.appendChild(tokenBlock);
+      }
+
+      if (providerId === "apple") {
+        const appleBlock = document.createElement("div");
+        Object.assign(appleBlock.style, {
+          marginTop: "12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "8px",
+        });
+
+        const prioritizeRow = document.createElement("div");
+        Object.assign(prioritizeRow.style, {
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        });
+
+        const prioritizeControl = document.createElement("label");
+        prioritizeControl.className = "sl-toggle";
+
+        const prioritizeInput = document.createElement("input");
+        prioritizeInput.type = "checkbox";
+        prioritizeInput.checked = workingPrioritizeAppleMusic;
+        prioritizeInput.addEventListener("change", () => {
+          workingPrioritizeAppleMusic = prioritizeInput.checked;
+          void save();
+        });
+
+        const prioritizeKnob = document.createElement("span");
+
+        const prioritizeLabel = document.createElement("div");
+        prioritizeLabel.textContent = "Prioritize higher quality lyrics";
+        Object.assign(prioritizeLabel.style, {
+          fontSize: "13px",
+          opacity: "0.9",
+        });
+
+        const prioritizeHint = document.createElement("div");
+        prioritizeHint.textContent =
+          "When enabled, Apple Music lyrics are preferred over Musixmatch if they are of equal or greater quality (e.g. line syncs with end times, word syncs).";
+        Object.assign(prioritizeHint.style, {
+          fontSize: "12px",
+          opacity: "0.6",
+          lineHeight: "1.35",
+          marginTop: "4px",
+        });
+
+        prioritizeControl.appendChild(prioritizeInput);
+        prioritizeControl.appendChild(prioritizeKnob);
+        prioritizeRow.appendChild(prioritizeControl);
+        prioritizeRow.appendChild(prioritizeLabel);
+        appleBlock.appendChild(prioritizeRow);
+        appleBlock.appendChild(prioritizeHint);
+        info.appendChild(appleBlock);
       }
 
       // Controls: stacked arrow buttons + enable/disable toggle

@@ -47,8 +47,9 @@ const Defaults = {
   MemeFormat_Default: 0,
   EnableExperimentalWordSync: false,
   LyricsSourceOrder: [...DEFAULT_LYRICS_SOURCE_ORDER],
-  DisabledLyricsSourceIds: ["musixmatch", "spotify", "lrclib", "netease"] as LyricsSourceProviderId[],
-  IgnoreMusixmatchWordSync: false,
+  DisabledLyricsSourceIds: ["lrclib", "netease"] as LyricsSourceProviderId[],
+  IgnoreMusixmatchWordSync: true,
+  PrioritizeAppleMusicQuality: true,
 };
 
 export default Defaults;

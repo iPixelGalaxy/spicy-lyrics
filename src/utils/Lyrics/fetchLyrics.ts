@@ -54,6 +54,7 @@ function getLyricsSourceCacheSignature(): string {
     order: Defaults.LyricsSourceOrder,
     disabled: Defaults.DisabledLyricsSourceIds,
     ignoreMusixmatchWordSync: Defaults.IgnoreMusixmatchWordSync,
+    prioritizeAppleMusicQuality: Defaults.PrioritizeAppleMusicQuality,
   });
 }
 

@@ -1361,9 +1361,15 @@ export async function fetchLyricsFromProviders(
     return null;
   }
 
+  const prioritizeApple = Defaults.PrioritizeAppleMusicQuality;
+  const appleIsInOrder = order.includes("apple");
+
   let bestResult: ExternalLyricsResult | null = null;
   let bestScore = 0;
   let hadPreferredResult = false;
+  let appleResult: ExternalLyricsResult | null = null;
+  let appleScore = 0;
+  let appleTried = false;
 
   for (const provider of order) {
     // If a preferred source (spicy/musixmatch) already gave us something,
@@ -1387,6 +1393,14 @@ export async function fetchLyricsFromProviders(
                   ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
                   : null;
 
+    if (provider === "apple") {
+      appleTried = true;
+      if (result?.lyrics) {
+        appleResult = result;
+        appleScore = getLyricsTypeScore(result.lyrics);
+      }
+    }
+
     if (!result?.lyrics) {
       continue;
     }
@@ -1402,8 +1416,21 @@ export async function fetchLyricsFromProviders(
     }
 
     if (score >= 3) {
+      // When prioritizing Apple Music quality, don't early-exit until apple has been tried.
+      if (prioritizeApple && appleIsInOrder && !appleTried) {
+        continue;
+      }
+      // If apple has a result of equal or greater quality, prefer it.
+      if (prioritizeApple && appleResult && appleScore >= score) {
+        return appleResult;
+      }
       return result;
     }
+  }
+
+  // Final tiebreak: if prioritizing Apple Music and it matched or exceeded the best, prefer it.
+  if (prioritizeApple && appleResult && appleScore >= bestScore) {
+    return appleResult;
   }
 
   return bestResult;

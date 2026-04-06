@@ -49,6 +49,7 @@ const Defaults = {
   LyricsSourceOrder: [...DEFAULT_LYRICS_SOURCE_ORDER],
   DisabledLyricsSourceIds: ["lrclib", "netease"] as LyricsSourceProviderId[],
   IgnoreMusixmatchWordSync: true,
+  PrioritizeAppleMusicQuality: false,
 };
 
 export default Defaults;

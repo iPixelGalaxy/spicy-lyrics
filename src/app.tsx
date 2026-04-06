@@ -327,6 +327,11 @@ async function main() {
     void refreshMusixmatchToken(true);
   }
 
+  if (storage.get("prioritizeAppleMusicQuality")) {
+    Defaults.PrioritizeAppleMusicQuality =
+      storage.get("prioritizeAppleMusicQuality") === "true";
+  }
+
   Defaults.ReleaseYearPosition = storage.get("releaseYearPosition")?.toString() ?? "Off";
 
   if (!storage.get("memeFormat")) {

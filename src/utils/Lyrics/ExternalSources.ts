@@ -71,7 +71,7 @@ const NETEASE_CREDIT_REGEX = new RegExp(
  * lines — i.e. a line's EndTime is noticeably earlier than the next line's StartTime.
  * Continuous/back-to-back syncs (typical of Musixmatch-sourced timings) return false.
  */
-function hasLineGaps(lyrics: any, minGapSec = 0.05): boolean {
+function hasLineGaps(lyrics: any, minGapSec = 1.5): boolean {
   const content = Array.isArray(lyrics?.Content) ? lyrics.Content : [];
   if (content.length < 2) return false;
 

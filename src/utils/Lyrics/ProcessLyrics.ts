@@ -6,7 +6,7 @@ import { RetrievePackage } from "../ImportPackage.ts";
 import * as KuromojiAnalyzer from "./KuromojiAnalyzer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import Defaults from "../../components/Global/Defaults.ts";
-import { gibberishifyLine, processWord, applyPalatalization } from "./GibberishTransform.ts";
+import { gibberishifyLine, processWord, applyPalatalization, clearMissedWords, logMissedWords } from "./GibberishTransform.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -516,6 +516,8 @@ export const ProcessLyrics = async (lyrics: any, options?: ProcessLyricsOptions)
 export function ApplyMemeFormat(lyrics: any): void {
   if (Defaults.MemeFormat !== "Gibberish") return;
 
+  clearMissedWords();
+
   if (lyrics.Type === "Static") {
     for (const lyricMetadata of lyrics.Lines) {
       lyricMetadata.GibberishText = gibberishifyLine(lyricMetadata.Text);
@@ -559,4 +561,6 @@ export function ApplyMemeFormat(lyrics: any): void {
       }
     }
   }
+
+  logMissedWords();
 }

@@ -9,6 +9,21 @@
 
 import Defaults from "../../components/Global/Defaults.ts";
 
+// Tracks words that weren't found in the dictionary (fell back to phonetic rules)
+const _missedWords: Set<string> = new Set();
+
+/** Clear the missed-words tracker (call before processing a song). */
+export function clearMissedWords(): void {
+  _missedWords.clear();
+}
+
+/** Log all words that weren't in the dictionary (always logs, no DevMode gate). */
+export function logMissedWords(): void {
+  if (_missedWords.size === 0) return;
+  const sorted = [..._missedWords].sort();
+  console.log(`[Wenomecha] Words not in dictionary (${sorted.length}): ${sorted.join(", ")}`);
+}
+
 // ── Word-level dictionary ─────────────────────────────────────────────────
 // Applied BEFORE joining so \b anchors work.
 // Organized by category for maintainability.
@@ -86,8 +101,8 @@ const WordReplacements: [RegExp, string][] = [
   [/\bthat\b/gi, "da"],
   [/\bthese\b/gi, "dis"],
   [/\bthose\b/gi, "dos"],
-  [/\ba\b/gi, "a"],
-  [/\ban\b/gi, "an"],
+  [/\ba\b/gi, "e"],
+  [/\ban\b/gi, "en"],
 
   // ── Common Verbs (be/have/do) ─────────────────────────────────────────
   [/\bis\b/gi, "es"],
@@ -99,7 +114,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bbeing\b/gi, "bin"],
   [/\bbe\b/gi, "bi"],
   [/\bhave\b/gi, "haf"],
-  [/\bhas\b/gi, "has"],
+  [/\bhas\b/gi, "hes"],
   [/\bhad\b/gi, "hed"],
   [/\bhaving\b/gi, "hafin"],
   [/\bdo\b/gi, "du"],
@@ -124,7 +139,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bwanting\b/gi, "wanin"],
 
   // ── Common Action Verbs ───────────────────────────────────────────────
-  [/\bgo\b/gi, "go"],
+  [/\bgo\b/gi, "gu"],
   [/\bgoes\b/gi, "gos"],
   [/\bgoing\b/gi, "goin"],
   [/\bgone\b/gi, "gon"],
@@ -325,10 +340,10 @@ const WordReplacements: [RegExp, string][] = [
   [/\bfollowed\b/gi, "folod"],
   [/\blead\b/gi, "lid"],
   [/\bleading\b/gi, "lidin"],
-  [/\bled\b/gi, "led"],
+  [/\bled\b/gi, "lad"],
   [/\bpull\b/gi, "pul"],
   [/\bpulling\b/gi, "pulin"],
-  [/\bpush\b/gi, "push"],
+  [/\bpush\b/gi, "pus"],
   [/\bpushing\b/gi, "pushin"],
   [/\bcarry\b/gi, "kari"],
   [/\bcarrying\b/gi, "kariin"],
@@ -357,7 +372,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bmisses\b/gi, "mises"],
   [/\bmissing\b/gi, "misin"],
   [/\bmissed\b/gi, "misd"],
-  [/\bwish\b/gi, "wish"],
+  [/\bwish\b/gi, "wis"],
   [/\bwishes\b/gi, "wishs"],
   [/\bwishing\b/gi, "wishin"],
   [/\bhope\b/gi, "hop"],
@@ -500,7 +515,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bwear\b/gi, "wea"],
   [/\bwearing\b/gi, "weain"],
   [/\bwore\b/gi, "wor"],
-  [/\bworn\b/gi, "worn"],
+  [/\bworn\b/gi, "won"],
   [/\bhelp\b/gi, "hel"],
   [/\bhelps\b/gi, "hels"],
   [/\bhelping\b/gi, "helin"],
@@ -517,14 +532,14 @@ const WordReplacements: [RegExp, string][] = [
   [/\bgotta\b/gi, "gota"],
 
   // ── Prepositions / Conjunctions / Particles ───────────────────────────
-  [/\bin\b/gi, "in"],
+  [/\bin\b/gi, "en"],
   [/\binto\b/gi, "intu"],
-  [/\bon\b/gi, "on"],
+  [/\bon\b/gi, "un"],
   [/\bat\b/gi, "a"],
   [/\bto\b/gi, "tu"],
   [/\bfor\b/gi, "fo"],
   [/\bfrom\b/gi, "fro"],
-  [/\bof\b/gi, "of"],
+  [/\bof\b/gi, "ov"],
   [/\bwith\b/gi, "wit"],
   [/\bwithout\b/gi, "witau"],
   [/\bby\b/gi, "ba"],
@@ -554,7 +569,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bbut\b/gi, "bu"],
   [/\bor\b/gi, "o"],
   [/\bif\b/gi, "ef"],
-  [/\bso\b/gi, "so"],
+  [/\bso\b/gi, "su"],
   [/\bbecause\b/gi, "bikos"],
   [/\bsince\b/gi, "sins"],
   [/\buntil\b/gi, "antil"],
@@ -606,7 +621,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\btruly\b/gi, "truli"],
   [/\bfull\b/gi, "ful"],
   [/\bempty\b/gi, "emti"],
-  [/\brich\b/gi, "rich"],
+  [/\brich\b/gi, "ric"],
   [/\bpoor\b/gi, "pua"],
   [/\bstrong\b/gi, "stron"],
   [/\bweak\b/gi, "wik"],
@@ -719,7 +734,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bface\b/gi, "fes"],
   [/\beyes\b/gi, "ais"],
   [/\beye\b/gi, "ai"],
-  [/\blips\b/gi, "lips"],
+  [/\blips\b/gi, "leps"],
   [/\bmouth\b/gi, "mau"],
   [/\barms\b/gi, "ams"],
   [/\barm\b/gi, "am"],
@@ -728,7 +743,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\btear\b/gi, "tia"],
   [/\bvoice\b/gi, "voys"],
   [/\bbreath\b/gi, "bref"],
-  [/\bskin\b/gi, "skin"],
+  [/\bskin\b/gi, "sken"],
   [/\bbone\b/gi, "bon"],
   [/\bbones\b/gi, "bons"],
   [/\bworld\b/gi, "wald"],
@@ -860,7 +875,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bhero\b/gi, "hiro"],
   [/\bangel\b/gi, "enjl"],
   [/\bdevil\b/gi, "defl"],
-  [/\bgod\b/gi, "god"],
+  [/\bgod\b/gi, "gad"],
   [/\bheaven\b/gi, "hefn"],
   [/\bhell\b/gi, "hel"],
   [/\bchurch\b/gi, "cherch"],
@@ -882,14 +897,14 @@ const WordReplacements: [RegExp, string][] = [
   // ── Colours ───────────────────────────────────────────────────────────
   [/\bblack\b/gi, "blak"],
   [/\bwhite\b/gi, "wai"],
-  [/\bred\b/gi, "red"],
+  [/\bred\b/gi, "rad"],
   [/\bblue\b/gi, "blu"],
   [/\bgreen\b/gi, "grin"],
   [/\byellow\b/gi, "yelo"],
   [/\bgolden\b/gi, "goldn"],
   [/\bbrown\b/gi, "braun"],
   [/\bpurple\b/gi, "perpo"],
-  [/\bpink\b/gi, "pink"],
+  [/\bpink\b/gi, "penk"],
   [/\bgrey\b/gi, "gre"],
   [/\bgray\b/gi, "gre"],
 
@@ -903,7 +918,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bseven\b/gi, "sefn"],
   [/\beight\b/gi, "et"],
   [/\bnine\b/gi, "nain"],
-  [/\bten\b/gi, "ten"],
+  [/\bten\b/gi, "tan"],
   [/\bhundred\b/gi, "handrd"],
   [/\bthousand\b/gi, "tausn"],
   [/\bmillion\b/gi, "milyon"],
@@ -911,10 +926,10 @@ const WordReplacements: [RegExp, string][] = [
 
   // ── Negation / Affirmation ────────────────────────────────────────────
   [/\bnot\b/gi, "no"],
-  [/\bno\b/gi, "no"],
-  [/\byes\b/gi, "yes"],
+  [/\bno\b/gi, "nu"],
+  [/\byes\b/gi, "yas"],
   [/\byeah\b/gi, "ye"],
-  [/\byep\b/gi, "yep"],
+  [/\byep\b/gi, "yap"],
   [/\bnah\b/gi, "na"],
   [/\bnope\b/gi, "nop"],
   [/\bok\b/gi, "oke"],
@@ -924,7 +939,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\buh\b/gi, "a"],
   [/\bwow\b/gi, "wau"],
   [/\booh\b/gi, "u"],
-  [/\byo\b/gi, "yo"],
+  [/\byo\b/gi, "yu"],
 
   // ── Seasons / Weather ─────────────────────────────────────────────────
   [/\bsummer\b/gi, "sama"],
@@ -949,7 +964,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bmelody\b/gi, "melodi"],
   [/\bchorus\b/gi, "koras"],
   [/\bverse\b/gi, "vers"],
-  [/\brap\b/gi, "rap"],
+  [/\brap\b/gi, "rep"],
   [/\brapper\b/gi, "rapa"],
   [/\bband\b/gi, "ban"],
   [/\bstage\b/gi, "stej"],
@@ -1108,7 +1123,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bjump\b/gi, "jamp"],
   [/\bjumping\b/gi, "jampin"],
   [/\bjumped\b/gi, "jampd"],
-  [/\bswim\b/gi, "swim"],
+  [/\bswim\b/gi, "swem"],
   [/\bswimming\b/gi, "swimin"],
   [/\bswam\b/gi, "swem"],
   [/\bclimb\b/gi, "klaim"],
@@ -1117,7 +1132,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bcrawling\b/gi, "krolin"],
   [/\bslide\b/gi, "slaid"],
   [/\bsliding\b/gi, "slaidin"],
-  [/\bslip\b/gi, "slip"],
+  [/\bslip\b/gi, "slep"],
   [/\bslipping\b/gi, "slipin"],
   [/\bslipped\b/gi, "slipd"],
   [/\bthrow\b/gi, "tro"],
@@ -1127,7 +1142,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bcatch\b/gi, "kach"],
   [/\bcatching\b/gi, "kachin"],
   [/\bcaught\b/gi, "kot"],
-  [/\bdrop\b/gi, "drop"],
+  [/\bdrop\b/gi, "drap"],
   [/\bdropping\b/gi, "dropin"],
   [/\bdropped\b/gi, "dropd"],
   [/\bshoot\b/gi, "shu"],
@@ -1155,7 +1170,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bfought\b/gi, "fot"],
   [/\bwon\b/gi, "wan"],
   [/\bwinning\b/gi, "winin"],
-  [/\bwin\b/gi, "win"],
+  [/\bwin\b/gi, "wen"],
   [/\bbeat\b/gi, "bit"],
   [/\bbeating\b/gi, "bitin"],
   [/\btouch\b/gi, "tach"],
@@ -1173,22 +1188,22 @@ const WordReplacements: [RegExp, string][] = [
   [/\bwrapped\b/gi, "rapd"],
   [/\bsqueeze\b/gi, "skwiz"],
   [/\bsqueezing\b/gi, "skwizin"],
-  [/\bgrab\b/gi, "grab"],
+  [/\bgrab\b/gi, "greb"],
   [/\bgrabbing\b/gi, "grabin"],
   [/\bgrabbed\b/gi, "grabd"],
   [/\bswear\b/gi, "swea"],
   [/\bswearing\b/gi, "sweain"],
   [/\bswore\b/gi, "swor"],
-  [/\bsworn\b/gi, "sworn"],
+  [/\bsworn\b/gi, "swon"],
   [/\bpromise\b/gi, "promis"],
   [/\bpromising\b/gi, "promisin"],
   [/\bpromised\b/gi, "promisd"],
-  [/\bbeg\b/gi, "beg"],
+  [/\bbeg\b/gi, "bag"],
   [/\bbegging\b/gi, "begin"],
   [/\bbegged\b/gi, "begd"],
   [/\bbleed\b/gi, "blid"],
   [/\bbleeding\b/gi, "blidin"],
-  [/\bbled\b/gi, "bled"],
+  [/\bbled\b/gi, "blad"],
   [/\bdrown\b/gi, "draun"],
   [/\bdrowning\b/gi, "draunin"],
   [/\bdrowned\b/gi, "draund"],
@@ -1346,8 +1361,8 @@ const WordReplacements: [RegExp, string][] = [
   [/\bbutterflies\b/gi, "bataflas"],
   [/\bcat\b/gi, "kat"],
   [/\bcats\b/gi, "kats"],
-  [/\bdog\b/gi, "dog"],
-  [/\bdogs\b/gi, "dogs"],
+  [/\bdog\b/gi, "dag"],
+  [/\bdogs\b/gi, "dags"],
   [/\bheart\b/gi, "har"],
   [/\bhearts\b/gi, "hars"],
   [/\bisland\b/gi, "ailan"],
@@ -1489,13 +1504,13 @@ const WordReplacements: [RegExp, string][] = [
   [/\bspill\b/gi, "spil"],
   [/\bspilling\b/gi, "spilin"],
   [/\bspilled\b/gi, "spild"],
-  [/\bsink\b/gi, "sink"],
+  [/\bsink\b/gi, "senk"],
   [/\bsinking\b/gi, "sinkin"],
-  [/\bsank\b/gi, "sank"],
+  [/\bsank\b/gi, "senk"],
   [/\bsunk\b/gi, "sank"],
   [/\bfloat\b/gi, "flo"],
   [/\bfloating\b/gi, "floin"],
-  [/\bspin\b/gi, "spin"],
+  [/\bspin\b/gi, "spen"],
   [/\bspinning\b/gi, "spinin"],
   [/\bspun\b/gi, "span"],
   [/\btwist\b/gi, "twis"],
@@ -1536,7 +1551,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bborder\b/gi, "boda"],
   [/\blimit\b/gi, "limi"],
   [/\bbottom\b/gi, "botam"],
-  [/\btop\b/gi, "top"],
+  [/\btop\b/gi, "tap"],
   [/\bcenter\b/gi, "senta"],
   [/\bcentre\b/gi, "senta"],
   [/\bmiddle\b/gi, "mido"],
@@ -1554,7 +1569,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bgarden\b/gi, "gadn"],
   [/\bparadise\b/gi, "paradais"],
   [/\bwonderland\b/gi, "wandalan"],
-  [/\bkingdom\b/gi, "kingdom"],
+  [/\bkingdom\b/gi, "kingdam"],
   [/\bempire\b/gi, "empaia"],
   [/\bnation\b/gi, "neshun"],
   [/\bcountry\b/gi, "kantri"],
@@ -1577,13 +1592,13 @@ const WordReplacements: [RegExp, string][] = [
   [/\bcandle\b/gi, "kando"],
   [/\bcandles\b/gi, "kandos"],
   [/\btorch\b/gi, "toch"],
-  [/\bflash\b/gi, "flash"],
+  [/\bflash\b/gi, "flas"],
   [/\bspark\b/gi, "spak"],
   [/\bsparks\b/gi, "spaks"],
   [/\bsmoke\b/gi, "smok"],
-  [/\bash\b/gi, "ash"],
+  [/\bash\b/gi, "as"],
   [/\bashes\b/gi, "ashs"],
-  [/\bruins\b/gi, "ruins"],
+  [/\bruins\b/gi, "ruens"],
   [/\bwreck\b/gi, "rek"],
   [/\bwreckage\b/gi, "rekej"],
   [/\btreasure\b/gi, "tresha"],
@@ -1620,16 +1635,16 @@ const WordReplacements: [RegExp, string][] = [
   [/\bpoison\b/gi, "poysn"],
   [/\bpill\b/gi, "pil"],
   [/\bpills\b/gi, "pils"],
-  [/\bink\b/gi, "ink"],
+  [/\bink\b/gi, "enk"],
   [/\bpaper\b/gi, "pepa"],
   [/\bpage\b/gi, "pej"],
   [/\bpages\b/gi, "pejs"],
   [/\bbook\b/gi, "buk"],
   [/\bbooks\b/gi, "buks"],
-  [/\bmap\b/gi, "map"],
+  [/\bmap\b/gi, "mep"],
   [/\bcompass\b/gi, "kampas"],
-  [/\bflag\b/gi, "flag"],
-  [/\bflags\b/gi, "flags"],
+  [/\bflag\b/gi, "fleg"],
+  [/\bflags\b/gi, "flegs"],
   [/\bwing\b/gi, "win"],
   [/\bwings\b/gi, "wins"],
   [/\bhalo\b/gi, "helo"],
@@ -1638,8 +1653,8 @@ const WordReplacements: [RegExp, string][] = [
   [/\bcages\b/gi, "kejs"],
   [/\bprison\b/gi, "prisn"],
   [/\bjail\b/gi, "jel"],
-  [/\btrap\b/gi, "trap"],
-  [/\btraps\b/gi, "traps"],
+  [/\btrap\b/gi, "trep"],
+  [/\btraps\b/gi, "treps"],
 
   // ── Direction / Position ──────────────────────────────────────────────
   [/\bnorth\b/gi, "not"],
@@ -1655,7 +1670,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\babove\b/gi, "abuf"],
   [/\bbelow\b/gi, "bilo"],
   [/\bbeside\b/gi, "bisaid"],
-  [/\btop\b/gi, "top"],
+  [/\btop\b/gi, "tap"],
   [/\bbottom\b/gi, "botam"],
   [/\bfront\b/gi, "fron"],
   [/\bbehind\b/gi, "bihaind"],
@@ -1699,7 +1714,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\brightest\b/gi, "braites"],
   [/\bbrightest\b/gi, "braites"],
   [/\bbright\b/gi, "brai"],
-  [/\bdim\b/gi, "dim"],
+  [/\bdim\b/gi, "dem"],
   [/\bfaint\b/gi, "fen"],
   [/\bsharp\b/gi, "shap"],
   [/\brough\b/gi, "raf"],
@@ -1814,7 +1829,7 @@ const WordReplacements: [RegExp, string][] = [
   [/\bdisconnected\b/gi, "diskonekd"],
 
   // ── Weather / Atmospheric ─────────────────────────────────────────────
-  [/\bfog\b/gi, "fog"],
+  [/\bfog\b/gi, "fag"],
   [/\bfoggy\b/gi, "fogi"],
   [/\bmist\b/gi, "mis"],
   [/\bmisty\b/gi, "misti"],
@@ -1837,6 +1852,85 @@ const WordReplacements: [RegExp, string][] = [
   [/\btornado\b/gi, "tonedo"],
   [/\btyphoon\b/gi, "taifun"],
   [/\btsunami\b/gi, "sunami"],
+
+  // ── Misc / Song-specific ────────────────────────────────────────────
+  [/\bhey\b/gi, "he"],
+  [/\bwoah\b/gi, "woa"],
+  [/\bwhoa\b/gi, "woa"],
+  [/\bda\b/gi, "de"],
+  [/\bla\b/gi, "le"],
+  [/\bive\b/gi, "aiv"],
+  [/\bi've\b/gi, "aiv"],
+  [/\bmr\b/gi, "mista"],
+  [/\bmrs\b/gi, "misis"],
+
+  // Fun / Slang
+  [/\bfun\b/gi, "fan"],
+  [/\bfunny\b/gi, "fani"],
+  [/\bgreat\b/gi, "gre"],
+  [/\bsuch\b/gi, "sach"],
+  [/\bkinds\b/gi, "kains"],
+  [/\bkind\b/gi, "kain"],
+  [/\bmental\b/gi, "mentol"],
+  [/\bchubby\b/gi, "chabi"],
+  [/\bfiend\b/gi, "fin"],
+  [/\bspeed\b/gi, "spid"],
+  [/\bspeeding\b/gi, "spidin"],
+
+  // -in' / -ing slang forms
+  [/\bburnin\b/gi, "bernin"],
+  [/\bburning\b/gi, "bernin"],
+  [/\bhavin\b/gi, "hefin"],
+  [/\bhaving\b/gi, "havin"],
+  [/\bjumpin\b/gi, "jampin"],
+  [/\bjumping\b/gi, "jampin"],
+  [/\bshootin\b/gi, "shutin"],
+  [/\bshooting\b/gi, "shutin"],
+  [/\bstoppin\b/gi, "stopin"],
+  [/\bstopping\b/gi, "stopin"],
+  [/\bdisturbin\b/gi, "disterbin"],
+  [/\bdisturbing\b/gi, "disterbin"],
+  [/\btravelin\b/gi, "travalen"],
+  [/\btraveling\b/gi, "travelin"],
+  [/\btravelling\b/gi, "travelin"],
+  [/\bcreatin\b/gi, "krieitin"],
+  [/\bcreating\b/gi, "krieitin"],
+
+  // Actions
+  [/\bjoin\b/gi, "jon"],
+  [/\bjoining\b/gi, "joinin"],
+  [/\bjoined\b/gi, "joind"],
+  [/\bimplode\b/gi, "implod"],
+  [/\bimploding\b/gi, "implodin"],
+  [/\bexplode\b/gi, "eksplod"],
+  [/\bexploding\b/gi, "eksplodin"],
+  [/\brequest\b/gi, "rikwes"],
+  [/\brequesting\b/gi, "rikwesin"],
+
+  // Body
+  [/\bfoot\b/gi, "fut"],
+  [/\bfeet\b/gi, "fit"],
+
+  // Science / Abstract
+  [/\batom\b/gi, "etom"],
+  [/\batoms\b/gi, "etoms"],
+  [/\bdegrees\b/gi, "digris"],
+  [/\bdegree\b/gi, "digri"],
+  [/\becstasy\b/gi, "ekstasi"],
+
+  // Culture / Internet
+  [/\bbritish\b/gi, "britis"],
+  [/\btribes\b/gi, "traibs"],
+  [/\btribe\b/gi, "traib"],
+  [/\bworlds\b/gi, "werlds"],
+  [/\bworld\b/gi, "werld"],
+  [/\bworms\b/gi, "werms"],
+  [/\bworm\b/gi, "werm"],
+  [/\bportals\b/gi, "potals"],
+  [/\bportal\b/gi, "potal"],
+  [/\bmetaverse\b/gi, "metavers"],
+  [/\bvrchat\b/gi, "viarchat"],
+  [/\bali\b/gi, "eli"],
 ];
 
 // ── Per-word phonetic rules (fallback for words NOT in dictionary) ─────
@@ -2011,10 +2105,12 @@ function processSubWord(word: string): { text: string; source: "dict" | "phoneti
   const matchedPatterns: string[] = [];
 
   for (const [pattern, replacement] of WordReplacements) {
-    const before = result;
-    result = result.replace(pattern, replacement);
-    if (result !== before) {
+    // Reset lastIndex before test (global regexes are stateful)
+    pattern.lastIndex = 0;
+    if (pattern.test(result)) {
       matched = true;
+      pattern.lastIndex = 0;
+      result = result.replace(pattern, replacement);
       if (debug) matchedPatterns.push(`${pattern} → "${replacement}"`);
     }
   }
@@ -2030,6 +2126,8 @@ function processSubWord(word: string): { text: string; source: "dict" | "phoneti
   if (debug) {
     console.log(`[Wenomecha/Word] "${word}" → mangling (no dict match)`);
   }
+  const cleaned = cleanWord(word);
+  if (cleaned.length > 0) _missedWords.add(cleaned.toLowerCase());
   const mangled = mangleWord(word);
   if (debug) {
     console.log(`[Wenomecha/Word] "${word}" → "${mangled}" (PHONETIC)`);

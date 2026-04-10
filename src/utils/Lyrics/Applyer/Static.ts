@@ -76,6 +76,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
       Defaults.MemeFormat === "Gibberish" && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
     if (Defaults.MemeFormat === "Weeb") lineContent = uwuify(lineContent);
+    if (Defaults.MemeFormat === "lowercase") lineContent = lineContent.toLowerCase();
     lineElem.textContent = lineContent;
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {

@@ -158,6 +158,7 @@ function resolveText(
   }
   let text = useRomanized && syllable.RomanizedText !== undefined ? syllable.RomanizedText : syllable.Text;
   if (Defaults.MemeFormat === "Weeb") text = uwuify(text, { transformOnly: !!syllable.IsPartOfWord });
+  if (Defaults.MemeFormat === "lowercase") text = text.toLowerCase();
   return text;
 }
 

@@ -743,13 +743,13 @@ export function showSettingsPanel() {
 
   dropdown(
     "Meme Format",
-    ["Off", "Weeb (・`ω´・)", "Gibberish (Wenomechainsama)"],
+    ["Off", "Weeb (・`ω´・)", "Gibberish (Wenomecha)"],
     Defaults.MemeFormat === "Gibberish" ? 2 : Defaults.MemeFormat === "Weeb" ? 1 : 0,
     (v) => {
       const processedValue =
         v === "Weeb (・`ω´・)"
           ? "Weeb"
-          : v === "Gibberish (Wenomechainsama)"
+          : v === "Gibberish (Wenomecha)"
             ? "Gibberish"
             : "Off";
       storage.set("memeFormat", processedValue);

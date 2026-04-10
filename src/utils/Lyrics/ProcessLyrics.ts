@@ -6,7 +6,7 @@ import { RetrievePackage } from "../ImportPackage.ts";
 import * as KuromojiAnalyzer from "./KuromojiAnalyzer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import Defaults from "../../components/Global/Defaults.ts";
-import { gibberishifyLine } from "./GibberishTransform.ts";
+import { gibberishifyLine, processWord } from "./GibberishTransform.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -308,27 +308,79 @@ function getSyllableWeightText(text: string): string {
     .replace(/\s/g, "");
 }
 
-function distributeLine(gibberishLine: string, syllables: any[]): string {
-  if (!syllables.length) return gibberishLine;
+/**
+ * Group syllables into words using IsPartOfWord, then gibberishify each word
+ * independently and distribute its gibberish only across its own syllables.
+ * This ensures gibberish word boundaries always align with syllable word boundaries.
+ */
+function distributeLineByWord(syllables: any[]): void {
+  if (!syllables.length) return;
 
-  if (!gibberishLine) {
-    for (const syllable of syllables) {
-      syllable.GibberishText = "";
+  const debug = Defaults.DeveloperMode;
+
+  // Step 1: Group syllables into words.
+  // IsPartOfWord=true means this syllable is NOT the last in its word.
+  const wordGroups: { syllables: any[]; originalWord: string }[] = [];
+  let currentGroup: any[] = [];
+
+  for (const syl of syllables) {
+    currentGroup.push(syl);
+    if (!syl.IsPartOfWord) {
+      // This syllable ends the word — finalize the group
+      const word = currentGroup.map((s: any) => s.Text ?? "").join("");
+      wordGroups.push({ syllables: currentGroup, originalWord: word });
+      currentGroup = [];
     }
-    return gibberishLine;
+  }
+  // If there are leftover syllables (shouldn't happen, but safety)
+  if (currentGroup.length > 0) {
+    const word = currentGroup.map((s: any) => s.Text ?? "").join("");
+    wordGroups.push({ syllables: currentGroup, originalWord: word });
   }
 
-  const parts = distributeJoinedText(
-    gibberishLine,
-    syllables,
-    (syllable) => getSyllableWeightText(syllable.Text ?? "").length
-  );
+  if (debug) {
+    console.log(`[Wenomecha/Split] ── DISTRIBUTING BY WORD ──`);
+    console.log(`[Wenomecha/Split] ${wordGroups.length} word groups from ${syllables.length} syllables:`);
+    wordGroups.forEach((wg, wi) => {
+      const sylDesc = wg.syllables.map((s: any) => `"${s.Text}"`).join(" + ");
+      console.log(`  Word[${wi}] "${wg.originalWord}" = ${sylDesc} (${wg.syllables.length} syl)`);
+    });
+  }
 
-  syllables.forEach((syllable: any, index: number) => {
-    syllable.GibberishText = parts[index] ?? "";
-  });
+  // Step 2: Gibberishify each word and distribute across its syllables
+  for (let wi = 0; wi < wordGroups.length; wi++) {
+    const wg = wordGroups[wi];
+    const gibberish = processWord(wg.originalWord).text;
 
-  return gibberishLine;
+    if (debug) {
+      console.log(`[Wenomecha/Split]   Word[${wi}] "${wg.originalWord}" → "${gibberish}"`);
+    }
+
+    if (wg.syllables.length === 1) {
+      // Single syllable word — just assign directly
+      wg.syllables[0].GibberishText = gibberish;
+    } else {
+      // Multi-syllable word — distribute gibberish proportionally across syllables
+      const parts = distributeJoinedText(
+        gibberish,
+        wg.syllables,
+        (s) => getSyllableWeightText(s.Text ?? "").length
+      );
+      wg.syllables.forEach((syl: any, si: number) => {
+        syl.GibberishText = parts[si] ?? "";
+      });
+    }
+
+    if (debug) {
+      wg.syllables.forEach((syl: any, si: number) => {
+        console.log(`    [${si}] "${syl.Text}" → "${syl.GibberishText}"`);
+      });
+    }
+  }
+
+  if (debug) {
+    console.log(`[Wenomecha/Split] ── Final: ${syllables.map((s: any) => `"${s.GibberishText}"`).join(" ")} ──`);
+  }
 }
 
 export const ProcessLyrics = async (lyrics: any, options?: ProcessLyricsOptions) => {
@@ -455,10 +507,7 @@ export const ProcessLyrics = async (lyrics: any, options?: ProcessLyricsOptions)
  * without re-running the full romanization pipeline.
  */
 export function ApplyMemeFormat(lyrics: any): void {
-  console.log(`[Gibberish/ApplyMemeFormat] MemeFormat = "${Defaults.MemeFormat}", lyrics.Type = "${lyrics.Type}"`);
   if (Defaults.MemeFormat !== "Gibberish") return;
-
-  console.log(`[Gibberish/ApplyMemeFormat] ✅ Gibberish mode is ACTIVE, processing ${lyrics.Type} lyrics...`);
 
   if (lyrics.Type === "Static") {
     for (const lyricMetadata of lyrics.Lines) {
@@ -471,32 +520,33 @@ export function ApplyMemeFormat(lyrics: any): void {
       }
     }
   } else if (lyrics.Type === "Syllable") {
+    const debug = Defaults.DeveloperMode;
     let syllableLineCount = 0;
     for (const vocalGroup of lyrics.Content) {
       if (vocalGroup.Type === "Vocal") {
         syllableLineCount++;
-        // Build the full line text, gibberish-ify it as one unit
-        let lineText = vocalGroup.Lead.Syllables[0]?.Text ?? "";
-        for (let i = 1; i < vocalGroup.Lead.Syllables.length; i++) {
-          const syl = vocalGroup.Lead.Syllables[i];
-          lineText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
-        }
-        console.log(`[Gibberish/Syllable] Line ${syllableLineCount} original: "${lineText}" (${vocalGroup.Lead.Syllables.length} syllables)`);
-        const gibberishLine = gibberishifyLine(lineText);
 
-        // Distribute the gibberish across syllables without crossing word boundaries.
-        vocalGroup.Lead.GibberishText = distributeLine(gibberishLine, vocalGroup.Lead.Syllables);
-        console.log(`[Gibberish/Syllable] Line ${syllableLineCount} distributed:`, vocalGroup.Lead.Syllables.map((s: any) => `"${s.Text}"→"${s.GibberishText}"`));
+        if (debug) {
+          let lineText = vocalGroup.Lead.Syllables[0]?.Text ?? "";
+          for (let i = 1; i < vocalGroup.Lead.Syllables.length; i++) {
+            const syl = vocalGroup.Lead.Syllables[i];
+            lineText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
+          }
+          console.log(`[Wenomecha/Syllable] ═══ Line ${syllableLineCount}: "${lineText}" ═══`);
+        }
+
+        // Distribute gibberish per-word across syllables
+        distributeLineByWord(vocalGroup.Lead.Syllables);
+
+        // Set the line-level GibberishText (joined from syllables)
+        vocalGroup.Lead.GibberishText = vocalGroup.Lead.Syllables
+          .map((s: any) => s.GibberishText ?? "").join("");
 
         if (vocalGroup.Background !== undefined) {
           for (const bg of vocalGroup.Background) {
-            let bgText = bg.Syllables[0]?.Text ?? "";
-            for (let i = 1; i < bg.Syllables.length; i++) {
-              const syl = bg.Syllables[i];
-              bgText += `${syl.IsPartOfWord ? "" : " "}${syl.Text}`;
-            }
-            const bgGibberish = gibberishifyLine(bgText);
-            bg.GibberishText = distributeLine(bgGibberish, bg.Syllables);
+            distributeLineByWord(bg.Syllables);
+            bg.GibberishText = bg.Syllables
+              .map((s: any) => s.GibberishText ?? "").join("");
           }
         }
       }

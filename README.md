@@ -63,7 +63,14 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.23 — Latest
+### v100.10.24 — Latest
+
+- **Improved Meme modes** — renamed Wenomechainsama to Wenomecha, fixed Weeb emojis cluttering between syllable splits, overhauled the Wenomecha dictionary with 600+ word entries, fixed double-mangling bug, and rewrote syllable distribution to respect word boundaries
+
+---
+
+<details>
+<summary>v100.10.23</summary>
 
 - **Lyrics sources split by origin** — the Spicy Lyrics source now covers community lyrics only, Apple Music and Spotify are their own separate toggleable sources
 - **New default source order** — Spicy Lyrics → Musixmatch → Apple Music → Spotify → LRCLIB → Netease
@@ -72,7 +79,7 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 - **Auto Musixmatch token on first load** — a fresh token is fetched automatically if none is stored
 - **Prioritize Apple Music Quality toggle** — when enabled (on by default), Apple Music lyrics are preferred over Musixmatch when they are of equal or greater quality; Apple Music only wins ties if its lyrics have real pauses between lines, so back-to-back continuous syncs (typical of Musixmatch-sourced timings) don't incorrectly trigger the preference
 
----
+</details>
 
 <details>
 <summary>v100.10.22</summary>

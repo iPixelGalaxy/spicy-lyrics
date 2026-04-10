@@ -4,12 +4,18 @@ const KAWAII_EMOJIS: string[] = [
   " ✨", " 🥺", " 👉👈", " 💖", " (✿◠‿◠)", " 🌸"
 ];
 
+interface UwuifyOptions {
+  /** If true, only apply character transforms (r/l→w, nya, ove→uv) without stuttering or emoji injection. */
+  transformOnly?: boolean;
+}
+
 /**
  * Transforms standard text into uwuified text.
  * @param text The input string to uwuify.
+ * @param options Optional settings to control the transformation.
  * @returns The uwuified string.
  */
-export function uwuify(text: string): string {
+export function uwuify(text: string, options?: UwuifyOptions): string {
   if (!text) return text;
 
   // 1. Swap 'r' and 'l' for 'w' (handling both cases)
@@ -27,6 +33,9 @@ export function uwuify(text: string): string {
   uwu = uwu
     .replace(/ove/g, "uv")
     .replace(/OVE/g, "UV");
+
+  // For mid-word syllable fragments, stop here to avoid cluttering with emojis/stuttering
+  if (options?.transformOnly) return uwu;
 
   // 4. Add random stuttering to words (approx 15% chance per word)
   uwu = uwu.split(" ").map((word) => {

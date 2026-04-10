@@ -149,33 +149,19 @@ function reduceSyllables(syllables: SyllableData[], mode: string): SyllableData[
   return syllables;
 }
 
-let _resolveTextLogCount = 0;
 function resolveText(
   syllable: SyllableData,
   useRomanized: boolean
 ): string {
   if (Defaults.MemeFormat === "Gibberish" && syllable.GibberishText !== undefined) {
-    if (_resolveTextLogCount < 30) {
-      console.log(`[Gibberish/resolveText] ✅ Using GibberishText: "${syllable.Text}" → "${syllable.GibberishText}"`);
-      _resolveTextLogCount++;
-    }
     return syllable.GibberishText;
   }
-  if (Defaults.MemeFormat === "Gibberish" && syllable.GibberishText === undefined) {
-    if (_resolveTextLogCount < 30) {
-      console.log(`[Gibberish/resolveText] ❌ MemeFormat is Gibberish but GibberishText is UNDEFINED for "${syllable.Text}"`);
-      _resolveTextLogCount++;
-    }
-  }
   let text = useRomanized && syllable.RomanizedText !== undefined ? syllable.RomanizedText : syllable.Text;
-  if (Defaults.MemeFormat === "Weeb") text = uwuify(text);
+  if (Defaults.MemeFormat === "Weeb") text = uwuify(text, { transformOnly: !!syllable.IsPartOfWord });
   return text;
 }
 
 export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = false): void {
-  console.log(`[Gibberish/ApplySyllable] Called. MemeFormat="${Defaults.MemeFormat}", UseRomanized=${UseRomanized}, lines=${data.Content.length}`);
-  console.log(`[Gibberish/ApplySyllable] First line syllables:`, data.Content[0]?.Lead?.Syllables?.slice(0, 5).map((s: any) => ({ Text: s.Text, GibberishText: s.GibberishText })));
-  _resolveTextLogCount = 0;
   if (!Defaults.LyricsContainerExists) return;
   EmitNotApplyed();
 

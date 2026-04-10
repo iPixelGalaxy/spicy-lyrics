@@ -22,6 +22,7 @@ import { IsCompactMode } from "../../../components/Utils/CompactMode.ts";
 import Fullscreen from "../../../components/Utils/Fullscreen.ts";
 import storage from "../../storage.ts";
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
+import { ApplyMemeFormat } from "../ProcessLyrics.ts";
 
 /**
  * Union type for all lyrics data types
@@ -230,6 +231,12 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
         audioAnalysis,
         SpotifyPlayer.GetDuration() / 1000
       ) as LyricsData;
+    }
+
+    // Re-apply gibberish for the newly created syllables since the original
+    // ApplyMemeFormat ran before the conversion (when it was still Line/Static)
+    if (Defaults.MemeFormat === "Gibberish") {
+      ApplyMemeFormat(lyrics);
     }
   }
 

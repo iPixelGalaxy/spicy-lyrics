@@ -583,6 +583,8 @@ const WordReplacements: [RegExp, string][] = [
   [/\btall\b/gi, "tol"],
   [/\bshort\b/gi, "shor"],
   [/\blong\b/gi, "lon"],
+  [/\blonger\b/gi, "longa"],
+  [/\blongest\b/gi, "longes"],
   [/\bhigh\b/gi, "hai"],
   [/\bhigher\b/gi, "haia"],
   [/\bhighest\b/gi, "haies"],
@@ -1124,6 +1126,45 @@ const PerWordPhoneticRules: [RegExp, string][] = [
 ];
 
 /**
+ * Palatalization — blends a trailing dental/alveolar plosive (t, d) with a
+ * following word that starts with a /j/ sound (y + vowel).
+ *
+ *   t + y → ch   (e.g., "met you" → "mech" + "u" = "mechu")
+ *   d + y → j    (e.g., "did you" → "dij" + "u" = "diju")
+ *
+ * Checks the ORIGINAL words to detect the blend, then modifies the
+ * processed (gibberish) outputs accordingly.
+ */
+export function applyPalatalization(
+  originalWords: string[],
+  processedWords: string[],
+): void {
+  const debug = Defaults.DeveloperMode;
+
+  for (let i = 0; i < originalWords.length - 1; i++) {
+    const currentClean = originalWords[i].toLowerCase().replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "");
+    const nextClean = originalWords[i + 1].toLowerCase().replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "");
+
+    if (currentClean.length === 0 || nextClean.length === 0) continue;
+
+    const lastChar = currentClean[currentClean.length - 1];
+    const isAlveolar = lastChar === "t" || lastChar === "d";
+    const nextStartsWithY = /^y[aeiou]/i.test(nextClean);
+
+    if (isAlveolar && nextStartsWithY) {
+      const blend = lastChar === "t" ? "ch" : "j";
+
+      if (debug) {
+        console.log(`[Wenomecha/Palatal] "${originalWords[i]}" + "${originalWords[i + 1]}" → ${lastChar}+y = ${blend} | "${processedWords[i]}" + "${processedWords[i + 1]}" → "${processedWords[i] + blend}" + "${processedWords[i + 1]}"`);
+      }
+
+      // Append the blend sound to the current word
+      processedWords[i] = processedWords[i] + blend;
+    }
+  }
+}
+
+/**
  * Strip punctuation and lowercase a word.
  */
 function cleanWord(word: string): string {
@@ -1209,6 +1250,9 @@ export function gibberishifyLine(text: string): string {
   const words = text.split(/\s+/);
   const processed = words.map((w) => processWord(w));
   const processedWords = processed.map((p) => p.text);
+
+  // Palatalization: blend t/d + y across word boundaries
+  applyPalatalization(words, processedWords);
 
   // Join words together (no spaces)
   let result = processedWords.join("");

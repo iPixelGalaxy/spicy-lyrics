@@ -936,7 +936,7 @@ export function showSettingsPanel() {
     ReloadCurrentLyrics();
   });
 
-  if (storage.get("developerMode") === "true") {
+  if (storage.get("developerMode") !== null) {
     toggle("Developer Mode", Defaults.DeveloperMode, (v) => {
       storage.set("developerMode", v.toString());
       Defaults.DeveloperMode = v;

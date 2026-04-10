@@ -6,7 +6,7 @@ import { RetrievePackage } from "../ImportPackage.ts";
 import * as KuromojiAnalyzer from "./KuromojiAnalyzer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import Defaults from "../../components/Global/Defaults.ts";
-import { gibberishifyLine, processWord } from "./GibberishTransform.ts";
+import { gibberishifyLine, processWord, applyPalatalization } from "./GibberishTransform.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -347,10 +347,17 @@ function distributeLineByWord(syllables: any[]): void {
     });
   }
 
-  // Step 2: Gibberishify each word and distribute across its syllables
+  // Step 2: Gibberishify each word
+  const originalWords = wordGroups.map((wg) => wg.originalWord);
+  const gibberishWords = wordGroups.map((wg) => processWord(wg.originalWord).text);
+
+  // Step 3: Palatalization — blend t/d + y across word boundaries
+  applyPalatalization(originalWords, gibberishWords);
+
+  // Step 4: Distribute each word's gibberish across its syllables
   for (let wi = 0; wi < wordGroups.length; wi++) {
     const wg = wordGroups[wi];
-    const gibberish = processWord(wg.originalWord).text;
+    const gibberish = gibberishWords[wi];
 
     if (debug) {
       console.log(`[Wenomecha/Split]   Word[${wi}] "${wg.originalWord}" → "${gibberish}"`);

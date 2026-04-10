@@ -743,15 +743,17 @@ export function showSettingsPanel() {
 
   dropdown(
     "Meme Format",
-    ["Off", "Weeb (・`ω´・)", "Gibberish (Wenomecha)"],
-    Defaults.MemeFormat === "Gibberish" ? 2 : Defaults.MemeFormat === "Weeb" ? 1 : 0,
+    ["Off", "Weeb (・`ω´・)", "Gibberish (Wenomecha)", "lowercase"],
+    Defaults.MemeFormat === "Gibberish" ? 2 : Defaults.MemeFormat === "Weeb" ? 1 : Defaults.MemeFormat === "lowercase" ? 3 : 0,
     (v) => {
       const processedValue =
         v === "Weeb (・`ω´・)"
           ? "Weeb"
           : v === "Gibberish (Wenomecha)"
             ? "Gibberish"
-            : "Off";
+            : v === "lowercase"
+              ? "lowercase"
+              : "Off";
       storage.set("memeFormat", processedValue);
       Defaults.MemeFormat = processedValue;
       ReloadCurrentLyrics();

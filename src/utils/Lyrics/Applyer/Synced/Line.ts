@@ -171,8 +171,12 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
       Defaults.MemeFormat === "Gibberish" && line.GibberishText !== undefined ? line.GibberishText :
       UseRomanized && line.RomanizedText !== undefined ? line.RomanizedText : line.Text;
     if (Defaults.MemeFormat === "Weeb") lineContent = uwuify(lineContent);
+    if (Defaults.MemeFormat === "lowercase") lineContent = lineContent.toLowerCase();
     lineElem.textContent = lineContent;
     lineElem.classList.add("line");
+    
+
+    
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
       lineElem.classList.add("rtl");

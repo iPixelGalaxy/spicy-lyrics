@@ -1165,12 +1165,12 @@ export function applyPalatalization(
 }
 
 /**
- * Strip punctuation and lowercase a word.
+ * Strip punctuation, spaces, and lowercase a word.
  */
 function cleanWord(word: string): string {
   return word
     .toLowerCase()
-    .replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`]/g, "");
+    .replace(/[.,!?;:'"()\[\]{}\-—–…@#$%^&*~`\s]/g, "");
 }
 
 /**
@@ -1198,10 +1198,10 @@ function mangleWord(word: string): string {
 }
 
 /**
- * Process a single word: try dictionary first, fall back to phonetic mangling.
+ * Process a single sub-word (no hyphens): try dictionary first, fall back to phonetic mangling.
  * This prevents dictionary outputs from being double-mangled by phonetic rules.
  */
-export function processWord(word: string): { text: string; source: "dict" | "phonetic" } {
+function processSubWord(word: string): { text: string; source: "dict" | "phonetic" } {
   const debug = Defaults.DeveloperMode;
   let result = word;
   let matched = false;
@@ -1232,6 +1232,37 @@ export function processWord(word: string): { text: string; source: "dict" | "pho
     console.log(`[Wenomecha/Word] "${word}" → "${mangled}" (PHONETIC)`);
   }
   return { text: mangled, source: "phonetic" };
+}
+
+/**
+ * Process a word, splitting on hyphens/dashes so each part gets its own
+ * dictionary lookup and phonetic pass.
+ */
+export function processWord(word: string): { text: string; source: "dict" | "phonetic" } {
+  // Split on hyphens/dashes — each part is processed independently
+  const parts = word.split(/[-—–]/);
+  if (parts.length <= 1) {
+    return processSubWord(word);
+  }
+
+  const debug = Defaults.DeveloperMode;
+  if (debug) {
+    console.log(`[Wenomecha/Word] Hyphenated: "${word}" → parts: ${parts.map((p) => `"${p}"`).join(", ")}`);
+  }
+
+  let anyDict = false;
+  const processed = parts.map((part) => {
+    const trimmed = part.trim();
+    if (trimmed.length === 0) return { text: "", source: "phonetic" as const };
+    const result = processSubWord(trimmed);
+    if (result.source === "dict") anyDict = true;
+    return result;
+  });
+
+  return {
+    text: processed.map((p) => p.text).join(""),
+    source: anyDict ? "dict" : "phonetic",
+  };
 }
 
 /**

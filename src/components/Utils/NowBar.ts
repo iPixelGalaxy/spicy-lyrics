@@ -1156,6 +1156,7 @@ function UpdateNowBar(force = false) {
 
         MediaImageContainer.setAttribute("last-image", coverArt ?? "");
         MediaImageContainer.setAttribute("last-image-url", displayUrl);
+        Global.Event.evoke("nowbar:cover-art", { displayUrl, coverArt });
 
         const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
         const toImage = MediaImageContainer.querySelector<HTMLDivElement>(".ti_ToImage");

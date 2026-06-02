@@ -33,11 +33,84 @@ interface ApplyDynamicBackgroundOpts {
   doTransitionDurationAppendWithPromise?: boolean;
 }
 
+const normalizeCoverUrl = (cover?: string): string => {
+  if (!cover) return "";
+  return cover.replace("spotify:image:", "https://i.scdn.co/image/");
+};
+
+const parseCssImageUrl = (backgroundImage?: string): string => {
+  if (!backgroundImage) return "";
+  const match = backgroundImage.match(/^url\((["']?)(.*)\1\)$/);
+  return match?.[2] ?? "";
+};
+
+const getRenderedNowBarCover = (): string => {
+  const mediaImageContainer = PageContainer?.querySelector<HTMLElement>(
+    ".ContentBox .NowBar .Header .MediaBox .MediaImageContainer"
+  );
+  if (!mediaImageContainer) return "";
+
+  const lastImageUrl = mediaImageContainer.getAttribute("last-image-url");
+  if (lastImageUrl) return lastImageUrl;
+
+  for (const selector of [".fi_FromImage", ".ti_ToImage"]) {
+    const image = mediaImageContainer.querySelector<HTMLElement>(selector);
+    const imageUrl = parseCssImageUrl(image?.style.backgroundImage);
+    if (imageUrl) return imageUrl;
+  }
+
+  const img = mediaImageContainer.querySelector<HTMLImageElement>("img");
+  return img?.currentSrc || img?.src || "";
+};
+
+const getDynamicBackgroundCover = (): string => {
+  const renderedCover = SpotifyPlayer.IsLocalTrack() ? getRenderedNowBarCover() : "";
+  return normalizeCoverUrl(renderedCover || SpotifyPlayer.GetCover("large"));
+};
+
+const loadImageElement = (src: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.src = src;
+  });
+};
+
+const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string) => {
+  if (cover.startsWith("spotify:localfileimage:")) {
+    const img = await loadImageElement(cover);
+    kawarpInstance.loadImageElement(img);
+    return;
+  }
+
+  if (cover.startsWith("blob:") || cover.startsWith("data:image/")) {
+    const response = await fetch(cover);
+    const blob = await response.blob();
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      await kawarpInstance.loadBlob(blob);
+      return;
+    }
+
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    kawarpInstance.loadFromImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    return;
+  }
+
+  await kawarpInstance.loadImage(cover);
+};
+
 export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}) {
   if (!element) return;
   dynamicBgLogger.debug("Applying dynamic background", { tag });
-  const preCurrentImgCover = SpotifyPlayer.GetCover("large") ?? "";
-  const currentImgCover = preCurrentImgCover?.replace("spotify:image:", "https://i.scdn.co/image/");
+  const currentImgCover = getDynamicBackgroundCover();
   const IsEpisode = SpotifyPlayer.GetContentType() === "episode";
 
   const artists = SpotifyPlayer.GetArtists() ?? [];
@@ -116,7 +189,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
         const colorQuery = await Spicetify.GraphQL.Request(
           Spicetify.GraphQL.Definitions.getDynamicColorsByUris,
           {
-            imageUris: [SpotifyPlayer.GetCover("large") ?? ""]
+            imageUris: [currentImgCover]
           }
         );
 
@@ -171,6 +244,8 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       dynamicBg.classList.remove("Hidden");
     }, 80);
   } else {
+    if (IsEpisode || !currentImgCover) return;
+
     element
       .querySelectorAll<HTMLElement>(".spicy-dynamic-bg:not(canvas)")
       .forEach(removeBackground);
@@ -180,7 +255,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     if (existingElement) {
       const existingBgData = existingElement.getAttribute("data-cover-id") ?? null;
 
-      if (existingBgData === currentImgCover) {
+      if (existingBgData === currentImgCover && !SpotifyPlayer.IsLocalTrack()) {
         return;
       }
       const kawarpInstance = KawarpMap.get(
@@ -191,7 +266,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
 
       if (kawarpInstance) {
         existingElement.setAttribute("data-cover-id", currentImgCover ?? "");
-        await kawarpInstance.loadImage(currentImgCover);
+        await loadKawarpCover(kawarpInstance, currentImgCover);
         kawarpInstance.start();
         return;
       }
@@ -209,7 +284,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       kawarpInstance
     )
     element.appendChild(canvas);
-    await kawarpInstance.loadImage(currentImgCover);
+    await loadKawarpCover(kawarpInstance, currentImgCover);
     kawarpInstance.start();
     const msDelay = KawarpOptionsStatic.transitionDuration * 2;
 
@@ -366,6 +441,16 @@ const reapplyPageBackground = () => {
 };
 
 $staticBackgroundMode.listen(reapplyPageBackground);
+
+Global.Event.listen("nowbar:cover-art", () => {
+  if (!SpotifyPlayer.IsLocalTrack()) return;
+  if ($staticBackgroundMode.get() !== "off" && $staticBackgroundMode.get() !== "default") return;
+
+  const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
+  if (!contentBox) return;
+
+  void ApplyDynamicBackground(contentBox, "lpagebg");
+});
 
 Global.Event.listen("playback:progress", async (e) => {
   const songId = SpotifyPlayer.GetId();

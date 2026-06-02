@@ -2,6 +2,7 @@ import Platform from "../../components/Global/Platform.ts";
 import Defaults from "../../components/Global/Defaults.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { Query } from "../API/Query.ts";
+import { SLObjPack } from "../objpack.ts";
 import storage from "../storage.ts";
 import type { LyricsSourceProviderId } from "./LyricsSourcePreferences.ts";
 import { resolveLyricsSourceLabel } from "./LyricsSourcePreferences.ts";
@@ -55,6 +56,7 @@ const NETEASE_REQUEST_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0",
 };
+const spicyLyricsPacker = new SLObjPack();
 
 const NETEASE_CREDIT_REGEX = new RegExp(
   `^(${[
@@ -890,22 +892,24 @@ async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyricsResul
     );
 
     const lyricsQuery = queries.get("0");
-    if (!lyricsQuery || lyricsQuery.httpStatus !== 200 || lyricsQuery.format !== "json") {
+    if (!lyricsQuery || lyricsQuery.httpStatus !== 200) {
       return null;
     }
 
-    const lyrics = lyricsQuery.data;
+    const lyrics = Array.isArray(lyricsQuery.data)
+      ? spicyLyricsPacker.unpack(lyricsQuery.data)
+      : lyricsQuery.data;
     if (!lyrics) {
       return null;
     }
 
     return {
       lyrics: {
-        ...lyrics,
+        ...(lyrics as Record<string, any>),
         fetchProvider: "spicy",
         sourceDisplayName: resolveLyricsSourceLabel(
-          lyrics.source,
-          lyrics.sourceDisplayName,
+          (lyrics as Record<string, any>).source,
+          (lyrics as Record<string, any>).sourceDisplayName,
           "spicy"
         ),
       },

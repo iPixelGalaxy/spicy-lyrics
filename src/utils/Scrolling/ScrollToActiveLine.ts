@@ -123,22 +123,40 @@ const GetScrollLine = (Lines: LyricsLine[] | LyricsSyllable[], ProcessedPosition
     )
     .map(({ line, idx }) => ({ ...line, _LineIndex: idx }) as EnhancedLyricsItem); // Cast here
 
+  const lastAutoScrolledLineIndex =
+    lastLine == null
+      ? -1
+      : Lines.findIndex((line) => line.HTMLElement === lastLine);
+  const isBackgroundLine = (line: EnhancedLyricsItem) =>
+    "BGLine" in line && line.BGLine === true;
+  const foregroundActiveLines = activeLines.filter((line) => !isBackgroundLine(line));
+  const selectableLines =
+    foregroundActiveLines.length > 0 ? foregroundActiveLines : activeLines;
+
+  if (
+    foregroundActiveLines.length === 0 &&
+    lastAutoScrolledLineIndex !== -1 &&
+    selectableLines[selectableLines.length - 1]?._LineIndex < lastAutoScrolledLineIndex
+  ) {
+    return null;
+  }
+
   // 3) if zero or one, just return it (or undefined if none)
-  if (activeLines.length <= 1) {
-    return activeLines[0] || null;
+  if (selectableLines.length <= 1) {
+    return selectableLines[0] || null;
   }
 
   // more than one → check the span between first and last
-  const firstIdx = activeLines[0]._LineIndex;
-  const lastIdx = activeLines[activeLines.length - 1]._LineIndex;
+  const firstIdx = selectableLines[0]._LineIndex;
+  const lastIdx = selectableLines[selectableLines.length - 1]._LineIndex;
 
   // 1) contiguous or off by only 1 → pick the first
   if (lastIdx - firstIdx <= 1) {
-    return activeLines[0];
+    return selectableLines[0];
   }
 
   // 2) "gap" bigger than 1 → pick the last
-  return activeLines[activeLines.length - 1];
+  return selectableLines[selectableLines.length - 1];
 };
 
 const ScrollTo = (

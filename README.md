@@ -63,9 +63,19 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.25 — Latest
+### v100.10.26 — Latest
+
+- **Manage Sources polish** — source-specific options now expand directly under Musixmatch and Apple Music with a stacked dropdown-style layout, plus header back navigation that returns to the same settings position
+- **Renderer responsiveness tuning** — word activation starts earlier with a smoother middle-ground spring response, and lingering background vocals no longer pull the lyric view upward while the current line is active
+
+---
+
+<details>
+<summary>v100.10.25</summary>
 
 - **Merged mainline Spicy Lyrics 6.0.0** — rebased the iPixel dev channel onto the latest main architecture while keeping fork lyrics sources, TTML modes, meme formats, fullscreen/playbar options, iframe profiles, and dev-channel settings
+
+</details>
 
 ---
 

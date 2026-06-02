@@ -124,6 +124,15 @@ export const GetPageRoot = () =>
 let PageResizeListener: ResizeObserver | null = null;
 export let PageContainer: HTMLElement | null = null;
 
+function applyCustomFontSetting(fontFamily: string) {
+  const cssFontFamily = toCssFontFamily(fontFamily);
+  if ($customFontEnabled.get() && cssFontFamily) {
+    document.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
+  } else {
+    document.documentElement.style.removeProperty("--spicy-custom-font");
+  }
+}
+
 async function OpenPage(
   AppendTo: HTMLElement | undefined = undefined,
   isSidebarMode: boolean = false
@@ -223,6 +232,7 @@ async function OpenPage(
   if (!$customFontEnabled.get()) {
     elem.classList.add("UseSpicyFont");
   }
+  applyCustomFontSetting($customFont.get());
 
   elem.classList.toggle("DisplayLyricsHoverPill", $displayLyricsHoverPill.get());
   elem.classList.toggle("GibberishLyricsMode", $memeFormat.get() === "Gibberish");
@@ -866,15 +876,11 @@ $rightAlignLyrics.listen(() => {
 $customFontEnabled.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("UseSpicyFont", !v);
+  applyCustomFontSetting($customFont.get());
 });
 
 $customFont.listen((v) => {
-  const cssFontFamily = toCssFontFamily(v);
-  if ($customFontEnabled.get() && cssFontFamily) {
-    document.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
-  } else {
-    document.documentElement.style.removeProperty("--spicy-custom-font");
-  }
+  applyCustomFontSetting(v);
 });
 
 $displayLyricsHoverPill.listen((v) => {

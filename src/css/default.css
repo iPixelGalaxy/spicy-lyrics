@@ -49,7 +49,7 @@ body.SpicySidebarLyrics__Active #SpicyLyricsPage:not(.Fullscreen) {
 
 #SpicyLyricsPage:not(.UseSpicyFont),
 #SpicyLyricsPage:not(.UseSpicyFont) *:not(.musical-line, .musical-line *) {
-  font-family: var(--spicy-custom-font, SpicyLyrics), SpicyLyrics, "Noto Sans Georgian", "VazirmatnRegular", var(--encore-body-font-stack, sans-serif) !important;
+  font-family: var(--spicy-custom-font, var(--encore-body-font-stack, sans-serif)), "Noto Sans Georgian", "VazirmatnRegular", sans-serif !important;
 }
 
 .Root__main-view:has(#SpicyLyricsPage) .main-view-container__scroll-node-child,

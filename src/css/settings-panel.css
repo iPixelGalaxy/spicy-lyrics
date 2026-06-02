@@ -1,5 +1,27 @@
 /* ── Settings Panel — reads chrome tokens from the modal scope ────── */
 sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
+  .sl-modal-header {
+    position: relative;
+  }
+
+  .sl-modal-header-left {
+    position: absolute;
+    left: var(--space-4);
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    z-index: 1;
+  }
+
+  .sl-modal-header-back-btn {
+    padding-inline: 10px 12px;
+  }
+
+  .sl-modal-header:has(.sl-modal-header-left) .sl-modal-title {
+    padding-left: 86px;
+  }
+
   /* Toolbar: search + filter */
   .sl-sp-toolbar {
     display: flex;
@@ -316,22 +338,25 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       align-items: center;
       flex-shrink: 0;
     }
+  }
 
-    .sl-sp-text-input {
-      width: min(220px, 32vw);
-      height: 32px;
-      border: 1px solid var(--hairline);
-      border-radius: var(--radius-sm);
-      background: rgba(255, 255, 255, 0.06);
-      color: var(--color-text-primary);
-      padding: 0 10px;
-      font-size: var(--text-caption-size) !important;
-      outline: none;
+  .sl-sp-text-input {
+    width: min(220px, 32vw);
+    height: 32px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-primary);
+    padding: 0 10px;
+    font-size: var(--text-caption-size) !important;
+    outline: none;
+    transition:
+      background var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard);
 
-      &:focus {
-        border-color: rgba(255, 255, 255, 0.28);
-        background: rgba(255, 255, 255, 0.09);
-      }
+    &:focus {
+      border-color: rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.09);
     }
   }
 
@@ -567,7 +592,108 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     gap: var(--space-2);
   }
 
+  .sl-sp-source-stack {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .sl-sp-source-stack--has-options:not(.sl-sp-source-stack--open) {
+    padding-bottom: 10px;
+  }
+
+  .sl-sp-source-stack--has-options:not(.sl-sp-source-stack--open):has(.sl-sp-source-stack-layer--2) {
+    padding-bottom: 18px;
+  }
+
+  .sl-sp-source-settings-group {
+    display: grid;
+    grid-template-rows: 1fr;
+    margin: 0;
+    overflow: hidden;
+    transform-origin: top center;
+  }
+
+  .sl-sp-source-settings-inner {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .sl-sp-source-settings-group--opening {
+    animation: sl-sp-source-group-open 0.22s cubic-bezier(0.23, 1, 0.32, 1) both;
+  }
+
+  .sl-sp-source-settings-group--inline .sl-sp-source-option-row,
+  .sl-sp-source-settings-group--inline .sl-sp-source-token-row {
+    min-height: 50px;
+    background: rgba(255, 255, 255, 0.032);
+  }
+
+  .sl-sp-source-settings-group--opening .sl-sp-source-option-row,
+  .sl-sp-source-settings-group--opening .sl-sp-source-token-row {
+    animation: sl-sp-source-option-fan-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  @keyframes sl-sp-source-group-open {
+    from {
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes sl-sp-source-option-fan-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .sl-sp-source-stack-layer {
+    position: absolute;
+    left: 50%;
+    height: 10px;
+    pointer-events: none;
+    border-left: 1px solid var(--hairline);
+    border-right: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    transform: translateX(-50%);
+  }
+
+  .sl-sp-source-stack-layer--1 {
+    bottom: 0;
+    width: 97%;
+    z-index: 1;
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .sl-sp-source-stack:has(.sl-sp-source-stack-layer--2) .sl-sp-source-stack-layer--1 {
+    bottom: 8px;
+  }
+
+  .sl-sp-source-stack-layer--2 {
+    bottom: 0;
+    width: 94%;
+    z-index: 0;
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.055);
+  }
+
   .sl-sp-source-card {
+    position: relative;
+    z-index: 2;
     display: grid;
     grid-template-columns: 32px minmax(0, 1fr) auto;
     align-items: center;
@@ -590,6 +716,20 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     &.sl-sp-source-card--disabled {
       opacity: 0.58;
     }
+
+    &.sl-sp-source-card--has-options {
+      cursor: pointer;
+    }
+
+    &.sl-sp-source-card--has-options:focus-visible {
+      outline: none;
+      box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 0 0 2px rgba(255, 255, 255, 0.08);
+    }
+
+    &.sl-sp-source-card--options-open {
+      background: rgba(255, 255, 255, 0.095);
+      box-shadow: inset 0 0 0 1px var(--hairline-strong);
+    }
   }
 
   .sl-sp-source-option-row,
@@ -607,6 +747,23 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
 
   .sl-sp-source-token-input {
     width: min(260px, 34vw) !important;
+  }
+
+  .sl-sp-source-token-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .sl-sp-source-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--hairline);
   }
 
   .sl-sp-source-rank {

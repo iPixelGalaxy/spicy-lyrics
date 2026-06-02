@@ -3,7 +3,36 @@ import { flushSync } from "react-dom";
 import { PopupModal } from "../components/Modal.ts";
 import LyricsSourcesManager from "../components/ReactComponents/SettingsPanel/LyricsSourcesManager.tsx";
 
-export function OpenLyricsSourcesManager() {
+function getModalScrollTop() {
+  return Math.max(0, ...Array.from(PopupModal.querySelectorAll<HTMLElement>("*")).map((el) => el.scrollTop ?? 0));
+}
+
+export async function OpenLyricsSourcesManager() {
+  const { default: SettingsPanel } = await import("../components/ReactComponents/SettingsPanel/index.tsx");
+  const settingsScrollTop = getModalScrollTop();
+  const openSettings = () => {
+    const settingsContainer = document.createElement("div");
+    const settingsRoot = ReactDOM.createRoot(settingsContainer);
+
+    flushSync(() => {
+      settingsRoot.render(<SettingsPanel />);
+    });
+
+    PopupModal.transition({
+      title: "Settings",
+      content: settingsContainer,
+      modalId: "settingsPanel",
+      contentScrollTop: settingsScrollTop,
+      onClose: () => settingsRoot.unmount(),
+    });
+  };
+
+  const backButton = document.createElement("button");
+  backButton.className = "sl-sp-btn sl-modal-header-back-btn";
+  backButton.type = "button";
+  backButton.textContent = "← Back";
+  backButton.onclick = openSettings;
+
   const container = document.createElement("div");
   const root = ReactDOM.createRoot(container);
 
@@ -16,6 +45,7 @@ export function OpenLyricsSourcesManager() {
     content: container,
     isLarge: true,
     modalId: "lyricsSourcesManager",
+    headerLeft: backButton,
     onClose: () => root.unmount(),
   };
 

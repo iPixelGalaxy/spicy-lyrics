@@ -4,6 +4,10 @@ import { PopupModal } from "../components/Modal.ts";
 import LyricsDBPanel from "../components/ReactComponents/LyricsManager/index.tsx";
 import UploadTTMLModal from "../components/ReactComponents/LyricsManager/components/UploadTTMLModal.tsx";
 
+function getModalScrollTop() {
+  return Math.max(0, ...Array.from(PopupModal.querySelectorAll<HTMLElement>("*")).map((el) => el.scrollTop ?? 0));
+}
+
 export function OpenLyricsDBPanel() {
   _openUpload();
 }
@@ -31,6 +35,7 @@ export function OpenTTMLDatabasePanel() {
 
 export async function OpenTTMLDatabasePanelFromSettings() {
   const { default: SettingsPanel } = await import("../components/ReactComponents/SettingsPanel/index.tsx");
+  const settingsScrollTop = getModalScrollTop();
   const openSettings = () => {
     const container = document.createElement("div");
     const root = ReactDOM.createRoot(container);
@@ -41,6 +46,7 @@ export async function OpenTTMLDatabasePanelFromSettings() {
       title: "Settings",
       content: container,
       onClose: () => root.unmount(),
+      contentScrollTop: settingsScrollTop,
       modalId: "settingsPanel",
     });
   };
@@ -72,7 +78,7 @@ function _openUpload() {
   flushSync(() => {
     root.render(
       <UploadTTMLModal
-        onOpenDB={_openDB}
+        onOpenDB={() => _openDB()}
         onDone={() => PopupModal.hide()}
       />
     );

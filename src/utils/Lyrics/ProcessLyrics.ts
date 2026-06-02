@@ -5,7 +5,9 @@ import langs from "langs";
 import { RetrievePackage } from "../ImportPackage.ts";
 import * as KuromojiAnalyzer from "./KuromojiAnalyzer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
-import Logger from "../logger.ts";
+import Logger from "../Logger.ts";
+import Defaults from "../../components/Global/Defaults.ts";
+import { gibberishifyLine } from "./GibberishTransform.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -301,6 +303,7 @@ const romanizeEntry = async (
 };
 
 export const ProcessLyrics = async (lyrics: any) => {
+  normalizeLegacyRomanizationFields(lyrics);
   // Transliterations the API already shipped are preferred and never overwritten,
   // but we still romanize any entry that's missing one — partial API data should
   // not leave gaps.
@@ -334,4 +337,66 @@ export const ProcessLyrics = async (lyrics: any) => {
   } else {
     PageContainer?.classList.remove("Lyrics_RomanizationAvailable");
   }
+
+  ApplyMemeFormat(lyrics);
 };
+
+function normalizeLegacyRomanizationFields(lyrics: any): void {
+  const normalizeEntry = (entry: any) => {
+    if (!entry || typeof entry !== "object") return;
+    if (entry.TransliteratedText === undefined && entry.RomanizedText !== undefined) {
+      entry.TransliteratedText = entry.RomanizedText;
+    }
+  };
+
+  if (lyrics?.IncludesRomanization === true && lyrics.HasTransliterations !== true) {
+    lyrics.HasTransliterations = true;
+  }
+
+  if (lyrics.Type === "Static") {
+    for (const line of lyrics.Lines ?? []) normalizeEntry(line);
+  } else if (lyrics.Type === "Line") {
+    for (const line of lyrics.Content ?? []) normalizeEntry(line);
+  } else if (lyrics.Type === "Syllable") {
+    for (const line of lyrics.Content ?? []) {
+      normalizeEntry(line);
+      for (const syllable of line.Lead?.Syllables ?? []) normalizeEntry(syllable);
+      for (const bg of line.Background ?? []) {
+        normalizeEntry(bg);
+        for (const syllable of bg.Syllables ?? []) normalizeEntry(syllable);
+      }
+    }
+  }
+}
+
+function applyTextTransform(text: string, _isPartOfWord = false): string {
+  if (Defaults.MemeFormat === "Gibberish") return gibberishifyLine(text).replace(/\s+/g, "");
+  return text;
+}
+
+export function ApplyMemeFormat(lyrics: any): void {
+  if (Defaults.MemeFormat !== "Gibberish") return;
+
+  if (lyrics.Type === "Static") {
+    for (const line of lyrics.Lines ?? []) {
+      line.GibberishText = applyTextTransform(line.Text ?? "");
+    }
+  } else if (lyrics.Type === "Line") {
+    for (const line of lyrics.Content ?? []) {
+      if (line.Type === "Vocal") {
+        line.GibberishText = applyTextTransform(line.Text ?? "");
+      }
+    }
+  } else if (lyrics.Type === "Syllable") {
+    for (const line of lyrics.Content ?? []) {
+      for (const syllable of line.Lead?.Syllables ?? []) {
+        syllable.GibberishText = applyTextTransform(syllable.Text ?? "", !!syllable.IsPartOfWord);
+      }
+      for (const bg of line.Background ?? []) {
+        for (const syllable of bg.Syllables ?? []) {
+          syllable.GibberishText = applyTextTransform(syllable.Text ?? "", !!syllable.IsPartOfWord);
+        }
+      }
+    }
+  }
+}

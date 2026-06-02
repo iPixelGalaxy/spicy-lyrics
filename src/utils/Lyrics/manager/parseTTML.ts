@@ -1,38 +1,10 @@
-import { Query } from "../../API/Query";
+import parseTTMLToLyrics from "../ParseTTML";
 
 export async function ParseTTML(ttml: string): Promise<any | null> {
   try {
-    const query = await Query([
-      {
-        operation: "parseTTML",
-        variables: {
-          ttml,
-        },
-      },
-    ]);
-    const queryResult = query.get("0");
-    if (!queryResult) {
-      return null;
-    }
-
-    if (queryResult.httpStatus !== 200) {
-      return null;
-    }
-
-    if (!queryResult.data) {
-      return null;
-    }
-
-    if (queryResult.format !== "json") {
-      return null;
-    }
-
-    if (queryResult.data.error) {
-      return null;
-    }
-
-    return queryResult.data;
+    return { Result: parseTTMLToLyrics(ttml) };
   } catch (error) {
+    console.error("Error parsing TTML:", error);
     return null;
   }
 }

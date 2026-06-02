@@ -17,13 +17,19 @@ import {
   ResetLastLine,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
+import { toCssFontFamily } from "../../utils/cssFontFamily.ts";
 import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 import {
   $currentLyricsData,
+  $customFont,
+  $customFontEnabled,
+  $displayLyricsHoverPill,
+  $enableExperimentalWordSync,
+  $memeFormat,
   $lyricsContainerExists,
   $minimalLyricsMode,
+  $rightAlignLyrics,
   $simpleLyricsMode,
-  $skipSpicyFont,
   $ttmlMakerMode,
   $viewControlsPosition,
 } from "../../utils/stores.ts";
@@ -59,7 +65,7 @@ import { IsPIP, _IsPIP_after, ClosePopupLyrics } from "../Utils/PopupLyrics.ts";
 import { CleanUpIsByCommunity } from "../../utils/Lyrics/Applyer/Credits/ApplyIsByCommunity.tsx";
 import { OpenLyricsDBPanel } from "../../utils/openLyricsDBPanel.tsx";
 import { openSettingsPanel } from "../../utils/settings.ts";
-import Logger from "../../utils/logger.ts";
+import Logger from "../../utils/Logger.ts";
 import Whentil from "../../modules/Whentil.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
 
@@ -214,9 +220,12 @@ async function OpenPage(
   
   PageContainer = elem;
 
-  if (!$skipSpicyFont.get()) {
+  if (!$customFontEnabled.get()) {
     elem.classList.add("UseSpicyFont");
   }
+
+  elem.classList.toggle("DisplayLyricsHoverPill", $displayLyricsHoverPill.get());
+  elem.classList.toggle("GibberishLyricsMode", $memeFormat.get() === "Gibberish");
 
   if ($simpleLyricsMode.get()) {
     elem.classList.add("SimpleLyricsMode");
@@ -417,7 +426,7 @@ function AppendViewControls(ReAppend: boolean = false) {
             : IsPIP ? "" : `<button id="CinemaView" class="ViewControl">${Icons.CinemaView}</button>`
         }
         ${
-          Fullscreen.IsOpen || Fullscreen.CinemaViewOpen
+          (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen || NowBarObj.Open) && !isSpicySidebarMode
             ? IsPIP ? "" : `<button id="CompactModeToggle" class="ViewControl">${
                 IsCompactMode()
                   ? Icons.DisableCompactModeIcon
@@ -465,7 +474,7 @@ function AppendViewControls(ReAppend: boolean = false) {
         }
         ${
           isTTMLMakerMode
-            ? `<button id="LyricsManager" class="ViewControl">${Icons.LyricsManager}</button>`
+            ? `<button id="LyricsManager" class="ViewControl">${Icons.LoadTTML}</button>`
             : ""
         }
         ${IsPIP ? "" : `<button id="SettingsToggle" class="ViewControl">${Icons.Settings}</button>`}
@@ -565,7 +574,18 @@ function AppendViewControls(ReAppend: boolean = false) {
             setTimeout(() => {
               AppendViewControls(true);
             }, 65);
+            return;
           }
+
+          if (IsCompactMode()) {
+            DisableCompactMode();
+          } else {
+            EnableCompactMode();
+          }
+
+          setTimeout(() => {
+            AppendViewControls(true);
+          }, 65);
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Compact Mode tooltip", err);
@@ -770,7 +790,7 @@ function AppendViewControls(ReAppend: boolean = false) {
         if (!isPip) {
           Tooltips.LyricsManager = Spicetify.Tippy(lyricsManagerButton, {
             ...Spicetify.TippyProps,
-            content: `Lyrics Manager`,
+            content: `Load TTML`,
           });
         }
         lyricsManagerButton.addEventListener("click", () => {
@@ -781,13 +801,31 @@ function AppendViewControls(ReAppend: boolean = false) {
           OpenLyricsDBPanel();
         });
       } catch (err) {
-        controlsLogger.warn("Failed to setup Lyrics Manager tooltip", err);
+        controlsLogger.warn("Failed to setup Load TTML tooltip", err);
       }
     }
   }
 }
 
 // --- Reactive setting subscriptions ---
+
+function RefreshRightAlignedLyrics() {
+  const lyricsContainer = PageContainer?.querySelector<HTMLElement>(
+    ".LyricsContainer .LyricsContent .SpicyLyricsScrollContainer"
+  );
+  if (!lyricsContainer || lyricsContainer.dataset.lyricsType === "Static") return;
+
+  const lines = lyricsContainer.querySelectorAll<HTMLElement>(".line");
+  lines.forEach((line) => {
+    line.classList.toggle("OppositeAligned");
+  });
+
+  lyricsContainer.classList.toggle(
+    "HasDuetLines",
+    Boolean(lyricsContainer.querySelector(".line.OppositeAligned"))
+  );
+  triggerRemeasureLV();
+}
 
 $simpleLyricsMode.listen((v) => {
   if (!PageContainer) return;
@@ -805,9 +843,42 @@ $minimalLyricsMode.listen((v) => {
   if (uri) fetchLyrics(uri).then(ApplyLyrics);
 });
 
-$skipSpicyFont.listen((v) => {
+$enableExperimentalWordSync.listen(() => {
+  if (!PageContainer) return;
+  const uri = SpotifyPlayer.GetUri();
+  $currentLyricsData.set("");
+  if (uri) fetchLyrics(uri).then(ApplyLyrics);
+});
+
+$memeFormat.listen((v) => {
+  if (!PageContainer) return;
+  PageContainer.classList.toggle("GibberishLyricsMode", v === "Gibberish");
+  const uri = SpotifyPlayer.GetUri();
+  $currentLyricsData.set("");
+  if (uri) fetchLyrics(uri).then(ApplyLyrics);
+});
+
+$rightAlignLyrics.listen(() => {
+  if (!PageContainer) return;
+  RefreshRightAlignedLyrics();
+});
+
+$customFontEnabled.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("UseSpicyFont", !v);
+});
+
+$customFont.listen((v) => {
+  const cssFontFamily = toCssFontFamily(v);
+  if ($customFontEnabled.get() && cssFontFamily) {
+    document.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
+  } else {
+    document.documentElement.style.removeProperty("--spicy-custom-font");
+  }
+});
+
+$displayLyricsHoverPill.listen((v) => {
+  PageContainer?.classList.toggle("DisplayLyricsHoverPill", v);
 });
 
 $viewControlsPosition.listen((v) => {
@@ -817,9 +888,9 @@ $viewControlsPosition.listen((v) => {
   AppendViewControls(true);
 });
 
-$ttmlMakerMode.listen((v) => {
+$ttmlMakerMode.listen(() => {
   if (!PageContainer) return;
   AppendViewControls(true);
-})
+});
 
 export default PageView;

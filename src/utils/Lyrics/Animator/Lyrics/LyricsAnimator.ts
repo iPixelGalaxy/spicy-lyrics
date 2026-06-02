@@ -515,6 +515,15 @@ function getElementState(
   return "Active";
 }
 
+const DOT_LINE_LAYOUT_RELEASE_MS = 120;
+
+function getLineState(currentTime: number, line: any): "NotSung" | "Active" | "Sung" {
+  const endTime = line.DotLine
+    ? Math.max(line.StartTime, line.EndTime - DOT_LINE_LAYOUT_RELEASE_MS)
+    : line.EndTime;
+  return getElementState(currentTime, line.StartTime, endTime);
+}
+
 function getProgressPercentage(currentTime: number, startTime: number, endTime: number): number {
   if (currentTime <= startTime) return 0;
   if (currentTime >= endTime) return 1;
@@ -660,7 +669,7 @@ export function Animate(position: number): void {
     for (let index = 0; index < arr.length; index++) {
       const line = arr[index];
       if (!line.HTMLElement.isConnected) continue;
-      const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
+      const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
@@ -1647,7 +1656,7 @@ export function Animate(position: number): void {
     for (let index = 0; index < arr.length; index++) {
       const line = arr[index];
       if (!line.HTMLElement.isConnected) continue;
-      const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
+      const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {

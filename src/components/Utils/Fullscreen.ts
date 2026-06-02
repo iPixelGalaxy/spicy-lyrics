@@ -1,13 +1,15 @@
 import { GetCurrentLyricsContainerInstance } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import { ResetLastLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
-import { $currentLyricsData } from "../../utils/stores.ts";
+import { $currentLyricsData, $showVolumeSliderFullscreen } from "../../utils/stores.ts";
 import { $forceCompactMode, $isNowBarOpen } from "../../utils/uiState.ts";
 import Global from "../Global/Global.ts";
+import Defaults from "../Global/Defaults.ts";
 import PageView, { Compactify, GetPageRoot, PageContainer, Tooltips } from "../Pages/PageView.ts";
 import { EnableCompactMode, IsCompactMode } from "./CompactMode.ts";
 import { CleanUpNowBarComponents, CloseNowBar, DeregisterNowBarBtn, OpenNowBar } from "./NowBar.ts";
 import TransferElement from "./TransferElement.ts";
 import { IsPIP } from "./PopupLyrics.ts";
+import { CleanUpVolumeSlider, SetupVolumeSlider } from "./VolumeSlider.ts";
 import { Spring } from "../../modules/Spring.ts";
 import { Maid } from "../../modules/Maid.ts";
 import Scheduler from "../../modules/Scheduler.ts";
@@ -32,6 +34,27 @@ let pageHover = false;
 let mediaBoxHover = false;
 
 let lastPageMouseMove: number | undefined;
+
+const shouldAlwaysShowFullscreenControls = () =>
+  Defaults.AlwaysShowInFullscreen === "Controls" ||
+  Defaults.AlwaysShowInFullscreen === "Both" ||
+  Defaults.AlwaysShowInFullscreen === "All";
+
+const shouldAlwaysShowFullscreenTime = () =>
+  Defaults.AlwaysShowInFullscreen === "Time" ||
+  Defaults.AlwaysShowInFullscreen === "Both" ||
+  Defaults.AlwaysShowInFullscreen === "All";
+
+function SyncFullscreenAlwaysShowClasses() {
+  PageContainer?.classList.toggle(
+    "AlwaysShowFullscreenControls",
+    Fullscreen.IsOpen && shouldAlwaysShowFullscreenControls()
+  );
+  PageContainer?.classList.toggle(
+    "AlwaysShowFullscreenTime",
+    Fullscreen.IsOpen && shouldAlwaysShowFullscreenTime()
+  );
+}
 
 const Page_MouseMove = () => {
   pageHover = true;
@@ -69,6 +92,7 @@ const RunMediaBoxAnimation = () => {
       MediaBox.style.setProperty("--ArtworkBrightness", artworkBrightness.toString());
       MediaBox.style.setProperty("--ControlsOpacity", controlsOpacity.toString());
     }
+    PageContainer?.style.setProperty("--ControlsOpacity", controlsOpacity.toString());
 
     if (controlsOpacitySpring.CanSleep() && artworkBrightnessSpring.CanSleep()) {
       animationLastTimestamp = undefined;
@@ -111,6 +135,7 @@ const ToggleControls = (force: boolean = false) => {
 
   controlsOpacitySpring.SetGoal(getControlsOpacityGoal());
   artworkBrightnessSpring.SetGoal(getArtworkBrightnessGoal());
+  SyncFullscreenAlwaysShowClasses();
 
   if (force || visualsApplied === false) {
     visualsApplied = true;
@@ -119,6 +144,41 @@ const ToggleControls = (force: boolean = false) => {
 };
 
 let EventAbortController: AbortController | undefined;
+let ActiveVolumeSliderElement: HTMLElement | null = null;
+
+function setupFullscreenVolumeSlider() {
+  CleanUpVolumeSlider();
+  ActiveVolumeSliderElement?.remove();
+  ActiveVolumeSliderElement = null;
+
+  if (!Fullscreen.IsOpen || IsPIP || IsCompactMode() || Defaults.ShowVolumeSliderFullscreen === "Off") return;
+
+  const volumeContainer = document.createElement("div");
+  const showBelow = Defaults.ShowVolumeSliderFullscreen === "Below";
+  volumeContainer.className = `FullscreenVolumeSlider ${
+    Defaults.ShowVolumeSliderFullscreen === "Right" ? "RightSide" : ""
+  } ${showBelow ? "Below" : ""}`.trim();
+
+  if (showBelow) {
+    const header = PageContainer?.querySelector<HTMLElement>(".ContentBox .NowBar .Header");
+    const playbackControls = header?.querySelector<HTMLElement>(":scope > .PlaybackControls");
+    const metadata = header?.querySelector<HTMLElement>(":scope > .Metadata");
+    const anchor = playbackControls ?? metadata;
+    if (!anchor) return;
+    anchor.insertAdjacentElement("afterend", volumeContainer);
+    ActiveVolumeSliderElement = volumeContainer;
+    SetupVolumeSlider(volumeContainer, true);
+    return;
+  }
+
+  const mediaBox = PageContainer?.querySelector<HTMLElement>(
+    ".ContentBox .NowBar .Header .MediaBox"
+  );
+  if (!mediaBox) return;
+  mediaBox.appendChild(volumeContainer);
+  ActiveVolumeSliderElement = volumeContainer;
+  SetupVolumeSlider(volumeContainer);
+}
 
 const MediaBox_MouseIn = () => {
   mediaBoxHover = true;
@@ -206,6 +266,7 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
     // Handle DOM changes
     if (moveElement) TransferElement(SpicyPage, Root);
     SpicyPage.classList.add("Fullscreen");
+    SyncFullscreenAlwaysShowClasses();
 
     // Hide the main element
     if (mainElement && moveElement) {
@@ -253,7 +314,7 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
       ".ContentBox .NowBar .Header .MediaBox .MediaImageContainer"
     );
 
-    if (MediaBox && MediaImageContainer) {
+      if (MediaBox && MediaImageContainer) {
       // Create and store the AbortController
       EventAbortController = new AbortController();
       const signal = EventAbortController.signal;
@@ -262,6 +323,8 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
       MediaBox.addEventListener("mouseleave", MediaBox_MouseOut, { signal });
       MediaBox.addEventListener("mousemove", MediaBox_MouseMove, { signal });
 
+      setupFullscreenVolumeSlider();
+
       if (SpicyPage) {
         SpicyPage.addEventListener("mouseenter", Page_MouseIn, { signal });
         SpicyPage.addEventListener("mousemove", Page_MouseMove, { signal });
@@ -269,6 +332,7 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
       }
     }
 
+    RefreshFullscreenControlsVisibility();
     Global.Event.evoke("fullscreen:open", null);
   }
   setTimeout(() => {
@@ -304,10 +368,12 @@ async function Close(isPip: boolean = false) {
   const mainElement = document.querySelector<HTMLElement>("#main");
 
   if (SpicyPage) {
-    const wasCinemaMode = Fullscreen.CinemaViewOpen;
-
     Fullscreen.IsOpen = false;
     Fullscreen.CinemaViewOpen = false;
+    SyncFullscreenAlwaysShowClasses();
+    CleanUpVolumeSlider();
+    ActiveVolumeSliderElement?.remove();
+    ActiveVolumeSliderElement = null;
 
     if (isPip) {
       SpicyPage.classList.remove("Fullscreen");
@@ -328,11 +394,11 @@ async function Close(isPip: boolean = false) {
         mainElement.style.removeProperty("display");
       }
 
-      // Apply exit animation and block all interaction for its duration
-      SpicyPage.classList.add("frame_F_Exit");
-      document.body.style.pointerEvents = "none";
-
-      await new Promise(r => setTimeout(r, 650));
+      if (Defaults.AnimateFullscreenClose) {
+        SpicyPage.classList.add("frame_F_Exit");
+        document.body.style.pointerEvents = "none";
+        await new Promise(r => setTimeout(r, 650));
+      }
 
       TransferElement(SpicyPage, GetPageRoot() as HTMLElement);
       SpicyPage.classList.remove("Fullscreen");
@@ -376,6 +442,49 @@ async function Close(isPip: boolean = false) {
   GetCurrentLyricsContainerInstance()?.Resize();
 }
 
+function RefreshFullscreenControlsVisibility() {
+  SyncFullscreenAlwaysShowClasses();
+  if (!Fullscreen.IsOpen) return;
+
+  const controlsGoal = 0;
+  const artworkGoal = 1;
+  controlsOpacitySpring.SetGoal(controlsGoal, true);
+  artworkBrightnessSpring.SetGoal(artworkGoal, true);
+
+  const mediaBox = PageContainer?.querySelector<HTMLElement>(
+    ".ContentBox .NowBar .Header .MediaBox"
+  );
+  if (mediaBox) {
+    mediaBox.style.setProperty("--ControlsOpacity", controlsGoal.toString());
+    mediaBox.style.setProperty("--ArtworkBrightness", artworkGoal.toString());
+  }
+  PageContainer?.style.setProperty("--ControlsOpacity", controlsGoal.toString());
+
+  ToggleControls(true);
+
+  if (Defaults.ShowVolumeSliderFullscreen === "Below") {
+    window.setTimeout(setupFullscreenVolumeSlider, 0);
+  }
+}
+
+function RefreshFullscreenVolumeSlider() {
+  setupFullscreenVolumeSlider();
+}
+
+$showVolumeSliderFullscreen.listen(() => {
+  RefreshFullscreenVolumeSlider();
+});
+
+Global.Event.listen("compact-mode:enable", () => {
+  CleanUpVolumeSlider();
+  ActiveVolumeSliderElement?.remove();
+  ActiveVolumeSliderElement = null;
+});
+
+Global.Event.listen("compact-mode:disable", () => {
+  RefreshFullscreenVolumeSlider();
+});
+
 function Toggle(skipDocumentFullscreen: boolean = false) {
   const SpicyPage = PageContainer;
 
@@ -388,5 +497,5 @@ function Toggle(skipDocumentFullscreen: boolean = false) {
   }
 }
 
-export { CleanupMediaBox };
+export { CleanupMediaBox, RefreshFullscreenControlsVisibility, RefreshFullscreenVolumeSlider };
 export default Fullscreen;

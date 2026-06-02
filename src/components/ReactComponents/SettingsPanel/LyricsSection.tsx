@@ -1,14 +1,18 @@
 import { useStore } from "@nanostores/react";
 import React from "react";
 import {
+  $enableExperimentalWordSync,
+  $memeFormat,
   $minimalLyricsMode,
+  $rightAlignLyrics,
   $simpleLyricsMode,
   $simpleLyricsModeRenderingType,
 } from "../../../utils/stores.ts";
 import { matches, Row, Select, SectionTitle, Toggle } from "./components.tsx";
 
 const SECTION_NAME = "Lyrics Display";
-const renderingTypeOptions = ["calculate", "animate"];
+const simpleLyricsOptions = ["Off", "calculate", "animate"];
+const simpleLyricsLabels = ["Off", "Calculate", "Animate"];
 
 interface Props {
   query: string;
@@ -19,37 +23,47 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const simpleLyricsMode = useStore($simpleLyricsMode);
   const simpleLyricsModeRenderingType = useStore($simpleLyricsModeRenderingType);
   const minimalLyricsMode = useStore($minimalLyricsMode);
+  const rightAlignLyrics = useStore($rightAlignLyrics);
+  const memeFormat = useStore($memeFormat);
+  const enableExperimentalWordSync = useStore($enableExperimentalWordSync);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
-  const r1 = matches(query, "Simple Lyrics Mode", "Remove extra visual effects from lyrics");
-  const r2 = matches(query, "Simple Mode: Text Animation Style", "How lyrics text transitions are rendered in Simple Lyrics Mode.");
+  const r1 =
+    matches(query, "Simple Lyrics Mode", "Off, Calculate, or Animate simple lyric transitions.") ||
+    matches(query, "Simple Mode: Text Animation Style", "How lyrics text transitions are rendered in Simple Lyrics Mode.");
   const r3 = matches(query, "Minimal Lyrics Mode", "Hides sung lyrics lines in Fullscreen and Cinema Mode");
+  const r4 = matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");
+  const r6 = matches(query, "Gibberish Lyrics Mode", "Transform lyrics into gibberish text.");
+  const r7 = matches(query, "Experimental Word Sync", "Estimate word sync for line/static lyrics.");
 
-  if (!r1 && !r2 && !r3) return null;
+  if (!r1 && !r3 && !r4 && !r6 && !r7) return null;
+
+  const simpleLyricsValue = simpleLyricsMode ? simpleLyricsModeRenderingType : "Off";
+
+  const setSimpleLyricsValue = (value: string) => {
+    if (value === "Off") {
+      $simpleLyricsMode.set(false);
+      return;
+    }
+    $simpleLyricsModeRenderingType.set(value);
+    $simpleLyricsMode.set(true);
+  };
 
   return (
     <>
       <SectionTitle>Lyrics Display</SectionTitle>
 
       {r1 && (
-        <Row label="Simple Lyrics Mode" description="Remove extra visual effects from lyrics">
-          <Toggle checked={simpleLyricsMode} onChange={(v) => $simpleLyricsMode.set(v)} />
-        </Row>
-      )}
-
-      {r2 && (
         <Row
-          label="Simple Mode: Text Animation Style"
-          description="How lyrics text transitions are rendered in Simple Lyrics Mode."
-          disabled={!simpleLyricsMode}
-          disabledReason="Enable Simple Lyrics Mode to modify this setting"
+          label="Simple Lyrics Mode"
+          description="Off disables Simple Lyrics Mode. Calculate and Animate choose how simple lyric transitions render."
         >
           <Select
-            value={simpleLyricsModeRenderingType}
-            options={renderingTypeOptions}
-            onChange={(v) => $simpleLyricsModeRenderingType.set(v)}
-            disabled={!simpleLyricsMode}
+            value={simpleLyricsValue}
+            options={simpleLyricsOptions}
+            labels={simpleLyricsLabels}
+            onChange={setSimpleLyricsValue}
           />
         </Row>
       )}
@@ -62,6 +76,28 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
           <Toggle checked={minimalLyricsMode} onChange={(v) => $minimalLyricsMode.set(v)} />
         </Row>
       )}
+
+      {r4 && (
+        <Row label="Right Align Lyrics" description="Flip duet/opposite lyric alignment.">
+          <Toggle checked={rightAlignLyrics} onChange={(v) => $rightAlignLyrics.set(v)} />
+        </Row>
+      )}
+
+      {r6 && (
+        <Row label="Gibberish Lyrics Mode" description="Transform lyrics into gibberish text.">
+          <Toggle
+            checked={memeFormat === "Gibberish"}
+            onChange={(v) => $memeFormat.set(v ? "Gibberish" : "Off")}
+          />
+        </Row>
+      )}
+
+      {r7 && (
+        <Row label="Experimental Word Sync" description="Estimate word sync for line/static lyrics.">
+          <Toggle checked={enableExperimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} />
+        </Row>
+      )}
+
     </>
   );
 }

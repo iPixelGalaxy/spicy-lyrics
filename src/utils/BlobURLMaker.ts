@@ -2,16 +2,24 @@ const BlobURLCache = new Map<string, { blobUrl: string; expiresAt: number }>();
 
 export default async function BlobURLMaker(url: string): Promise<string | null> {
   if (!url) throw new Error("SpicyLyrics: BlobURLMaker: url Missing");
-  const existingBlobURL = BlobURLCache.get(url);
+  const normalizedUrl = url.startsWith("spotify:image:")
+    ? `https://i.scdn.co/image/${url.replace("spotify:image:", "")}`
+    : url;
+
+  if (normalizedUrl.startsWith("spotify:")) {
+    return null;
+  }
+
+  const existingBlobURL = BlobURLCache.get(normalizedUrl);
   if (existingBlobURL) {
     const expiresAt = existingBlobURL.expiresAt;
     if (expiresAt < Date.now()) {
-      BlobURLCache.delete(url);
+      BlobURLCache.delete(normalizedUrl);
     }
     return existingBlobURL.blobUrl;
   }
   try {
-    const response = await fetch(url);
+    const response = await fetch(normalizedUrl);
     if (!response.ok) {
       return null;
     }
@@ -20,7 +28,7 @@ export default async function BlobURLMaker(url: string): Promise<string | null> 
     const blobUrl = URL.createObjectURL(blob);
 
     const expiresAt = Date.now() + 1000 * 60 * 60;
-    BlobURLCache.set(url, {
+    BlobURLCache.set(normalizedUrl, {
       blobUrl,
       expiresAt,
     });

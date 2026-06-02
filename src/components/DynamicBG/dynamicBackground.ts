@@ -6,7 +6,7 @@ import { PageContainer } from "../Pages/PageView.ts";
 import Kawarp, { type KawarpOptions } from "@kawarp/core";
 import { BackgroundAnimationController, type AudioAnalysisData } from "./BackgroundAnimationController.ts";
 import { getDynamicAudioAnalysis } from "../../utils/audioAnalysis.ts";
-import Logger from "../../utils/logger.ts";
+import Logger from "../../utils/Logger.ts";
 
 const dynamicBgLogger = new Logger("Dynamic Background");
 
@@ -48,8 +48,55 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
 
   const TrackId = SpotifyPlayer.GetId() ?? undefined;
   
-  const staticBgMode = $staticBackgroundMode.get();
-  if (staticBgMode !== "off") {
+  const staticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
+  const removeBackground = (bg: HTMLElement) => {
+    const kawarpInstance = KawarpMap.get(tag ?? bg);
+    if (kawarpInstance && bg.tagName.toLowerCase() === "canvas") {
+      kawarpInstance.dispose();
+      KawarpMap.delete(tag ?? bg);
+    }
+    bg.remove();
+  };
+
+  if (staticBgMode === "legacy") {
+    if (IsEpisode || !currentImgCover) return;
+
+    element
+      .querySelectorAll<HTMLElement>(".spicy-dynamic-bg:not(.LegacyBackground)")
+      .forEach(removeBackground);
+
+    const prevBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.LegacyBackground");
+    if (prevBg?.getAttribute("data-cover-id") === currentImgCover) return;
+
+    const dynamicBg = document.createElement("div");
+    dynamicBg.classList.add("spicy-dynamic-bg", "LegacyBackground", "Hidden");
+    dynamicBg.setAttribute("data-cover-id", currentImgCover);
+
+    for (const className of ["Back", "BackCenter", "Front"]) {
+      const layer = document.createElement("div");
+      layer.classList.add(className);
+      layer.style.backgroundImage = `url("${currentImgCover}")`;
+      dynamicBg.appendChild(layer);
+    }
+
+    element.appendChild(dynamicBg);
+    setTimeout(() => {
+      if (prevBg) {
+        prevBg.classList.add("Hidden");
+        setTimeout(() => prevBg?.remove(), 500);
+      }
+      dynamicBg.classList.remove("Hidden");
+    }, 80);
+    return;
+  }
+
+  if (staticBgMode !== "default" && staticBgMode !== "legacy") {
+    const activeClass =
+      staticBgMode === "color" ? "ColorBackground" : "StaticBackground";
+    element
+      .querySelectorAll<HTMLElement>(`.spicy-dynamic-bg:not(.${activeClass})`)
+      .forEach(removeBackground);
+
     if (staticBgMode === "color") {
       // First, create/init the background with black as a fallback
       let dynamicBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.ColorBackground");
@@ -124,7 +171,11 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       dynamicBg.classList.remove("Hidden");
     }, 80);
   } else {
-    const existingElement = element.querySelector<HTMLElement>(".spicy-dynamic-bg");
+    element
+      .querySelectorAll<HTMLElement>(".spicy-dynamic-bg:not(canvas)")
+      .forEach(removeBackground);
+
+    const existingElement = element.querySelector<HTMLElement>("canvas.spicy-dynamic-bg");
   
     if (existingElement) {
       const existingBgData = existingElement.getAttribute("data-cover-id") ?? null;
@@ -290,6 +341,10 @@ Global.Event.listen("playback:songchange", () => {
 });
 
 const applyPlayPauseAnimationSpeed = (isPaused: boolean) => {
+  if ($staticBackgroundMode.get() === "legacy") {
+    setDynamicBackgroundAnimationSpeed(0.1);
+    return;
+  }
   setDynamicBackgroundAnimationSpeed(isPaused ? 0.1 : 1);
 };
 
@@ -314,6 +369,10 @@ $staticBackgroundMode.listen(reapplyPageBackground);
 
 Global.Event.listen("playback:progress", async (e) => {
   const songId = SpotifyPlayer.GetId();
+  if ($staticBackgroundMode.get() === "legacy") {
+    setDynamicBackgroundAnimationSpeed(0.1);
+    return;
+  }
   if (!songId) {
     resetDynamicBackgroundAnimationSpeed();
     return;

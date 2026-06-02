@@ -4,7 +4,7 @@
   align-items: center;
   flex-direction: column;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
   z-index: 4;
 }
@@ -29,7 +29,8 @@
   --Simplebar-Scrollbar-Color: rgba(255, 255, 255, 0.6);
   --vertical-gap: 0px;
 
-  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  overflow-clip-margin: 200px;
   overflow-y: auto !important;
   height: calc(100% - var(--vertical-gap));
   width: 100%;
@@ -98,7 +99,7 @@ body.SpicySidebarLyrics__Active #SpicyLyricsPage .LyricsContainer .LyricsContent
     padding-left 0.4s;
   display: flex;
   flex-direction: column;
-  margin-bottom: 45cqh;
+  margin-bottom: 8cqh;
   margin-top: 25cqh;
 }
 

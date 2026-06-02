@@ -2,7 +2,8 @@ import BlobURLMaker from "../../utils/BlobURLMaker.ts";
 import { GetCurrentLyricsContainerInstance } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import { SongProgressBar } from "./../../utils/Lyrics/SongProgressBar.ts";
 import { QueueForceScroll, ResetLastLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
-import { $timelineOutsideMediaContent } from "../../utils/stores.ts";
+import { $alwaysShowInFullscreen, $releaseYearPosition } from "../../utils/stores.ts";
+import Defaults from "../Global/Defaults.ts";
 import { $isNowBarOpen, $nowBarSide } from "../../utils/uiState.ts";
 import Global from "../Global/Global.ts";
 import Session from "../Global/Session.ts";
@@ -35,6 +36,8 @@ const ActiveSongProgressBarInstance_Map = new Map<string, any>();
 let ActiveSetupSongProgressBarInstance: SongProgressBarInstance | null = null;
 
 let ActiveHeartMaid: Maid | null = null;
+let lastDisplayedReleaseYear: string | undefined;
+const releaseYearCache = new Map<string, string>();
 
 // let ActiveArtworkHlsInstance: Hls | null = null;
 
@@ -100,9 +103,58 @@ function ApplyMarquee(baseWidth, elementWidth, name) {
 } */
 
 let NowBarFullscreenMaid: Maid | null = null;
+let metadataMarqueeObserver: ResizeObserver | null = null;
+let metadataMarqueeFrame = 0;
+
+function SyncMetadataMarquee(MetadataContainer: Element) {
+  const syncPair = (containerSelector: string, spanSelector: string) => {
+    const container = MetadataContainer.querySelector<HTMLElement>(containerSelector);
+    const span = container?.querySelector<HTMLElement>(spanSelector);
+    if (!container || !span) return;
+
+    const spanWidth = Math.max(span.scrollWidth, span.getBoundingClientRect().width);
+    const containerWidth = Math.max(container.clientWidth, container.getBoundingClientRect().width);
+    const shouldMarquee = spanWidth > containerWidth + 1;
+    container.classList.toggle("CanMarquee", shouldMarquee);
+  };
+
+  syncPair(".SongName", "span");
+  syncPair(".Artists", ":scope > span");
+}
+
+function WatchMetadataMarquee(MetadataContainer: HTMLElement) {
+  metadataMarqueeObserver?.disconnect();
+  if (metadataMarqueeFrame) cancelAnimationFrame(metadataMarqueeFrame);
+
+  const scheduleSync = () => {
+    if (metadataMarqueeFrame) cancelAnimationFrame(metadataMarqueeFrame);
+    metadataMarqueeFrame = requestAnimationFrame(() => {
+      metadataMarqueeFrame = 0;
+      if (!MetadataContainer.isConnected) return;
+      SyncMetadataMarquee(MetadataContainer);
+    });
+  };
+
+  metadataMarqueeObserver = new ResizeObserver(scheduleSync);
+  metadataMarqueeObserver.observe(MetadataContainer);
+  MetadataContainer.querySelectorAll<HTMLElement>(".SongName, .SongName span, .Artists, .Artists > span")
+    .forEach((element) => metadataMarqueeObserver?.observe(element));
+  scheduleSync();
+  setTimeout(scheduleSync, 80);
+}
+
+function shouldPlaceTimelineOutsideMediaContent() {
+  const alwaysShow = $alwaysShowInFullscreen.get();
+  return alwaysShow === "Time" || alwaysShow === "Both" || alwaysShow === "All";
+}
+
+function shouldPlacePlaybackControlsOutsideMediaContent() {
+  const alwaysShow = $alwaysShowInFullscreen.get();
+  return alwaysShow === "Controls" || alwaysShow === "Both" || alwaysShow === "All";
+}
 
 function PositionTimelineElement(TimelineElem: HTMLElement) {
-  const forceInsideMediaContent = IsCompactMode() || IsPIP || !$timelineOutsideMediaContent.get();
+  const forceInsideMediaContent = IsCompactMode() || IsPIP || !shouldPlaceTimelineOutsideMediaContent();
   if (forceInsideMediaContent) {
     // In CompactMode, PIP, or when setting is off: place inside .MediaContent
     const MediaContent = PageContainer?.querySelector<HTMLElement>(
@@ -121,11 +173,38 @@ function PositionTimelineElement(TimelineElem: HTMLElement) {
   }
 }
 
+function PositionPlaybackControlsElement(ControlsElem: HTMLElement) {
+  const forceInsideMediaContent =
+    IsCompactMode() || IsPIP || !shouldPlacePlaybackControlsOutsideMediaContent();
+
+  if (forceInsideMediaContent) {
+    const MediaContent = PageContainer?.querySelector<HTMLElement>(
+      ".ContentBox .NowBar .Header .MediaBox .MediaContent"
+    );
+    if (MediaContent && ControlsElem.parentNode !== MediaContent) {
+      MediaContent.appendChild(ControlsElem);
+    }
+    return;
+  }
+
+  const Header = PageContainer?.querySelector<HTMLElement>(".ContentBox .NowBar .Header");
+  const Metadata = Header?.querySelector<HTMLElement>(".Metadata");
+  if (!Header || !Metadata || ControlsElem.parentNode === Header) return;
+  Metadata.insertAdjacentElement("afterend", ControlsElem);
+}
+
 function RepositionTimeline() {
   if (!ActiveSetupSongProgressBarInstance) return;
   const TimelineElem = ActiveSetupSongProgressBarInstance.GetElement();
   if (!TimelineElem) return;
   PositionTimelineElement(TimelineElem);
+}
+
+function RepositionPlaybackControls() {
+  if (!ActivePlaybackControlsInstance) return;
+  const ControlsElem = ActivePlaybackControlsInstance.GetElement();
+  if (!ControlsElem) return;
+  PositionPlaybackControlsElement(ControlsElem);
 }
 
 function OpenNowBar(skipSaving: boolean = false) {
@@ -386,7 +465,11 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         return {
           Apply: () => {
-            AppendQueue.push(ControlsElement);
+            if (shouldPlacePlaybackControlsOutsideMediaContent()) {
+              PositionPlaybackControlsElement(ControlsElement);
+            } else {
+              AppendQueue.push(ControlsElement);
+            }
           },
           CleanUp: cleanup,
           GetElement: () => ControlsElement,
@@ -423,6 +506,9 @@ function OpenNowBar(skipSaving: boolean = false) {
         // Track dragging state
         let isDragging = false;
         let dragPositionMs: number | null = null; // Track the current drag position in ms
+        let dragFrame: number | null = null;
+        let pendingDragPercentage: number | null = null;
+        let draggingDurationMs = 0;
 
         const updateTimelineState = (e = null) => {
           const PositionElem = TimelineElem.querySelector<HTMLElement>(".Time.Position");
@@ -476,6 +562,7 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         const handleDragStart = (event: MouseEvent | TouchEvent) => {
           isDragging = true;
+          draggingDurationMs = SpotifyPlayer.GetDuration() ?? 0;
           document.body.style.userSelect = "none"; // Prevent text selection during drag
 
           // Add the event listeners for drag movement and end
@@ -489,6 +576,27 @@ function OpenNowBar(skipSaving: boolean = false) {
 
           // Handle the initial position update
           handleDragMove(event);
+        };
+
+        const renderDragPosition = () => {
+          dragFrame = null;
+          if (!isDragging || pendingDragPercentage === null) return;
+
+          const percentage = pendingDragPercentage;
+          const positionMs = Math.floor(percentage * draggingDurationMs);
+          dragPositionMs = positionMs;
+
+          SliderBar.style.setProperty("--SliderProgress", percentage.toString());
+
+          songProgressBar.Update({
+            duration: draggingDurationMs,
+            position: positionMs,
+          });
+
+          const PositionElem = TimelineElem.querySelector<HTMLElement>(".Time.Position");
+          if (PositionElem) {
+            PositionElem.textContent = songProgressBar.GetFormattedPosition();
+          }
         };
 
         const handleDragMove = (event: MouseEvent | TouchEvent) => {
@@ -505,30 +613,9 @@ function OpenNowBar(skipSaving: boolean = false) {
           const rect = SliderBar.getBoundingClientRect();
           const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
-          // Update the slider visually during drag
-          SliderBar.style.setProperty("--SliderProgress", percentage.toString());
-
-          // Calculate position in milliseconds
-          const positionMs = Math.floor(percentage * (SpotifyPlayer.GetDuration() ?? 0));
-          dragPositionMs = positionMs; // Store the drag position
-
-          // Update the position text during drag
-          songProgressBar.Update({
-            duration: SpotifyPlayer.GetDuration() ?? 0,
-            position: positionMs,
-          });
-
-          // Emit event with current drag position
-          Global.Event.evoke("nowbar:timeline:dragging", {
-            isDragging: true,
-            percentage: percentage,
-            positionMs: positionMs,
-          });
-
-          const PositionElem = TimelineElem.querySelector<HTMLElement>(".Time.Position");
-          if (PositionElem) {
-            // Show the formatted position for the drag position
-            PositionElem.textContent = songProgressBar.GetFormattedPosition();
+          pendingDragPercentage = percentage;
+          if (dragFrame === null) {
+            dragFrame = requestAnimationFrame(renderDragPosition);
           }
         };
 
@@ -542,6 +629,10 @@ function OpenNowBar(skipSaving: boolean = false) {
           document.removeEventListener("touchmove", handleDragMove);
           document.removeEventListener("mouseup", handleDragEnd);
           document.removeEventListener("touchend", handleDragEnd);
+          if (dragFrame !== null) {
+            cancelAnimationFrame(dragFrame);
+            dragFrame = null;
+          }
 
           // Get the final position
           let clientX: number;
@@ -557,6 +648,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           // Calculate the position in milliseconds
           const positionMs = Math.floor(percentage * (SpotifyPlayer.GetDuration() ?? 0));
           dragPositionMs = null; // Clear drag position
+          pendingDragPercentage = null;
 
           // Emit event that dragging has ended with final position
           Global.Event.evoke("nowbar:timeline:dragging", {
@@ -608,7 +700,7 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         return {
           Apply: () => {
-            if (IsCompactMode() || IsPIP || !$timelineOutsideMediaContent.get()) {
+            if (IsCompactMode() || IsPIP || !shouldPlaceTimelineOutsideMediaContent()) {
               // Timeline goes inside MediaContent — must use AppendQueue
               // because Whentil.When wipes MediaContent with innerHTML = ""
               AppendQueue.push(TimelineElem);
@@ -769,7 +861,7 @@ function OpenNowBar(skipSaving: boolean = false) {
 
                 const side = zone.classList.contains("RightSide") ? "right" : "left";
 
-                storage.set("NowBarSide", side);
+                $nowBarSide.set(side);
                 ResetLastLine();
             });
         });
@@ -1007,8 +1099,8 @@ function UpdateNowBar(force = false) {
     });
 
   //const ArtistsDiv = NowBar.querySelector(".Header .Metadata .Artists");
-  const MetadataContainer = NowBar.querySelector(".Header .Metadata");
-  const ArtistsSpan = MetadataContainer.querySelector(".Artists span");
+  const MetadataContainer = NowBar.querySelector<HTMLElement>(".Header .Metadata");
+  if (!MetadataContainer) return;
   const MediaImageContainer = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImageContainer");
   const SongNameSpan = MetadataContainer.querySelector<HTMLElement>(".SongName span");
   //const MediaBox = NowBar.querySelector(".Header .MediaBox");
@@ -1075,7 +1167,11 @@ function UpdateNowBar(force = false) {
         toImage.classList.remove("MB_hidden");
         toImage.classList.add("containsImage")
 
-        const canAnimate = !!fromImage && fromImage.classList.contains("containsImage");
+        const canAnimate =
+          !IsPIP &&
+          Defaults.CoverArtAnimation &&
+          !!fromImage &&
+          fromImage.classList.contains("containsImage");
 
         // Only run the crossfade animation if fromImage already has an image
         if (canAnimate) {
@@ -1122,6 +1218,7 @@ function UpdateNowBar(force = false) {
   MetadataContainer.classList.add("tr_VisuallyHidden");
 
   setTimeout(() => {
+    const updateUri = SpotifyPlayer.GetUri();
     const songName = SpotifyPlayer.GetName();
     if (SongNameSpan) {
       SongNameSpan.textContent = songName ?? "";
@@ -1131,6 +1228,10 @@ function UpdateNowBar(force = false) {
         if (albumId) {
           SongNameSpan.classList.add("Clickable");
           SongNameSpan.onclick = async () => {
+            if (IsPIP) {
+              Session.Navigate({ pathname: `/album/${albumId}` });
+              return;
+            }
             await Fullscreen.Close();
             Session.Navigate({ pathname: `/album/${albumId}` });
           };
@@ -1145,7 +1246,26 @@ function UpdateNowBar(force = false) {
     }
 
     const contentType = SpotifyPlayer.GetContentType();
-    const ArtistsDiv = MetadataContainer.querySelector<HTMLElement>(".Artists");
+    const ensureArtistsRow = () => {
+      let artistsRow = MetadataContainer.querySelector<HTMLElement>(".ArtistsRow");
+      let artistsElement = MetadataContainer.querySelector<HTMLElement>(".Artists");
+
+      if (!artistsRow && artistsElement) {
+        artistsRow = document.createElement("div");
+        artistsRow.className = "ArtistsRow";
+        artistsElement.replaceWith(artistsRow);
+        artistsRow.appendChild(artistsElement);
+      }
+
+      if (artistsRow && !artistsElement) {
+        artistsElement = document.createElement("div");
+        artistsElement.className = "Artists";
+        artistsRow.appendChild(artistsElement);
+      }
+
+      return { artistsRow, artistsElement };
+    };
+    const { artistsRow: ArtistsRow, artistsElement: ArtistsDiv } = ensureArtistsRow();
 
     if (contentType === "episode") {
       const showName = SpotifyPlayer.GetShowName();
@@ -1154,6 +1274,10 @@ function UpdateNowBar(force = false) {
         const span = ArtistsDiv.querySelector("span");
         if (span) span.textContent = showName ?? "";
       }
+      ArtistsRow?.querySelector(".ArtistYear")?.remove();
+      ArtistsRow?.removeAttribute("data-sl-year");
+      ArtistsRow?.removeAttribute("data-sl-year-pos");
+      ArtistsDiv?.classList.remove("has-year-before", "has-year-after");
     }
 
     const artists = SpotifyPlayer.GetArtists();
@@ -1168,6 +1292,10 @@ function UpdateNowBar(force = false) {
           if (artistId) {
             span.classList.add("Clickable");
             span.onclick = async () => {
+              if (IsPIP) {
+                Session.Navigate({ pathname: `/artist/${artistId}` });
+                return;
+              }
               await Fullscreen.Close();
               Session.Navigate({ pathname: `/artist/${artistId}` });
             };
@@ -1183,6 +1311,70 @@ function UpdateNowBar(force = false) {
         const span = ArtistsDiv.querySelector("span");
         if (span) span.textContent = artists.map((artist) => artist.name).join(", ");
       }
+    }
+
+    const applyReleaseYear = (releaseYear: string | undefined, pending = false) => {
+      ArtistsRow?.querySelectorAll(".ArtistYear, .ReleaseYear, .ReleaseYearSeparator").forEach((el) => el.remove());
+      ArtistsDiv?.classList.remove("has-year-before", "has-year-after");
+      const releaseYearPosition = Defaults.ReleaseYearPosition;
+      if (
+        releaseYearPosition === "Off" ||
+        contentType === "episode" ||
+        !releaseYear ||
+        !ArtistsRow ||
+        !ArtistsDiv
+      ) {
+        ArtistsRow?.removeAttribute("data-sl-year");
+        ArtistsRow?.removeAttribute("data-sl-year-pos");
+        ArtistsRow?.removeAttribute("data-sl-year-pending");
+        return;
+      }
+
+      const releaseYearElement = document.createElement("span");
+      const isBeforeArtist =
+        releaseYearPosition === "Left" || releaseYearPosition === "Before Artist";
+      releaseYearElement.className = `ArtistYear ${isBeforeArtist ? "before" : "after"}`;
+      releaseYearElement.textContent = releaseYear;
+
+      if (isBeforeArtist) {
+        ArtistsRow.insertBefore(releaseYearElement, ArtistsDiv);
+        ArtistsDiv.classList.add("has-year-before");
+      } else {
+        ArtistsRow.appendChild(releaseYearElement);
+        ArtistsDiv.classList.add("has-year-after");
+      }
+      ArtistsRow.setAttribute("data-sl-year", releaseYear);
+      ArtistsRow.setAttribute("data-sl-year-pos", releaseYearPosition);
+      ArtistsRow.setAttribute("data-sl-year-pending", pending ? "1" : "0");
+      if (!pending) lastDisplayedReleaseYear = releaseYear;
+    };
+
+    const syncReleaseYear = SpotifyPlayer.GetAlbumReleaseYearSync();
+    const albumUri = SpotifyPlayer.GetAlbumUri();
+    const trackId = SpotifyPlayer.GetId();
+    if (albumUri && syncReleaseYear) releaseYearCache.set(albumUri, syncReleaseYear);
+
+    const cachedReleaseYear = albumUri ? releaseYearCache.get(albumUri) : undefined;
+    const releaseYearToRender = syncReleaseYear ?? cachedReleaseYear ?? lastDisplayedReleaseYear;
+    applyReleaseYear(releaseYearToRender, !syncReleaseYear && !cachedReleaseYear && !!lastDisplayedReleaseYear);
+    WatchMetadataMarquee(MetadataContainer);
+
+    if (!syncReleaseYear && albumUri && !cachedReleaseYear) {
+      SpotifyPlayer.GetAlbumReleaseYear(albumUri).then((releaseYear) => {
+        if (!MetadataContainer.isConnected) return;
+        if (SpotifyPlayer.GetUri() !== updateUri) return;
+        if (releaseYear) releaseYearCache.set(albumUri, releaseYear);
+        applyReleaseYear(releaseYear);
+        WatchMetadataMarquee(MetadataContainer);
+        if (releaseYear || !trackId) return;
+        SpotifyPlayer.GetReleaseYear(trackId).then((trackReleaseYear) => {
+          if (!MetadataContainer.isConnected) return;
+          if (SpotifyPlayer.GetUri() !== updateUri) return;
+          if (trackReleaseYear) releaseYearCache.set(albumUri, trackReleaseYear);
+          applyReleaseYear(trackReleaseYear);
+          WatchMetadataMarquee(MetadataContainer);
+        }).catch(() => undefined);
+      }).catch(() => undefined);
     }
 
     setTimeout(() => MetadataContainer.classList.remove("tr_VisuallyHidden"), 80);
@@ -1374,8 +1566,13 @@ Global.Event.listen("compact-mode:disable", () => {
   RepositionTimeline();
 });
 
-$timelineOutsideMediaContent.subscribe(() => {
+$alwaysShowInFullscreen.subscribe(() => {
   RepositionTimeline();
+  RepositionPlaybackControls();
+});
+
+$releaseYearPosition.subscribe(() => {
+  UpdateNowBar(true);
 });
 
 export {

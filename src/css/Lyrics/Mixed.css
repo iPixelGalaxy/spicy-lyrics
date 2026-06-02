@@ -75,6 +75,8 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .letter,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .word,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letter,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.static {
   background-image: linear-gradient(
     var(--gradient-degrees),
@@ -219,6 +221,26 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letterGroup {
   --text-shadow-blur-radius: 4px;
   --text-shadow-opacity: 0%;
+  /* Extend compositing layer boundaries to cover italic/oblique glyph overhang.
+     GPU-composited layers are clipped to the element's layout box, which cuts off
+     slanted glyphs at the box edges — most visibly on the active (animated) line.
+     Padding extends the layer; negative margin cancels the layout impact. */
+  padding-inline: 0.3em;
+  margin-inline: -0.3em;
+  padding-block: 0.15em;
+  margin-block: -0.15em;
+}
+
+/* Fix for line-synced mode: extend GPU compositing layer to capture italic/oblique glyph overhang.
+   In data-lyrics-type="Line", the .line itself is the animated unit (scale transition).
+   Only padding-block is used here — no negative margin — because inter-line spacing already
+   comes from the explicit margin on .line and must not be overridden. */
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer[data-lyrics-type="Line"]
+  .line:not(.musical-line) {
+  padding-block: 0.15em;
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line:not(.musical-line) .word,
@@ -305,6 +327,14 @@
   .letterGroup:not(.PartOfWord, .dot, .LastWordInLine)::after {
   content: "";
   margin-right: 0.32ch;
+}
+
+#SpicyLyricsPage.SpicyRenderer.GibberishLyricsMode
+  .LyricsContainer
+  .LyricsContent
+  .line
+  :is(.word, .letterGroup):not(.dot)::after {
+  margin-right: 0;
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.NotSung .word,
@@ -477,12 +507,12 @@
   /* Sized relative to the parent's (inherited) font-size — see .Credits note. */
   font-size: 0.35em !important;
   font-weight: 600;
-  margin: 1cqw 0 0 !important;
+  margin: 0.1875cqw 0 0 !important;
   color: white;
   scale: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.29cqw;
+  gap: 0.145cqw;
 }
 
 .spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo {
@@ -541,6 +571,10 @@
     scale 0.2s cubic-bezier(0.37, 0, 0.63, 1),
     opacity 0.2s cubic-bezier(0.37, 0, 0.63, 1) !important;
   margin: var(--SpicyLyrics-LineSpacing, 2cqw 0);
+  /* Counteract the padding-block added for italic glyph overhang (see earlier rule).
+     margin-block after margin: wins the cascade within this block. 1cqw matches
+     the block component of --SpicyLyrics-LineSpacing so text-to-text spacing is unchanged. */
+  margin-block: calc(1cqw - 0.15em);
   /*   text-shadow: 0 0 var(--text-shadow-blur-radius) rgba(255,255,255,var(--text-shadow-opacity)); */
 }
 
@@ -932,7 +966,7 @@ body.SpicySidebarLyrics__Active
   font-size: 0.47em !important;
   font-weight: 600 !important;
   opacity: 0.6;
-  margin: 1cqw 0 0 !important;
+  margin: 0.5cqw 0 0 !important;
   scale: 1;
   color: white;
 }
@@ -943,7 +977,7 @@ body.SpicySidebarLyrics__Active
   font-size: 0.34em !important;
   font-weight: 600 !important;
   opacity: 0.5;
-  margin: .75cqw 1px 0 !important;
+  margin: 0.75cqw 1px 0 !important;
   scale: 1;
   color: white;
 }
@@ -976,7 +1010,7 @@ body.SpicySidebarLyrics__Active
   transform-origin: center center;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer:not([data-lyrics-type="Static"]) .line:hover::before {
+#SpicyLyricsPage.SpicyRenderer.DisplayLyricsHoverPill .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer:not([data-lyrics-type="Static"]) .line:hover::before {
   opacity: 1;
   scale: 1.05;
 }

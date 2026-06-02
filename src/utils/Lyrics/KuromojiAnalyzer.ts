@@ -1,5 +1,6 @@
 // deno-lint-ignore-file no-async-promise-executor no-explicit-any
 import { RetrievePackage } from "../ImportPackage.ts";
+import { patchJapaneseTokenReading } from "./JapaneseReadingOverrides.ts";
 
 RetrievePackage("Kuromoji", "1.0.0", "js")
   .catch(() => {});
@@ -34,6 +35,7 @@ export const parse = (text = ""): Promise<any> => {
 
   const result = Analyzer.tokenize(text) as any[];
   for (const token of result) {
+    patchJapaneseTokenReading(token);
     token.verbose = {
       word_id: token.word_id,
       word_type: token.word_type,

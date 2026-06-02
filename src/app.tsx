@@ -16,13 +16,32 @@ import ApplyDynamicBackground, {
   KawarpMap,
 } from "./components/DynamicBG/dynamicBackground.ts";
 import {
+  $alwaysShowInFullscreen,
+  $animateFullscreenClose,
+  $buildChannel,
+  $coverArtAnimation,
   $currentLyricsData,
+  $customFont,
+  $customFontEnabled,
+  $disabledLyricsSources,
+  $displayLyricsHoverPill,
+  $enableExperimentalWordSync,
+  $escapeKeyFunction,
   $showNpvDynamicBg,
+  $ignoreMusixmatchWordSync,
+  $lyricsSourceOrder,
+  $memeFormat,
+  $musixmatchToken,
+  $prioritizeAppleMusicQuality,
   $popupLyricsAllowed,
+  $releaseYearPosition,
+  $rightAlignLyrics,
+  $showVolumeSliderFullscreen,
   $spicyLyricsVersion,
   $staticBackgroundMode,
   $developerMode,
 } from "./utils/stores.ts";
+import Defaults from "./components/Global/Defaults.ts";
 import Global from "./components/Global/Global.ts";
 import Platform from "./components/Global/Platform.ts";
 import Session from "./components/Global/Session.ts";
@@ -30,7 +49,12 @@ import { SpotifyPlayer } from "./components/Global/SpotifyPlayer.ts";
 import PageView, { GetPageRoot, PageContainer } from "./components/Pages/PageView.ts";
 import LoadFonts, { ApplyFontPixel } from "./components/Styling/Fonts.ts";
 import { Icons } from "./components/Styling/Icons.ts";
-import Fullscreen, { EnterSpicyLyricsFullscreen, ExitFullscreenElement } from "./components/Utils/Fullscreen.ts";
+import Fullscreen, {
+  EnterSpicyLyricsFullscreen,
+  ExitFullscreenElement,
+  RefreshFullscreenControlsVisibility,
+  RefreshFullscreenVolumeSlider,
+} from "./components/Utils/Fullscreen.ts";
 import { UpdateNowBar } from "./components/Utils/NowBar.ts";
 import {
   CloseSidebarLyrics,
@@ -47,25 +71,132 @@ import ApplyLyrics from "./utils/Lyrics/Global/Applyer.ts";
 import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts";
-import { $fromVersion, $lastFetchedUri, $previousVersion, $sidebarStatus } from "./utils/uiState.ts";
-import { CheckForUpdates } from "./utils/version/CheckForUpdates.tsx";
+import { $lastFetchedUri, $previousVersion, $sidebarStatus } from "./utils/uiState.ts";
 import { needsMigration, showMigrationModal } from "./utils/migration/DataMigration.tsx";
+import { OpenBuildChannelPanel } from "./utils/openBuildChannelPanel.tsx";
 import "./css/settings-panel.css";
 import "./components/ReactComponents/LyricsManager/styles.css";
 import "./css/polyfills/generic-modal-polyfill.css";
 import "./css/polyfills/sonner-polyfill.css";
-import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
 import { IsPIP, OpenPopupLyrics, ClosePopupLyrics } from "./components/Utils/PopupLyrics.ts";
 import ReactDOM from "react-dom/client";
-import { PopupModal } from "./components/Modal.ts";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
 import "./utils/settings.ts";
 import SLToaster from "./components/ReactComponents/SLToaster.tsx";
 import { openSettingsPanel } from "./utils/settings.ts";
+import { PopupModal } from "./components/Modal.ts";
 import { exposeToWindow } from "./utils/expose.ts";
-import Logger from "./utils/logger.ts";
+import Logger from "./utils/Logger.ts";
 import Whentil from "./modules/Whentil.ts";
 import App from "./utils/app.ts";
+import { toCssFontFamily } from "./utils/cssFontFamily.ts";
+
+function bindDefault<T>(store: { get: () => T; listen: (listener: (value: T) => void) => () => void }, assign: (value: T) => void) {
+  assign(store.get());
+  store.listen(assign);
+}
+
+function applyCustomFont(enabled = $customFontEnabled.get(), font = $customFont.get()) {
+  const cssFontFamily = toCssFontFamily(font);
+  if (enabled && cssFontFamily) {
+    document.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
+  } else {
+    document.documentElement.style.removeProperty("--spicy-custom-font");
+  }
+}
+
+function closeSettingsOwnedModalOnNavigation(data: Location) {
+  if (!PopupModal.isConnected) return;
+  if (data.pathname === "/SpicyLyrics/Update") return;
+
+  const settingsOwnedModal = PopupModal.querySelector(
+    ".slmodal-settingsPanel, .slmodal-buildChannelPanel, .slmodal-lyricsSourcesManager, .slmodal-settingsTTMLDatabase"
+  );
+  if (settingsOwnedModal) PopupModal.hide();
+}
+
+function syncLegacyStaticBackgroundSettings(mode: string) {
+  const normalizedMode = mode === "off" ? "default" : mode;
+  const legacyTypeMap: Record<string, string> = {
+    auto: "Auto",
+    artistHeader: "Artist Header Visual",
+    coverArt: "Cover Art",
+    color: "Color",
+  };
+
+  if (legacyTypeMap[normalizedMode]) {
+    Spicetify.LocalStorage.set("SpicyLyrics-staticBackground", JSON.stringify(true));
+    Spicetify.LocalStorage.set("SpicyLyrics-staticBackgroundType", JSON.stringify(legacyTypeMap[normalizedMode]));
+    return;
+  }
+
+  // Official builds do not understand this fork's Legacy mode. Persist it as
+  // old-plugin Off so switching back to Stable cannot resurrect stale Cover Art.
+  Spicetify.LocalStorage.set("SpicyLyrics-staticBackground", JSON.stringify(false));
+  Spicetify.LocalStorage.set("SpicyLyrics-staticBackgroundType", JSON.stringify("Auto"));
+}
+
+function reapplyCurrentLyrics() {
+  const rawLyrics = $currentLyricsData.get();
+  if (!rawLyrics || rawLyrics.startsWith("NO_LYRICS:")) return;
+  try {
+    ApplyLyrics([JSON.parse(rawLyrics), 200]);
+  } catch {
+    // Ignore non-JSON notice states.
+  }
+}
+
+function bindForkDefaults() {
+  bindDefault($rightAlignLyrics, (value) => { Defaults.RightAlignLyrics = value; });
+  bindDefault($escapeKeyFunction, (value) => { Defaults.EscapeKeyFunction = value; });
+  bindDefault($buildChannel, (value) => { Defaults.BuildChannel = value; });
+  bindDefault($customFontEnabled, (value) => {
+    Defaults.CustomFontEnabled = value;
+    applyCustomFont(value, $customFont.get());
+  });
+  bindDefault($customFont, (value) => {
+    Defaults.CustomFont = value;
+    applyCustomFont($customFontEnabled.get(), value);
+  });
+  bindDefault($alwaysShowInFullscreen, (value) => {
+    Defaults.AlwaysShowInFullscreen = value;
+    RefreshFullscreenControlsVisibility();
+  });
+  bindDefault($showVolumeSliderFullscreen, (value) => {
+    Defaults.ShowVolumeSliderFullscreen = value;
+    RefreshFullscreenVolumeSlider();
+  });
+  bindDefault($releaseYearPosition, (value) => { Defaults.ReleaseYearPosition = value; });
+  bindDefault($coverArtAnimation, (value) => { Defaults.CoverArtAnimation = value; });
+  bindDefault($staticBackgroundMode, syncLegacyStaticBackgroundSettings);
+  bindDefault($memeFormat, (value) => {
+    Defaults.MemeFormat = value === "Gibberish" ? "Gibberish" : "Off";
+    reapplyCurrentLyrics();
+  });
+  bindDefault($displayLyricsHoverPill, (value) => { Defaults.DisplayLyricsHoverPill = value; });
+  bindDefault($animateFullscreenClose, (value) => { Defaults.AnimateFullscreenClose = value; });
+  bindDefault($enableExperimentalWordSync, (value) => { Defaults.EnableExperimentalWordSync = value; });
+  bindDefault($lyricsSourceOrder, (value) => {
+    try {
+      Defaults.LyricsSourceOrder = JSON.parse(value);
+    } catch {
+      Defaults.LyricsSourceOrder = ["spicy", "musixmatch", "apple", "spotify", "lrclib", "netease"];
+    }
+  });
+  bindDefault($disabledLyricsSources, (value) => {
+    try {
+      Defaults.DisabledLyricsSourceIds = JSON.parse(value);
+    } catch {
+      Defaults.DisabledLyricsSourceIds = ["lrclib", "netease"];
+    }
+  });
+  bindDefault($ignoreMusixmatchWordSync, (value) => { Defaults.IgnoreMusixmatchWordSync = value; });
+  bindDefault($prioritizeAppleMusicQuality, (value) => { Defaults.PrioritizeAppleMusicQuality = value; });
+  bindDefault($musixmatchToken, () => {});
+  bindDefault($developerMode, (value) => { Defaults.DeveloperMode = value; });
+}
+
+bindForkDefaults();
 
 async function main() {
   const appLogger = new Logger("App");
@@ -126,16 +257,16 @@ async function main() {
 
         @keyframes Marquee_SongName {
           0% {
-            transform: translateX(calc(0px + min(-100% + 86cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 0));
           }
           10% {
-            transform: translateX(calc(0px + min(-100% + 86cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 0));
           }
           90% {
-            transform: translateX(calc(0px + min(-100% + 86cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 1));
           }
           100% {
-            transform: translateX(calc(0px + min(-100% + 86cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 1));
           }
         }
 
@@ -156,16 +287,16 @@ async function main() {
 
         @keyframes Marquee_Artists {
           0% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 0));
           }
           10% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 0));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 0));
           }
           90% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 1));
           }
           100% {
-            transform: translateX(calc(0px + min(-100% + 81cqw, 0px) * 1));
+            transform: translateX(calc(0px + min(-100% + 100cqw, 0px) * 1));
           }
         }
 
@@ -246,6 +377,28 @@ async function main() {
   document.head.appendChild(skeletonStyle);
 
   let ButtonList: any;
+  const syncPopupLyricsButtonVisibility = () => {
+    const popupButton = ButtonList?.[2]?.Button;
+    const popupButtonElement = popupButton?.element as HTMLElement | undefined;
+    const popupLyricsAllowed = $popupLyricsAllowed.get();
+    const isPopupButtonConnected = !!popupButtonElement?.isConnected;
+
+    if (popupButton) {
+      if (popupLyricsAllowed && !isPopupButtonConnected) {
+        popupButton.register();
+      } else if (!popupLyricsAllowed && isPopupButtonConnected) {
+        popupButton.deregister();
+      }
+    }
+
+    document.querySelector<HTMLElement>("#SpicyLyrics_PopupLyricsButton")?.classList.toggle("disabled", !popupLyricsAllowed);
+
+    const spotifyPipButton = document.querySelector<HTMLElement>('[data-testid="pip-toggle-button"]');
+    if (spotifyPipButton) {
+      spotifyPipButton.style.display = popupLyricsAllowed ? "none" : "";
+    }
+  };
+
   if (SpotifyPlayer.Playbar?.Button) {
     ButtonList = [
       {
@@ -314,7 +467,7 @@ async function main() {
       {
         Registered: false,
         Button: (
-          (('documentPictureInPicture' in window) && ($popupLyricsAllowed.get()))
+          ('documentPictureInPicture' in window)
             ? new SpotifyPlayer.Playbar.Button(
               "Spicy Popup Lyrics",
               Icons.PiPMode,
@@ -376,11 +529,65 @@ async function main() {
   // Add shift key tracking
   Global.Saves.shift_key_pressed = false;
 
-  window.addEventListener("keydown", (e) => {
+  let isHandlingEscape = false;
+  const handleEscapeKey = async () => {
+    if (isHandlingEscape || IsPIP) return true;
+    if (PopupModal.isConnected && PopupModal.querySelector(".slmodal-settingsPanel")) {
+      PopupModal.hide();
+      return true;
+    }
+
+    if (!PageView.IsOpened) return false;
+
+    isHandlingEscape = true;
+    try {
+      switch (Defaults.EscapeKeyFunction) {
+        case "Exit Fullscreen": {
+          if (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen) {
+            await Fullscreen.Close();
+            return true;
+          }
+          return false;
+        }
+        case "Exit Fully": {
+          if (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen) {
+            await Fullscreen.Close();
+          }
+          Session.GoBack();
+          return true;
+        }
+        default: {
+          if (Fullscreen.IsOpen && !Fullscreen.CinemaViewOpen && document.fullscreenElement) {
+            return false;
+          }
+          if (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen) {
+            await Fullscreen.Close();
+            Session.GoBack();
+            return true;
+          }
+          Session.GoBack();
+          return true;
+        }
+      }
+    } finally {
+      isHandlingEscape = false;
+    }
+  };
+
+  window.addEventListener("keydown", async (e) => {
     if (e.key === "Shift") {
       Global.Saves.shift_key_pressed = true;
+      return;
     }
-  });
+
+    if (e.key === "Escape") {
+      const handled = await handleEscapeKey();
+      if (handled) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  }, true);
 
   window.addEventListener("keyup", (e) => {
     if (e.key === "Shift") {
@@ -400,6 +607,7 @@ async function main() {
         button.Registered = true;
       }
     }
+    syncPopupLyricsButtonVisibility();
   });
 
   {
@@ -410,10 +618,11 @@ async function main() {
     fullscreenButton.element.id = "SpicyLyrics_FullscreenButton";
 
     const popupLyricsButton = ButtonList[2].Button;
-    if (popupLyricsButton && ('documentPictureInPicture' in window) && $popupLyricsAllowed.get()) {
+    if (popupLyricsButton && ('documentPictureInPicture' in window)) {
       popupLyricsButton.element.style.order = "100000";
       popupLyricsButton.element.id = "SpicyLyrics_PopupLyricsButton";
     }
+    syncPopupLyricsButtonVisibility();
 
     const hideUnwantedButtons = (container: Element) => {
       for (const element of container.children) {
@@ -495,6 +704,7 @@ async function main() {
     };
 
     startObservingDOM();
+    $popupLyricsAllowed.listen(syncPopupLyricsButtonVisibility);
   }
 
   let button: any;
@@ -509,26 +719,6 @@ async function main() {
         requestPositionSync();
       }
     );
-
-    const fromVersion = $fromVersion.get();
-    if (fromVersion !== $spicyLyricsVersion.get()) {
-      const div = document.createElement("div");
-      const reactRoot = ReactDOM.createRoot(div);
-      reactRoot.render(
-        <UpdateDialog fromVersion={fromVersion} spicyLyricsVersion={$spicyLyricsVersion.get()} />
-      );
-
-      PopupModal.display({
-        title: "Spicy Lyrics",
-        content: div,
-        isLarge: true,
-        onClose: () => {
-          reactRoot.unmount();
-        }
-      });
-    }
-
-    $fromVersion.set($spicyLyricsVersion.get());
 
     {
       const div = document.createElement("div");
@@ -745,9 +935,9 @@ async function main() {
         fetchLyrics(songUri).then(ApplyLyrics);
       }
 
-      const _staticBgMode = $staticBackgroundMode.get();
+      const _staticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
       if (
-        _staticBgMode !== "off" &&
+        _staticBgMode !== "default" &&
         !SpotifyPlayer.IsDJ() &&
         (_staticBgMode === "auto" || _staticBgMode === "artistHeader")
       ) {
@@ -782,9 +972,9 @@ async function main() {
       fetchLyrics(initUri).then(ApplyLyrics);
     }
 
-    const _initStaticBgMode = $staticBackgroundMode.get();
+    const _initStaticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
     if (
-      _initStaticBgMode !== "off" &&
+      _initStaticBgMode !== "default" &&
       !SpotifyPlayer.IsDJ() &&
       (_initStaticBgMode === "auto" || _initStaticBgMode === "artistHeader")
     ) {
@@ -1039,19 +1229,12 @@ async function main() {
       Session.RecordNavigation(Spicetify.Platform.History.location);
 
       Global.Event.listen("session:navigation", (data: Location) => {
+        closeSettingsOwnedModalOnNavigation(data);
         if (data.pathname === "/SpicyLyrics/Update") {
-          $fromVersion.set($spicyLyricsVersion.get());
-          window._spicy_lyrics_metadata = {};
           Session.GoBack();
-          window.location.reload();
+          OpenBuildChannelPanel();
         }
       });
-
-      const CheckForUpdates_Intervaled = async () => {
-        await CheckForUpdates();
-        setTimeout(CheckForUpdates_Intervaled, 300 * 1000);
-      };
-      setTimeout(async () => await CheckForUpdates_Intervaled(), 1000);
     }
   };
 
@@ -1079,15 +1262,34 @@ async function main() {
   runThemeMatcher();
 
   Spicetify.Keyboard.registerImportantShortcut(Spicetify.Keyboard.KEYS.ESCAPE, async () => {
-    if (IsPIP) return;
-    if (Fullscreen.CinemaViewOpen) {
-      await Fullscreen.Close();
-      Session.GoBack();
-    }
+    await handleEscapeKey();
   });
 
+  let isHandlingDocumentFullscreenExit = false;
   document.addEventListener("fullscreenchange", async () => {
+    if (isHandlingDocumentFullscreenExit) return;
     if (!document.fullscreenElement && Fullscreen.IsOpen && !Fullscreen.CinemaViewOpen) {
+      if (Defaults.EscapeKeyFunction === "Exit Fullscreen") {
+        isHandlingDocumentFullscreenExit = true;
+        try {
+          await Fullscreen.Close();
+        } finally {
+          isHandlingDocumentFullscreenExit = false;
+        }
+        return;
+      }
+
+      if (Defaults.EscapeKeyFunction === "Exit Fully") {
+        isHandlingDocumentFullscreenExit = true;
+        try {
+          await Fullscreen.Close();
+          Session.GoBack();
+        } finally {
+          isHandlingDocumentFullscreenExit = false;
+        }
+        return;
+      }
+
       Fullscreen.CinemaViewOpen = true;
       await ExitFullscreenElement();
       PageView.AppendViewControls(true);

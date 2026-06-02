@@ -46,7 +46,7 @@ function persistAtom<T>(key: string, defaultValue: T) {
 }
 
 // Setting atoms (persisted)
-export const $staticBackgroundMode = persistAtom<string>("staticBackgroundMode", "off");
+export const $staticBackgroundMode = persistAtom<string>("staticBackgroundMode", "default");
 export const $simpleLyricsMode = persistAtom<boolean>("simpleLyricsMode", false);
 export const $simpleLyricsModeRenderingType = persistAtom<string>("simpleLyricsModeRenderingType", "calculate");
 export const $minimalLyricsMode = persistAtom<boolean>("minimalLyricsMode", false);
@@ -66,7 +66,30 @@ export const $popupLyricsAllowed = (() => {
 export const $viewControlsPosition = persistAtom<string>("viewControlsPosition", "Top");
 export const $ttmlMakerMode = persistAtom<boolean>("ttmlMakerMode", true);
 export const $developerMode = persistAtom<boolean>("developerMode", false);
-export const $timelineOutsideMediaContent = persistAtom<boolean>("timelineOutsideMediaContent", true);
+export const $rightAlignLyrics = persistAtom<boolean>("rightAlignLyrics", false);
+export const $escapeKeyFunction = persistAtom<string>("escapeKeyFunction", "Default");
+export const $buildChannel = persistAtom<string>("buildChannel", "Stable");
+export const $customFontEnabled = persistAtom<boolean>("customFontEnabled", false);
+export const $customFont = persistAtom<string>("customFont", "");
+export const $alwaysShowInFullscreen = persistAtom<string>("alwaysShowInFullscreen", "None");
+export const $showVolumeSliderFullscreen = persistAtom<string>("showVolumeSliderFullscreen", "Off");
+export const $releaseYearPosition = persistAtom<string>("releaseYearPosition", "Off");
+export const $coverArtAnimation = persistAtom<boolean>("coverArtAnimation", true);
+export const $memeFormat = persistAtom<string>("memeFormat", "Off");
+export const $displayLyricsHoverPill = persistAtom<boolean>("displayLyricsHoverPill", false);
+export const $animateFullscreenClose = persistAtom<boolean>("animateFullscreenClose", false);
+export const $enableExperimentalWordSync = persistAtom<boolean>("enableExperimentalWordSync", false);
+export const $lyricsSourceOrder = persistAtom<string>(
+  "lyricsSourceOrder",
+  JSON.stringify(["spicy", "musixmatch", "apple", "spotify", "lrclib", "netease"])
+);
+export const $disabledLyricsSources = persistAtom<string>(
+  "disabledLyricsSources",
+  JSON.stringify(["lrclib", "netease"])
+);
+export const $ignoreMusixmatchWordSync = persistAtom<boolean>("ignoreMusixmatchWordSync", true);
+export const $prioritizeAppleMusicQuality = persistAtom<boolean>("prioritizeAppleMusicQuality", true);
+export const $musixmatchToken = persistAtom<string>("musixmatchToken", "");
 
 // Version atom — NOT persisted, set once at startup
 export const $spicyLyricsVersion = atom<string>(

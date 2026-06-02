@@ -19,8 +19,10 @@ import { CreateLyricsContainer, DestroyAllLyricsContainers } from "./CreateLyric
 import { initLyricsVirtualizer } from "../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "./Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
+import { ApplyExperimentalWordSyncNotice } from "./Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "./OnApply.ts";
 import { ApplyLyricsProvider } from "./Credits/ApplyProvider.ts";
+import Defaults from "../../../components/Global/Defaults.ts";
 
 /**
  * Interface for static lyrics data
@@ -30,11 +32,16 @@ export interface StaticLyricsData {
   Lines: Array<{
     Text: string;
     TransliteratedText?: string;
+    GibberishText?: string;
   }>;
   offline?: boolean;
   classes?: string;
   styles?: StyleProperties;
-  source?: "spt" | "spl" | "aml";
+  source?: string;
+  sourceDisplayName?: string;
+  fetchProvider?: string;
+  experimentalWordSync?: boolean;
+  experimentalWordSyncSource?: "Line" | "Static" | string;
 }
 
 /**
@@ -79,7 +86,9 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
     const lineElem = document.createElement("div");
 
     lineElem.textContent =
-      UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
+      Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined
+        ? line.GibberishText
+        : UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
       lineElem.classList.add("rtl");
@@ -98,6 +107,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   });
 
   ApplyLyricsCredits(data, LyricsContainer);
+  ApplyExperimentalWordSyncNotice(data, LyricsContainer);
   ApplyLyricsProvider(data, LyricsContainer);
   ApplyIsByCommunity(data, LyricsContainer);
   if (LyricsContainerParent) {

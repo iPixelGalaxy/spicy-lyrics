@@ -35,6 +35,10 @@ function isAudioAnalysisData(data: unknown): data is AudioAnalysisData {
     return !!parsed.track && Array.isArray(parsed.sections) && Array.isArray(parsed.beats);
 }
 
+function isSpotifyTrackId(trackId: string): boolean {
+    return /^[A-Za-z0-9]{22}$/.test(trackId);
+}
+
 /**
  * Gets and validates the Spotify audio analysis for a given track ID.
  * * @param trackId The base62 Spotify track ID (e.g., '4uLU6hMCjMI75M1A2tKUQC')
@@ -42,6 +46,10 @@ function isAudioAnalysisData(data: unknown): data is AudioAnalysisData {
  */
 export async function getDynamicAudioAnalysis(trackId: string): Promise<AudioAnalysisData | null> {
     if (!trackId) {
+        return null;
+    }
+
+    if (!isSpotifyTrackId(trackId)) {
         return null;
     }
 

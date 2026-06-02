@@ -128,27 +128,6 @@ function convertSyllableToStatic(syllableLyrics: SyllableLyrics): StaticLine[] {
           }
         }
 
-        // Process background vocals if present
-        if (content.Background && Array.isArray(content.Background)) {
-          content.Background.forEach((bgVocal) => {
-            if (bgVocal.Syllables) {
-              let bgLineText = "";
-              const bgSyllables = bgVocal.Syllables;
-
-              for (let i = 0; i < bgSyllables.length; i++) {
-                const syllable = bgSyllables[i];
-                bgLineText += syllable.Text;
-                if (i < bgSyllables.length - 1 && !syllable.IsPartOfWord) {
-                  bgLineText += " ";
-                }
-              }
-
-              if (bgLineText.trim() && lines.length > 0) {
-                lines[lines.length - 1].Text += ` (${bgLineText.trim()})`;
-              }
-            }
-          });
-        }
       }
     });
   }
@@ -230,27 +209,6 @@ function convertSyllableToLine(syllableLyrics: SyllableLyrics): LineVocalContent
           }
         }
 
-        // Process background vocals if present
-        if (syllableContent.Background && Array.isArray(syllableContent.Background)) {
-          syllableContent.Background.forEach((bgVocal) => {
-            if (bgVocal.Syllables) {
-              let bgLineText = "";
-              const bgSyllables = bgVocal.Syllables;
-
-              for (let i = 0; i < bgSyllables.length; i++) {
-                const syllable = bgSyllables[i];
-                bgLineText += syllable.Text;
-                if (i < bgSyllables.length - 1 && !syllable.IsPartOfWord) {
-                  bgLineText += " ";
-                }
-              }
-
-              if (bgLineText.trim() && content.length > 0) {
-                content[content.length - 1].Text += ` (${bgLineText.trim()})`;
-              }
-            }
-          });
-        }
       }
     });
   }

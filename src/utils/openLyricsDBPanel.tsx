@@ -5,17 +5,62 @@ import LyricsDBPanel from "../components/ReactComponents/LyricsManager/index.tsx
 import UploadTTMLModal from "../components/ReactComponents/LyricsManager/components/UploadTTMLModal.tsx";
 
 export function OpenLyricsDBPanel() {
+  _openUpload();
+}
+
+export function OpenTTMLDatabasePanel() {
+  if (PopupModal.isConnected) {
+    _openDB();
+    return;
+  }
+
   const container = document.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {
-    root.render(<LyricsDBPanel onUploadClick={_openUpload} />);
+    root.render(<LyricsDBPanel onBack={_openUpload} />);
   });
 
   PopupModal.display({
-    title: "Local Lyrics DB",
+    title: "TTML Database",
     content: container,
     isLarge: true,
+    onClose: () => root.unmount(),
+  });
+}
+
+export async function OpenTTMLDatabasePanelFromSettings() {
+  const { default: SettingsPanel } = await import("../components/ReactComponents/SettingsPanel/index.tsx");
+  const openSettings = () => {
+    const container = document.createElement("div");
+    const root = ReactDOM.createRoot(container);
+    flushSync(() => {
+      root.render(<SettingsPanel />);
+    });
+    PopupModal.transition({
+      title: "Settings",
+      content: container,
+      onClose: () => root.unmount(),
+      modalId: "settingsPanel",
+    });
+  };
+
+  _openDB(openSettings, "settingsTTMLDatabase");
+}
+
+function _openDB(onBack = _openUpload, modalId: string | null = null) {
+  const container = document.createElement("div");
+  const root = ReactDOM.createRoot(container);
+
+  flushSync(() => {
+    root.render(<LyricsDBPanel onBack={onBack} />);
+  });
+
+  PopupModal.transition({
+    title: "TTML Database",
+    content: container,
+    isLarge: true,
+    modalId,
     onClose: () => root.unmount(),
   });
 }
@@ -27,35 +72,22 @@ function _openUpload() {
   flushSync(() => {
     root.render(
       <UploadTTMLModal
-        onBack={_openDB}
-        onDone={(mode) => {
-          if (mode === "temporary") {
-            PopupModal.hide();
-          } else {
-            _openDB();
-          }
-        }}
+        onOpenDB={_openDB}
+        onDone={() => PopupModal.hide()}
       />
     );
   });
 
-  PopupModal.transition({
+  const options = {
+    title: "Load TTML",
     content: container,
+    isLarge: true,
     onClose: () => root.unmount(),
-    closeHandler: _openDB,
-  });
-}
+  };
 
-function _openDB() {
-  const container = document.createElement("div");
-  const root = ReactDOM.createRoot(container);
-
-  flushSync(() => {
-    root.render(<LyricsDBPanel onUploadClick={_openUpload} />);
-  });
-
-  PopupModal.transition({
-    content: container,
-    onClose: () => root.unmount(),
-  });
+  if (PopupModal.isConnected) {
+    PopupModal.transition(options);
+  } else {
+    PopupModal.display(options);
+  }
 }

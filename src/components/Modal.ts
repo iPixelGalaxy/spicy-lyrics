@@ -12,6 +12,7 @@ type ModalDisplayOptions = {
 };
 
 type ModalTransitionOptions = {
+	title?: string;
 	content: any;
 	onClose?: (() => void) | null;
 	closeHandler?: (() => void) | null;
@@ -68,14 +69,18 @@ class _HTMLGenericModal extends HTMLElement {
 	 * Instantly swap modal content without hiding/re-animating.
 	 * Use for modal-to-modal transitions where the frame should stay visible.
 	 */
-	transition({ content, onClose = null, closeHandler = null, modalId = null }: ModalTransitionOptions): void {
-		if (typeof this._onClose === "function") {
-			this._onClose();
-		}
+	transition({ title, content, onClose = null, closeHandler = null, modalId = null }: ModalTransitionOptions): void {
+		const previousOnClose = this._onClose;
 		this._onClose = onClose;
 		const closeButton = this.querySelector(".sl-modal-close-btn");
 		if (closeButton) {
 			(closeButton as HTMLButtonElement).onclick = closeHandler ?? this.hide.bind(this);
+		}
+		if (title) {
+			const modal = this.querySelector(".sl-modal");
+			const modalTitle = this.querySelector(".sl-modal-title");
+			if (modal) modal.setAttribute("aria-label", title);
+			if (modalTitle) modalTitle.textContent = title;
 		}
 		this._applyModalId(modalId);
 		const main = this.querySelector("main");
@@ -86,6 +91,9 @@ class _HTMLGenericModal extends HTMLElement {
 			} else if (content instanceof Node) {
 				main.append(content);
 			}
+		}
+		if (typeof previousOnClose === "function") {
+			previousOnClose();
 		}
 	}
 

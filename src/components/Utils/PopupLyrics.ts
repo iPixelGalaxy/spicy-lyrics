@@ -132,6 +132,10 @@ export const OpenPopupLyrics = async () => {
   currentPipWindow.document.head.appendChild(additionalStylingElement);
 
   currentPipWindow.document.body.innerHTML = `<div class="app-drag-region"></div><div class="spicy-pip-wrapper"></div>`;
+  const customFont = document.documentElement.style.getPropertyValue("--spicy-custom-font");
+  if (customFont) {
+    currentPipWindow.document.documentElement.style.setProperty("--spicy-custom-font", customFont);
+  }
 
   const pipWrapper = currentPipWindow.document.body.querySelector(".spicy-pip-wrapper") as HTMLElement;
 

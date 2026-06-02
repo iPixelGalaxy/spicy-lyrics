@@ -4,7 +4,6 @@ import { LocalLyricsManager } from "./Lyrics/manager";
 import { openSettingsPanel } from "./settings";
 import { OpenLyricsDBPanel } from "./openLyricsDBPanel";
 import { DeepFreeze } from "./utils";
-import { triggerSpicyLyricsFakeUpdate } from "./version/CheckForUpdates";
 
 export function exposeToWindow() {
     const api = {
@@ -25,9 +24,6 @@ export function exposeToWindow() {
             }
         },
         testing: {
-            autoUpdate: {
-                triggerFakeUpdate: triggerSpicyLyricsFakeUpdate,
-            },
             toaster: toast,
         }
     };

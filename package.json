@@ -4,7 +4,9 @@
   "scripts": {
     "sc": "spicetify-creator",
     "dev": "spicetify-creator dev",
-    "build": "spicetify-creator build",
+    "build": "node project/build.mjs",
+    "build:creator": "spicetify-creator build",
+    "build:release": "node project/build.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt"

@@ -47,6 +47,11 @@ body.SpicySidebarLyrics__Active #SpicyLyricsPage:not(.Fullscreen) {
   font-family: SpicyLyrics, "Noto Sans Georgian", "VazirmatnRegular", sans-serif !important;
 }
 
+#SpicyLyricsPage:not(.UseSpicyFont),
+#SpicyLyricsPage:not(.UseSpicyFont) *:not(.musical-line, .musical-line *) {
+  font-family: var(--spicy-custom-font, SpicyLyrics), SpicyLyrics, "Noto Sans Georgian", "VazirmatnRegular", var(--encore-body-font-stack, sans-serif) !important;
+}
+
 .Root__main-view:has(#SpicyLyricsPage) .main-view-container__scroll-node-child,
 .Root__main-view:has(#SpicyLyricsPage) .main-view-container__scroll-node-child-spacer,
 .Root__main-view:has(#SpicyLyricsPage) .main-view-container__scroll-node-child,
@@ -474,9 +479,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       line-height: 1.45;
     }
 
-    /* Kept only for the post-update success card (UpdateDialog.tsx).
-       The update-available flow no longer renders a divider — the
-       version row provides its own visual break. */
     .uc-divider {
       height: 1px;
       background: var(--hairline);
@@ -516,10 +518,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       }
     }
 
-    /* New: horizontal action row replaces the stacked full-width pair.
-       Quiet "Later" sits left, primary "Update now" sits right. The
-       hierarchy is unambiguous and the visual weight matches the
-       importance of the choice. */
     .uc-actions {
       display: flex;
       align-items: center;
@@ -547,8 +545,7 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       }
     }
 
-    .btn-primary,
-    .btn-update {
+    .btn-primary {
       background-color: var(--accent);
       color: var(--accent-on-fill);
 

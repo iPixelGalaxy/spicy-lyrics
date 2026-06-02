@@ -1,9 +1,16 @@
 import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
+import {
+  closeIframeProfileModal,
+  showIframeProfileModal,
+} from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
 
-export function CleanUpIsByCommunity() {
+export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
+  if (closeProfileModal) {
+    closeIframeProfileModal();
+  }
   if (isByCommunityAbortController) {
     isByCommunityAbortController.abort();
     isByCommunityAbortController = null;
@@ -19,6 +26,10 @@ export function CleanUpIsByCommunity() {
 
 function openProfile(userId: string | undefined) {
   if (!userId) return;
+  if (!IsPIP) {
+    showIframeProfileModal(userId);
+    return;
+  }
   const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
   globalThis.open?.(url, "_blank", "noopener,noreferrer");
 }
@@ -46,13 +57,6 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
 
   const songInfoElement = document.createElement("div");
   songInfoElement.classList.add("SongInfo");
-
-  // Static copy – safe to set as text
-  const providedByCommunitySpan = document.createElement("span");
-  providedByCommunitySpan.style.opacity = "0.5";
-  providedByCommunitySpan.textContent =
-    "These lyrics have been provided by our community";
-  songInfoElement.appendChild(providedByCommunitySpan);
 
   const makerUsername = data.TTMLUploadMetadata?.Maker?.username;
   const makerAvatar = data.TTMLUploadMetadata?.Maker?.avatar;

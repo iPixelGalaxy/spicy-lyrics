@@ -5,7 +5,7 @@ import {
   observeElementOffset,
 } from "@tanstack/virtual-core";
 import { Maid } from "../../modules/Maid.ts";
-import Logger from "../logger.ts";
+import Logger from "../Logger.ts";
 
 // Gap scale factors relative to 1cqw (containerWidth / 100).
 // Gap is baked into each wrapper's padding-bottom so items can have
@@ -137,6 +137,10 @@ class LyricsVirtualizer {
     return el.offsetHeight;
   }
 
+  private _bottomSpacerHeight(clientHeight: number): number {
+    return Math.min(24, Math.max(8, clientHeight * 0.03));
+  }
+
   private _remeasureVisible(): void {
     const v = this._virtualizer;
     if (!v) return;
@@ -239,7 +243,7 @@ class LyricsVirtualizer {
       });
       this._containerWidth = clientWidth;
       this._containerHeight = clientHeight;
-      if (this._spacer) this._spacer.style.height = `${clientHeight / 2}px`;
+      if (this._spacer) this._spacer.style.height = `${this._bottomSpacerHeight(clientHeight)}px`;
       this._remeasureVisible();
       v._willUpdate();
       return;
@@ -252,7 +256,7 @@ class LyricsVirtualizer {
         current: clientHeight,
       });
       this._containerHeight = clientHeight;
-      if (this._spacer) this._spacer.style.height = `${clientHeight / 2}px`;
+      if (this._spacer) this._spacer.style.height = `${this._bottomSpacerHeight(clientHeight)}px`;
       v._willUpdate();
       return;
     }
@@ -430,13 +434,13 @@ class LyricsVirtualizer {
       this._scrollEl?.removeEventListener("scroll", this._onScrollDebounced);
     });
 
-    // Permanent bottom spacer at half the viewport height so the last item can be
-    // centered without temporary container-height inflation (which flickers the scrollbar).
+    // Permanent bottom spacer gives the footer a little breathing room without
+    // letting lyrics scroll far off-screen.
     const spacer = document.createElement("div");
     spacer.style.flexShrink = "0";
     spacer.style.pointerEvents = "none";
     spacer.setAttribute("aria-hidden", "true");
-    spacer.style.height = `${scrollEl.clientHeight / 2}px`;
+    spacer.style.height = `${this._bottomSpacerHeight(scrollEl.clientHeight)}px`;
     scrollEl.appendChild(spacer);
     this._spacer = spacer;
     this._maid!.Give(() => spacer.parentElement?.removeChild(spacer));
@@ -451,7 +455,7 @@ class LyricsVirtualizer {
         virtualizerLogger.debug("Ignoring width change to 0 (likely minimized)");
         return;
       }
-      if (this._spacer) this._spacer.style.height = `${el.clientHeight / 2}px`;
+      if (this._spacer) this._spacer.style.height = `${this._bottomSpacerHeight(el.clientHeight)}px`;
       if (Math.abs(newWidth - this._containerWidth) < 1) {
         // Width unchanged, but a height-only resize (vertical-only window resize,
         // PIP) still changes the visible window. The early return would otherwise

@@ -23,8 +23,10 @@ import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyri
 import { initLyricsVirtualizer } from "../../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
+import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
+import Defaults from "../../../../components/Global/Defaults.ts";
 
 // Define the data structure for lyrics
 interface LyricsLineData {
@@ -32,6 +34,7 @@ interface LyricsLineData {
   StartTime: number;
   EndTime: number;
   TransliteratedText?: string;
+  GibberishText?: string;
   OppositeAligned?: boolean;
 }
 
@@ -40,9 +43,13 @@ interface LyricsData {
   Content: LyricsLineData[];
   StartTime: number;
   SongWriters?: string[];
-  source?: "spt" | "spl" | "aml";
+  source?: string;
+  sourceDisplayName?: string;
+  fetchProvider?: string;
   classes?: string;
   styles?: Record<string, string>;
+  experimentalWordSync?: boolean;
+  experimentalWordSyncSource?: "Line" | "Static" | string;
 }
 
 export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false): void {
@@ -177,7 +184,9 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
   data.Content.forEach((line, index, arr) => {
     const lineElem = document.createElement("div");
     lineElem.textContent =
-      UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
+      Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined
+        ? line.GibberishText
+        : UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
     lineElem.classList.add("line");
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
@@ -296,6 +305,7 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
   });
 
   ApplyLyricsCredits(data, LyricsContainer);
+  ApplyExperimentalWordSyncNotice(data, LyricsContainer);
   ApplyLyricsProvider(data, LyricsContainer);
   ApplyIsByCommunity(data, LyricsContainer);
 

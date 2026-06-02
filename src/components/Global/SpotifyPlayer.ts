@@ -144,6 +144,134 @@ const hasFlacSignature = (value: unknown): boolean => {
   );
 };
 
+const LOCAL_COVER_METADATA_KEYS = [
+  "image_url",
+  "image_large_url",
+  "image_xlarge_url",
+  "imageUrl",
+  "album_image_url",
+  "albumImageUrl",
+  "cover_url",
+  "coverUrl",
+  "artwork_url",
+  "artworkUrl",
+  "album_art_url",
+  "albumArtUrl",
+  "cover",
+  "image",
+] as const;
+
+const normalizeCoverUrl = (value: unknown): string | undefined => {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const trimmed = value.trim();
+  if (trimmed.startsWith("spotify:image:")) {
+    return trimmed.replace("spotify:image:", "https://i.scdn.co/image/");
+  }
+  if (
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("data:image/") ||
+    trimmed.startsWith("blob:")
+  ) {
+    return trimmed;
+  }
+  return undefined;
+};
+
+const hashString = (value: string): number => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+};
+
+const createLocalTrackFallbackCover = (): string => {
+  const metadata = SpotifyPlayer.GetTrackMetadata();
+  const seed = [
+    SpotifyPlayer.GetName(),
+    metadata.artist_name,
+    metadata.album_title,
+    SpotifyPlayer.GetUri(),
+  ].filter(Boolean).join(" ");
+  const hash = hashString(seed || "Spicy Lyrics Local Track");
+  const hueA = hash % 360;
+  const hueB = (hueA + 52 + (hash % 40)) % 360;
+  const hueC = (hueA + 185 + (hash % 50)) % 360;
+  const canvas = document.createElement("canvas");
+  canvas.width = 640;
+  canvas.height = 640;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "https://images.spikerko.org/SongPlaceholderFull.png";
+
+  const base = ctx.createRadialGradient(190, 150, 20, 260, 250, 590);
+  base.addColorStop(0, `hsl(${hueB}, 78%, 62%)`);
+  base.addColorStop(0.54, `hsl(${hueA}, 64%, 36%)`);
+  base.addColorStop(1, `hsl(${hueC}, 72%, 18%)`);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, 640, 640);
+
+  const glow = ctx.createRadialGradient(486, 158, 18, 486, 158, 176);
+  glow.addColorStop(0, "rgba(255,255,255,0.3)");
+  glow.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(486, 158, 176, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = `hsla(${hueB}, 76%, 54%, 0.35)`;
+  ctx.beginPath();
+  ctx.arc(132, 512, 224, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = `hsla(${hueC}, 78%, 28%, 0.5)`;
+  ctx.beginPath();
+  ctx.moveTo(0, 523);
+  ctx.bezierCurveTo(49, 506, 106, 476, 172, 432);
+  ctx.bezierCurveTo(264, 282, 377, 216, 510, 234);
+  ctx.bezierCurveTo(544, 239, 572, 251, 596, 268);
+  ctx.lineTo(640, 640);
+  ctx.lineTo(0, 640);
+  ctx.closePath();
+  ctx.fill();
+
+  return canvas.toDataURL("image/png");
+};
+
+const findCoverCandidate = (value: unknown, depth = 0): string | undefined => {
+  if (!value || depth > 4) return undefined;
+  const direct = normalizeCoverUrl(value);
+  if (direct) return direct;
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const cover = findCoverCandidate(item, depth + 1);
+      if (cover) return cover;
+    }
+    return undefined;
+  }
+
+  if (typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  for (const key of [
+    "url",
+    "uri",
+    "image_url",
+    "image_large_url",
+    "image_xlarge_url",
+    "cover_url",
+    "artwork_url",
+  ]) {
+    const cover = normalizeCoverUrl(record[key]);
+    if (cover) return cover;
+  }
+  for (const key of ["images", "image", "cover", "artwork", "album", "metadata"]) {
+    const cover = findCoverCandidate(record[key], depth + 1);
+    if (cover) return cover;
+  }
+  return undefined;
+};
+
 export type CoverSizes = "standard" | "small" | "large" | "xlarge";
 export type Artist = {
   type: "artist";
@@ -200,10 +328,24 @@ export const SpotifyPlayer = {
     // @ts-ignore aaa
     const covers = item.images ?? item.show?.images;
     if (covers?.length > 0) {
-      const cover = covers.find((cover: any) => cover.label === size);
-      return (
-        cover?.url ?? "https://images.spikerko.org/SongPlaceholderFull.png"
-      );
+      const requested = size.toLowerCase();
+      const cover =
+        covers.find((candidate: any) => candidate.label?.toLowerCase?.() === requested) ??
+        covers.find((candidate: any) => candidate.label?.toLowerCase?.() === "large") ??
+        covers.find((candidate: any) => candidate.label?.toLowerCase?.() === "default") ??
+        covers[0];
+      const coverUrl = findCoverCandidate(cover);
+      if (coverUrl) return coverUrl;
+    }
+    const metadata = SpotifyPlayer.GetTrackMetadata();
+    for (const key of LOCAL_COVER_METADATA_KEYS) {
+      const cover = normalizeCoverUrl(metadata[key]);
+      if (cover) return cover;
+    }
+    const nestedCover = findCoverCandidate(item);
+    if (nestedCover) return nestedCover;
+    if (SpotifyPlayer.IsLocalTrack()) {
+      return createLocalTrackFallbackCover();
     }
     return "https://images.spikerko.org/SongPlaceholderFull.png";
   },

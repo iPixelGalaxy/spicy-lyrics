@@ -11,6 +11,7 @@ import { SpotifyPlayer } from "../../Global/SpotifyPlayer";
 import fetchLyrics, { getSongKey, SessionTTMLStore } from "../../../utils/Lyrics/fetchLyrics";
 import { ApplyLyricsIfCurrent } from "../../../utils/Lyrics/Global/Applyer";
 import { $currentLyricsData } from "../../../utils/stores";
+import { $lastFetchedUri } from "../../../utils/uiState";
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9_\- .]/g, "_").slice(0, 100);
@@ -81,6 +82,7 @@ export default function LyricsDBPanel({ onBack }: LyricsDBPanelProps) {
     }
     const songKey = getSongKey(uri);
     if (songKey) SessionTTMLStore.delete(songKey);
+    $lastFetchedUri.set(null);
     $currentLyricsData.set("");
     toast("TTML has been reset.", { duration: 4000 });
     setTimeout(() => {

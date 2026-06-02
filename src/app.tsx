@@ -66,12 +66,12 @@ import {
 import { IsPlaying } from "./utils/Addons.ts";
 import { requestPositionSync } from "./utils/Gets/GetProgress.ts";
 import { IntervalManager } from "./utils/IntervalManager.ts";
-import fetchLyrics from "./utils/Lyrics/fetchLyrics.ts";
+import fetchLyrics, { getSongKey } from "./utils/Lyrics/fetchLyrics.ts";
 import ApplyLyrics from "./utils/Lyrics/Global/Applyer.ts";
 import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts";
-import { $lastFetchedUri, $previousVersion, $sidebarStatus } from "./utils/uiState.ts";
+import { $fromVersion, $lastFetchedUri, $previousVersion, $sidebarStatus } from "./utils/uiState.ts";
 import { needsMigration, showMigrationModal } from "./utils/migration/DataMigration.tsx";
 import { OpenBuildChannelPanel } from "./utils/openBuildChannelPanel.tsx";
 import "./css/settings-panel.css";
@@ -83,6 +83,7 @@ import ReactDOM from "react-dom/client";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
 import "./utils/settings.ts";
 import SLToaster from "./components/ReactComponents/SLToaster.tsx";
+import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
 import { openSettingsPanel } from "./utils/settings.ts";
 import { PopupModal } from "./components/Modal.ts";
 import { exposeToWindow } from "./utils/expose.ts";
@@ -241,6 +242,27 @@ async function main() {
 
   $spicyLyricsVersion.set(window._spicy_lyrics_metadata?.LoadedVersion ?? $spicyLyricsVersion.get());
   window._spicy_lyrics_metadata = {};
+
+  const fromVersion = $fromVersion.get();
+  const spicyLyricsVersion = $spicyLyricsVersion.get();
+  if (fromVersion !== spicyLyricsVersion) {
+    const div = document.createElement("div");
+    const reactRoot = ReactDOM.createRoot(div);
+    reactRoot.render(
+      <UpdateDialog fromVersion={fromVersion} spicyLyricsVersion={spicyLyricsVersion} />
+    );
+
+    PopupModal.display({
+      title: "Spicy Lyrics",
+      content: div,
+      isLarge: true,
+      onClose: () => {
+        reactRoot.unmount();
+      },
+    });
+  }
+
+  $fromVersion.set(spicyLyricsVersion);
 
   LoadFonts();
   ApplyFontPixel();
@@ -932,7 +954,10 @@ async function main() {
 
       const songUri = event?.data?.item?.uri;
       if (songUri) {
-        fetchLyrics(songUri).then(ApplyLyrics);
+        if ($lastFetchedUri.get() !== songUri) {
+          $lastFetchedUri.set(songUri);
+          fetchLyrics(songUri).then(ApplyLyrics);
+        }
       }
 
       const _staticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
@@ -969,6 +994,7 @@ async function main() {
 
     const initUri = SpotifyPlayer.GetUri();
     if (initUri) {
+      $lastFetchedUri.set(initUri);
       fetchLyrics(initUri).then(ApplyLyrics);
     }
 
@@ -1187,14 +1213,19 @@ async function main() {
         }
         lastTimeout = setTimeout(async () => {
           const currentSongLyrics = $currentLyricsData.get();
+          const currentUri = SpotifyPlayer.GetUri() ?? "";
+          const currentLyricsId = currentUri.startsWith("spotify:local:")
+            ? getSongKey(currentUri)
+            : SpotifyPlayer.GetId();
           if (
             currentSongLyrics &&
-            currentSongLyrics !== `NO_LYRICS:${SpotifyPlayer.GetId()}`
+            currentSongLyrics !== `NO_LYRICS:${currentLyricsId}`
           ) {
             const parsedLyrics = JSON.parse(currentSongLyrics);
-            if (parsedLyrics?.id !== SpotifyPlayer.GetId()) {
-              const refetchUri = SpotifyPlayer.GetUri();
+            if (parsedLyrics?.id !== currentLyricsId) {
+              const refetchUri = currentUri;
               if (refetchUri) {
+                $lastFetchedUri.set(refetchUri);
                 fetchLyrics(refetchUri).then(ApplyLyrics);
               }
             }

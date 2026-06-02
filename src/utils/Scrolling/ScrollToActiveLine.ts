@@ -194,6 +194,22 @@ const GetScrollType = (): "Center" | "Top" => {
   return IsCompactMode() ? "Top" : "Center";
 };
 
+const getLineIndex = (Lines: LyricsLine[] | LyricsSyllable[], line: HTMLElement | null) => {
+  if (!line) return -1;
+  return Lines.findIndex((candidate) => candidate.HTMLElement === line);
+};
+
+const canAutoScrollToIndex = (
+  Lines: LyricsLine[] | LyricsSyllable[],
+  targetIndex: number | undefined,
+  allowScrollUp: boolean = false
+) => {
+  if (allowScrollUp) return true;
+  if (targetIndex === undefined || targetIndex < 0) return true;
+  const lastAutoScrolledLineIndex = getLineIndex(Lines, lastLine);
+  return lastAutoScrolledLineIndex === -1 || targetIndex >= lastAutoScrolledLineIndex;
+};
+
 const policyEventPreset = "policy:";
 
 let allowForceScrolling = true;
@@ -222,6 +238,7 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
   const Position = SpotifyPlayer.GetPosition();
   const PositionOffset = 0;
   const ProcessedPosition = Position + PositionOffset;
+  const isPlaybackBacktrack = lastPosition !== 0 && Position < lastPosition - 250;
   const currentLine = GetScrollLine(Lines, ProcessedPosition) as EnhancedLyricsItem | null;
 
   const allLinesNotSung = Lines.every((line: any) => line.Status === "NotSung");
@@ -244,8 +261,9 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
       ? Lines[Lines.length - 1]?.HTMLElement
       : currentLine?.HTMLElement;
     if (!scrollToLine) return;
-    lastLine = scrollToLine;
     const forceScrollLineIndex = allLinesSung ? Lines.length - 1 : currentLine?._LineIndex;
+    if (!canAutoScrollToIndex(Lines, forceScrollLineIndex, isPlaybackBacktrack)) return;
+    lastLine = scrollToLine;
     ScrollTo(
       container,
       scrollToLine,
@@ -271,8 +289,9 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
       ? Lines[Lines.length - 1]?.HTMLElement
       : currentLine?.HTMLElement;
     if (!scrollToLine) return;
-    lastLine = scrollToLine;
     const smoothScrollLineIndex = allLinesSung ? Lines.length - 1 : currentLine?._LineIndex;
+    if (!canAutoScrollToIndex(Lines, smoothScrollLineIndex, isPlaybackBacktrack)) return;
+    lastLine = scrollToLine;
     ScrollTo(container, scrollToLine, false, GetScrollType(), smoothScrollLineIndex);
     if (smoothForceScrollQueued) {
       smoothForceScrollQueued = false; // Reset the queue after using it
@@ -448,8 +467,10 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
         //}
         // Scroll if the line is different from the last auto-scrolled line
         if (!isSameLine) {
-          lastLine = LineElem;
+          if (!canAutoScrollToIndex(Lines, currentLine._LineIndex, isPlaybackBacktrack)) return;
           const Scroll = () => {
+            if (!canAutoScrollToIndex(Lines, currentLine._LineIndex, isPlaybackBacktrack)) return;
+            lastLine = LineElem;
             ScrollTo(container, LineElem, false, GetScrollType(), currentLine._LineIndex);
             scrolledToLastLine = false;
             scrolledToFirstLine = false;

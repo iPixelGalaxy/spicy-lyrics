@@ -6,6 +6,7 @@ import ApplyLyrics, { ApplyLyricsIfCurrent } from "../../../../utils/Lyrics/Glob
 import { ParseTTML } from "../../../../utils/Lyrics/manager/parseTTML";
 import { ProcessLyrics } from "../../../../utils/Lyrics/ProcessLyrics";
 import { $currentLyricsData } from "../../../../utils/stores";
+import { $lastFetchedUri } from "../../../../utils/uiState";
 import { LocalLyricsManager } from "../../../../utils/Lyrics/manager";
 import { DatabaseIcon, GuideIcon, ResetIcon, UploadIcon } from "./Icons";
 
@@ -50,6 +51,7 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
     }
     const songKey = getSongKey(uri);
     if (songKey) SessionTTMLStore.delete(songKey);
+    $lastFetchedUri.set(null);
     $currentLyricsData.set("");
     toast("TTML has been reset.", { duration: 4000 });
     setTimeout(() => {
@@ -87,6 +89,7 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
 
         if (mode === "persistent") {
           await LocalLyricsManager.put(uri, ttml);
+          $lastFetchedUri.set(null);
           $currentLyricsData.set("");
           setTimeout(() => {
             fetchLyrics(uri)

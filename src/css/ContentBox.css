@@ -303,6 +303,10 @@
   animation: none !important;
 }
 
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.pending {
+  visibility: hidden;
+}
+
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.before {
   padding-left: 2.5cqw;
 }
@@ -433,6 +437,10 @@
   padding: 0 3cqw 0 2.5cqw;
 }
 
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee > span {
+  animation: Marquee_Artists 25s linear infinite alternate !important;
+}
+
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-before {
   -webkit-mask-image: linear-gradient(
     90deg,
@@ -453,6 +461,10 @@
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-before > span {
   padding-left: 0.5cqw;
   animation-name: Marquee_Artists_WithYear;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-before > span {
+  animation: Marquee_Artists_WithYear 25s linear infinite alternate !important;
 }
 
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-after {
@@ -477,6 +489,10 @@
   animation-name: Marquee_Artists_WithYear;
 }
 
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-after > span {
+  animation: Marquee_Artists_WithYear 25s linear infinite alternate !important;
+}
+
 @keyframes Marquee_Artists_WithYear {
   0%,
   10% {
@@ -484,7 +500,7 @@
   }
   90%,
   100% {
-    transform: translateX(calc(min(-100% + 100cqw, 0px)));
+    transform: translateX(calc(min(-100% + 100cqw, -1.25em)));
   }
 }
 
@@ -495,7 +511,7 @@
   }
   90%,
   100% {
-    transform: translateX(calc(min(-100% + 100cqw, 0px)));
+    transform: translateX(calc(min(-100% + 100cqw, -1.25em)));
   }
 }
 
@@ -506,7 +522,7 @@
   }
   90%,
   100% {
-    transform: translateX(calc(min(-100% + 100cqw, 0px)));
+    transform: translateX(calc(min(-100% + 100cqw, -1.25em)));
   }
 }
 

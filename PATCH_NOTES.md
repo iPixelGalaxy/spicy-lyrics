@@ -88,7 +88,7 @@
 - **Fixed local art timing race**  
   The NowBar now emits a cover-art-ready event after resolving the real display image. Dynamic backgrounds reapply for local tracks when that event fires, so the background does not get stuck on an early placeholder/empty state.
 
-- **Fixed metadata marquee measurement** (This one is still semi-WIP, but it's better than Stable :sob:)
+- **Fixed metadata marquee measurement**
   NowBar song/artist marquee behavior now uses resize observation and actual scroll widths to avoid unnecessary marquee or clipped metadata.
 
 - **Fixed popup/PiP button visibility sync**  

@@ -1,77 +1,3 @@
-
-
-# iPixel Spicy Lyrics Dev Channel
-
-> **This is an unofficial development build of Spicy Lyrics**, maintained by iPixelGalaxy (but imma be so fr, this is claude code doing all the heavy lifting, I'm just a guy with too many ideas).
-> It runs alongside the official version and gives you access to features before they ship to stable.
-
----
-
-## Installation
-
-### Step 1 — Remove Spicy Lyrics from the Marketplace
-
-> Skip this step if you haven't installed Spicy Lyrics before.
-
-If you have Spicy Lyrics installed from the **Spicetify Marketplace**, uninstall it first — running both at the same time will cause conflicts.
-
-1. Open Spicetify Marketplace
-2. Go to the **Extensions** tab and find Spicy Lyrics
-3. Click **Uninstall**
-
----
-
-### Step 2 — Install this build manually
-
-1. Make sure [Spicetify](https://spicetify.app) is installed
-2. Download the extension file: **[spicy-lyrics-pixel.mjs](https://ipixelgalaxy.com/TempFiles/spicy-lyrics-pixel.mjs)**
-3. Move the file into your Spicetify Extensions directory
-   - Find the correct path here: [spicetify.app — Manual Installation](https://spicetify.app/docs/customization/extensions#manual-installation)
-   - Or run `spicetify config-dir` to open the path
-4. Run the following commands in your terminal:
-   ```
-   spicetify config extensions spicy-lyrics-pixel.mjs
-   spicetify apply
-   ```
-
----
-
-### Step 3 — Connect to the iPixel Dev build channel
-
-Once the plugin is loaded, you need to point it at the dev server:
-
-1. In Spotify, go to **Settings** (the cog icon in the top-right)
-2. Scroll down until you see the **Spicy Lyrics** section
-3. Click **Open Settings**
-4. Scroll to the bottom and find **Build Channel** under the **Advanced** section, then click **Manage**
-5. If the custom channel controls are hidden, right-click the **Build Channel** label seven times quickly to unlock custom channels
-6. Enter `ipixelgalaxy.com` as the server URL
-7. Check the **"Use the same host for both API and Storage"** box
-8. Name the branch something like **`iPixel Dev`**
-9. Click **Save Channel**
-10. Click **Apply & Reload** — Spicy Lyrics will restart on the dev channel
-
----
-
-## Staying on the Official Version
-
-This build is designed to **coexist with the official Spicy Lyrics release**. If you run into a serious bug or just want to fall back, you can switch back to the Stable channel from within the Build Channel settings at any time — no reinstall needed.
-
----
-
-> Built on the `dev` branch. Features here may be unstable, incomplete, or subject to change before reaching the official release (if ever 💀, lowkey, this is just my playground).
-
-## What's New
-
-### v100.10.26 — Latest
-
-- The new starting point, all older changes merged into one easy to read list at the bottom.
-
----
-
-<details>
-<summary>Major Features</summary>
-
 ## Features
 
 - **Persistent / temporary / session TTML load modes reworked to require less clicks**  
@@ -105,10 +31,7 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 - **Gibberish lyrics mode**  
   Added **Gibberish Lyrics Mode**, including a large word transformation dictionary and support for applying transformed text through static, line, and syllable lyrics.
-</details>
 
-<details>
-<summary>Customization / Small Features</summary>
 
 ## Customization / Small Features
 
@@ -151,11 +74,6 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 - **v2.0 entrypoint**  
   Added `builds/v2.0/entrypoint.mjs`, which can fetch versions from a selected channel, load the matching remote bundle, expose channel settings, and support fixed-version custom channels.
 
-</details>
-
-<details>
-<summary>Bug Fixes</summary>
-
 ## Bug Fixes
 
 - **Fixed settings-owned modals lingering across navigation**  
@@ -178,11 +96,6 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 - **Fixed musical/interlude line seek behavior**  
   Instrumental/dot-line style lyrics are handled more carefully so they do not behave like normal seekable vocal lines.
-
-</details>
-
-<details>
-<summary>Quality of Life</summary>
 
 ## Quality of Life
 
@@ -231,12 +144,10 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 - **Fullscreen media controls respect compact/PiP constraints**  
   Timeline, playback controls, and volume slider placement now avoid layouts where those controls do not fit.
 
-</details>
-
 <details>
-<summary>More random notes of nerds</summary>
+<summary>Random Notes for Nerds</summary>
 
-## Random Notes for Devs (idk what I'm doing but this is stuff that happen)
+## Random Notes for Devs (idk what I'm doing but this is stuff that happen :) )
 
 - **New release build wrapper**  
   `package.json` now routes `build` and `build:release` through `node project/build.mjs`, while `build:creator` keeps the raw Spicetify Creator build.
@@ -370,4 +281,3 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 - **Lockfile/package updates**  
   `bun.lock` and `package.json` changed to reflect the updated build scripts/dependency state.
 
-</details>

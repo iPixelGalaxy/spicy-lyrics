@@ -115,6 +115,11 @@ function SyncMetadataMarquee(MetadataContainer: Element) {
     const spanWidth = Math.max(span.scrollWidth, span.getBoundingClientRect().width);
     const containerWidth = Math.max(container.clientWidth, container.getBoundingClientRect().width);
     const shouldMarquee = spanWidth > containerWidth + 1;
+    if (shouldMarquee) {
+      container.style.setProperty("--sl-marquee-distance", `${Math.ceil(containerWidth - spanWidth)}px`);
+    } else {
+      container.style.removeProperty("--sl-marquee-distance");
+    }
     container.classList.toggle("CanMarquee", shouldMarquee);
   };
 

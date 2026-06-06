@@ -70,4 +70,4 @@ new IntervalManager(Infinity, () => {
       LyricsContainer.classList.add("hide-scrollbar");
     }
   }
-}).Start();
+}, () => PageContainer?.ownerDocument.defaultView ?? window).Start();

@@ -39,6 +39,25 @@ let ActiveHeartMaid: Maid | null = null;
 let lastDisplayedReleaseYear: string | undefined;
 const releaseYearCache = new Map<string, string>();
 
+function getNowBarPlayerPosition(): number {
+  const state = (Spicetify.Player as any)?.origin?._state ?? Spicetify.Platform?.PlayerAPI?._state;
+  const rawProgress = Number(Spicetify.Player.getProgress?.());
+
+  if (state) {
+    const position = Number(state.positionAsOfTimestamp ?? state.position);
+    const timestamp = Number(state.timestamp);
+    const isPaused = Boolean(state.isPaused) || !Spicetify.Player.isPlaying();
+
+    if (Number.isFinite(position)) {
+      if (isPaused || !Number.isFinite(timestamp)) return position;
+      return Math.max(0, position + (Date.now() - timestamp));
+    }
+  }
+
+  if (Number.isFinite(rawProgress)) return rawProgress;
+  return SpotifyPlayer.GetPosition() ?? 0;
+}
+
 // let ActiveArtworkHlsInstance: Hls | null = null;
 
 /* export function DestroyArtworkHlsInstance() {
@@ -487,11 +506,12 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         // Update initial values
         songProgressBar.Update({
-          duration: SpotifyPlayer.GetPosition() ?? 0,
-          position: SpotifyPlayer.GetDuration() ?? 0,
+          duration: SpotifyPlayer.GetDuration() ?? 0,
+          position: getNowBarPlayerPosition(),
         });
 
-        const TimelineElem = document.createElement("div");
+        const targetDocument = PageContainer?.ownerDocument ?? document;
+        const TimelineElem = targetDocument.createElement("div");
         ActiveSongProgressBarInstance_Map.set("TimeLineElement", TimelineElem);
         TimelineElem.classList.add("Timeline");
         TimelineElem.innerHTML = `
@@ -514,8 +534,10 @@ function OpenNowBar(skipSaving: boolean = false) {
         let dragFrame: number | null = null;
         let pendingDragPercentage: number | null = null;
         let draggingDurationMs = 0;
+        const timelineDocument = TimelineElem.ownerDocument;
+        const timelineWindow = timelineDocument.defaultView ?? window;
 
-        const updateTimelineState = (e = null) => {
+        const updateTimelineState = (positionMs: number | null = null) => {
           const PositionElem = TimelineElem.querySelector<HTMLElement>(".Time.Position");
           const DurationElem = TimelineElem.querySelector<HTMLElement>(".Time.Duration");
 
@@ -529,7 +551,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           if (isDragging && dragPositionMs !== null) {
             positionToShow = dragPositionMs;
           } else {
-            positionToShow = e ?? SpotifyPlayer.GetPosition() ?? 0;
+            positionToShow = positionMs ?? getNowBarPlayerPosition();
           }
 
           // Update the progress bar state
@@ -565,16 +587,19 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         // Add drag functionality
 
-        const handleDragStart = (event: MouseEvent | TouchEvent) => {
+        const handleDragStart = (event: MouseEvent | TouchEvent | PointerEvent) => {
+          event.preventDefault();
           isDragging = true;
           draggingDurationMs = SpotifyPlayer.GetDuration() ?? 0;
-          document.body.style.userSelect = "none"; // Prevent text selection during drag
+          timelineDocument.body.style.userSelect = "none"; // Prevent text selection during drag
 
           // Add the event listeners for drag movement and end
-          document.addEventListener("mousemove", handleDragMove);
-          document.addEventListener("touchmove", handleDragMove);
-          document.addEventListener("mouseup", handleDragEnd);
-          document.addEventListener("touchend", handleDragEnd);
+          timelineDocument.addEventListener("mousemove", handleDragMove);
+          timelineDocument.addEventListener("touchmove", handleDragMove);
+          timelineDocument.addEventListener("mouseup", handleDragEnd);
+          timelineDocument.addEventListener("touchend", handleDragEnd);
+          timelineDocument.addEventListener("pointermove", handleDragMove);
+          timelineDocument.addEventListener("pointerup", handleDragEnd);
 
           // Emit event that dragging has started
           Global.Event.evoke("nowbar:timeline:dragging", { isDragging: true });
@@ -604,13 +629,14 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
         };
 
-        const handleDragMove = (event: MouseEvent | TouchEvent) => {
+        const handleDragMove = (event: MouseEvent | TouchEvent | PointerEvent) => {
           if (!isDragging) return;
+          event.preventDefault();
 
           // Get the mouse/touch position
           let clientX: number;
           if ("touches" in event) {
-            clientX = event.touches[0].clientX;
+            clientX = event.touches[0]?.clientX ?? event.changedTouches?.[0]?.clientX ?? 0;
           } else {
             clientX = event.clientX;
           }
@@ -620,29 +646,32 @@ function OpenNowBar(skipSaving: boolean = false) {
 
           pendingDragPercentage = percentage;
           if (dragFrame === null) {
-            dragFrame = requestAnimationFrame(renderDragPosition);
+            dragFrame = timelineWindow.requestAnimationFrame(renderDragPosition);
           }
         };
 
-        const handleDragEnd = (event: MouseEvent | TouchEvent) => {
+        const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent) => {
           if (!isDragging) return;
+          event.preventDefault();
           isDragging = false;
-          document.body.style.userSelect = ""; // Restore text selection
+          timelineDocument.body.style.userSelect = ""; // Restore text selection
 
           // Remove the event listeners
-          document.removeEventListener("mousemove", handleDragMove);
-          document.removeEventListener("touchmove", handleDragMove);
-          document.removeEventListener("mouseup", handleDragEnd);
-          document.removeEventListener("touchend", handleDragEnd);
+          timelineDocument.removeEventListener("mousemove", handleDragMove);
+          timelineDocument.removeEventListener("touchmove", handleDragMove);
+          timelineDocument.removeEventListener("mouseup", handleDragEnd);
+          timelineDocument.removeEventListener("touchend", handleDragEnd);
+          timelineDocument.removeEventListener("pointermove", handleDragMove);
+          timelineDocument.removeEventListener("pointerup", handleDragEnd);
           if (dragFrame !== null) {
-            cancelAnimationFrame(dragFrame);
+            timelineWindow.cancelAnimationFrame(dragFrame);
             dragFrame = null;
           }
 
           // Get the final position
           let clientX: number;
           if ("changedTouches" in event) {
-            clientX = event.changedTouches[0].clientX;
+            clientX = event.changedTouches[0]?.clientX ?? event.touches?.[0]?.clientX ?? 0;
           } else {
             clientX = (event as MouseEvent).clientX;
           }
@@ -677,6 +706,7 @@ function OpenNowBar(skipSaving: boolean = false) {
         // Add event listeners for drag
         SliderBar.addEventListener("mousedown", handleDragStart);
         SliderBar.addEventListener("touchstart", handleDragStart);
+        SliderBar.addEventListener("pointerdown", handleDragStart);
 
         // Keep the click handler for simple clicks
         SliderBar.addEventListener("click", sliderBarHandler);
@@ -685,17 +715,24 @@ function OpenNowBar(skipSaving: boolean = false) {
           SliderBar.removeEventListener("click", sliderBarHandler);
           SliderBar.removeEventListener("mousedown", handleDragStart);
           SliderBar.removeEventListener("touchstart", handleDragStart);
-          document.removeEventListener("mousemove", handleDragMove);
-          document.removeEventListener("touchmove", handleDragMove);
-          document.removeEventListener("mouseup", handleDragEnd);
-          document.removeEventListener("touchend", handleDragEnd);
+          SliderBar.removeEventListener("pointerdown", handleDragStart);
+          timelineDocument.removeEventListener("mousemove", handleDragMove);
+          timelineDocument.removeEventListener("touchmove", handleDragMove);
+          timelineDocument.removeEventListener("mouseup", handleDragEnd);
+          timelineDocument.removeEventListener("touchend", handleDragEnd);
+          timelineDocument.removeEventListener("pointermove", handleDragMove);
+          timelineDocument.removeEventListener("pointerup", handleDragEnd);
         });
 
         // Run initial update
         updateTimelineState();
+        const timelineUpdateInterval = timelineWindow.setInterval(() => {
+          if (!isDragging) updateTimelineState(getNowBarPlayerPosition());
+        }, 250);
         ActiveSongProgressBarInstance_Map.set("updateTimelineState_Function", updateTimelineState);
 
         const cleanup = () => {
+          timelineWindow.clearInterval(timelineUpdateInterval);
           timelineMaid.Destroy();
           const progressBar = ActiveSongProgressBarInstance_Map.get("SongProgressBar_ClassInstance");
           if (progressBar) progressBar.Destroy();
@@ -1106,6 +1143,10 @@ function UpdateNowBar(force = false) {
   //const ArtistsDiv = NowBar.querySelector(".Header .Metadata .Artists");
   const MetadataContainer = NowBar.querySelector<HTMLElement>(".Header .Metadata");
   if (!MetadataContainer) return;
+  const nowBarDocument = MetadataContainer.ownerDocument;
+  const isExternalCinemaMetadata =
+    PageContainer?.classList.contains("ExternalCinemaMode") ||
+    nowBarDocument !== document;
   const MediaImageContainer = NowBar.querySelector<HTMLDivElement>(".Header .MediaBox .MediaImageContainer");
   const SongNameSpan = MetadataContainer.querySelector<HTMLElement>(".SongName span");
   //const MediaBox = NowBar.querySelector(".Header .MediaBox");
@@ -1145,6 +1186,7 @@ function UpdateNowBar(force = false) {
       toImage.classList.remove("MB_anim_enter");
       toImage.classList.add("MB_hidden");
     }
+    MediaImageContainer.setAttribute("data-cover-initialized", "1");
   } else {
     // Capture a token for this specific update so we can ignore stale async work
     const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
@@ -1165,6 +1207,7 @@ function UpdateNowBar(force = false) {
 
         const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
         const toImage = MediaImageContainer.querySelector<HTMLDivElement>(".ti_ToImage");
+        const hasPaintedCover = MediaImageContainer.getAttribute("data-cover-initialized") === "1";
 
         // If we don't even have a target image element, bail completely
         if (!toImage) return;
@@ -1175,6 +1218,7 @@ function UpdateNowBar(force = false) {
 
         const canAnimate =
           !IsPIP &&
+          hasPaintedCover &&
           Defaults.CoverArtAnimation &&
           !!fromImage &&
           fromImage.classList.contains("containsImage");
@@ -1202,6 +1246,7 @@ function UpdateNowBar(force = false) {
             if (latestAfterFadeToken !== updateToken) return;
             toImage.classList.add("MB_hidden");
             toImage.classList.remove("MB_anim_enter");
+            MediaImageContainer.setAttribute("data-cover-initialized", "1");
           }, 1100)
         } else {
           // No fromImage image yet: just set fromImage (or fall back to toImage) without animation
@@ -1216,6 +1261,7 @@ function UpdateNowBar(force = false) {
             toImage.classList.remove("MB_hidden");
             toImage.classList.add("containsImage");
           }
+          MediaImageContainer.setAttribute("data-cover-initialized", "1");
         }
       });
   }
@@ -1226,7 +1272,17 @@ function UpdateNowBar(force = false) {
   setTimeout(() => {
     const updateUri = SpotifyPlayer.GetUri();
     const songName = SpotifyPlayer.GetName();
-    const navigateFromMetadata = async (pathname: string) => {
+    const navigateFromMetadata = async (pathname: string, event?: MouseEvent) => {
+      event?.preventDefault();
+      event?.stopPropagation();
+
+      if (isExternalCinemaMetadata) {
+        nowBarDocument.defaultView?.opener?.focus?.();
+        globalThis.focus();
+        Session.Navigate({ pathname });
+        return;
+      }
+
       if (IsPIP) {
         Session.Navigate({ pathname });
         return;
@@ -1243,7 +1299,7 @@ function UpdateNowBar(force = false) {
       const albumId = albumUri?.split(":")?.[2];
       if (albumId) {
         SongNameSpan.classList.add("Clickable");
-        SongNameSpan.onclick = () => void navigateFromMetadata(`/album/${albumId}`);
+        SongNameSpan.onclick = (event) => void navigateFromMetadata(`/album/${albumId}`, event);
       } else {
         SongNameSpan.classList.remove("Clickable");
         SongNameSpan.onclick = null;
@@ -1256,14 +1312,14 @@ function UpdateNowBar(force = false) {
       let artistsElement = MetadataContainer.querySelector<HTMLElement>(".Artists");
 
       if (!artistsRow && artistsElement) {
-        artistsRow = document.createElement("div");
+        artistsRow = nowBarDocument.createElement("div");
         artistsRow.className = "ArtistsRow";
         artistsElement.replaceWith(artistsRow);
         artistsRow.appendChild(artistsElement);
       }
 
       if (artistsRow && !artistsElement) {
-        artistsElement = document.createElement("div");
+        artistsElement = nowBarDocument.createElement("div");
         artistsElement.className = "Artists";
         artistsRow.appendChild(artistsElement);
       }
@@ -1288,18 +1344,18 @@ function UpdateNowBar(force = false) {
     const artists = SpotifyPlayer.GetArtists();
     if (artists && ArtistsDiv && contentType !== "episode") {
       ArtistsDiv.innerHTML = "";
-      const scrollWrapper = document.createElement("span");
+      const scrollWrapper = nowBarDocument.createElement("span");
       artists.forEach((artist, idx) => {
         const artistId = (artist.uri as string | undefined)?.split(":")?.[2];
-        const span = document.createElement("span");
+        const span = nowBarDocument.createElement("span");
         span.textContent = artist.name;
         if (artistId) {
           span.classList.add("Clickable");
-          span.onclick = () => void navigateFromMetadata(`/artist/${artistId}`);
+          span.onclick = (event) => void navigateFromMetadata(`/artist/${artistId}`, event);
         }
         scrollWrapper.appendChild(span);
         if (idx < artists.length - 1) {
-          scrollWrapper.appendChild(document.createTextNode(", "));
+          scrollWrapper.appendChild(nowBarDocument.createTextNode(", "));
         }
       });
       ArtistsDiv.appendChild(scrollWrapper);
@@ -1336,7 +1392,7 @@ function UpdateNowBar(force = false) {
         return;
       }
 
-      const releaseYearElement = document.createElement("span");
+      const releaseYearElement = nowBarDocument.createElement("span");
       const isBeforeArtist =
         releaseYearPosition === "Left" || releaseYearPosition === "Before Artist";
       releaseYearElement.className = `ArtistYear ${isBeforeArtist ? "before" : "after"}${pending ? " pending" : ""}`;

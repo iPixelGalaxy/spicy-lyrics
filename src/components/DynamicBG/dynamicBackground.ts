@@ -31,6 +31,7 @@ const animSpeedController = new BackgroundAnimationController();
 
 interface ApplyDynamicBackgroundOpts {
   doTransitionDurationAppendWithPromise?: boolean;
+  forceRecreate?: boolean;
 }
 
 const normalizeCoverUrl = (cover?: string): string => {
@@ -68,18 +69,19 @@ const getDynamicBackgroundCover = (): string => {
   return normalizeCoverUrl(renderedCover || SpotifyPlayer.GetCover("large"));
 };
 
-const loadImageElement = (src: string): Promise<HTMLImageElement> => {
+const loadImageElement = (src: string, targetWindow: Window = window): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
-    const img = new Image();
+    const img = new targetWindow.Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     img.src = src;
   });
 };
 
-const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string) => {
+const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string, targetDocument: Document = document) => {
+  const targetWindow = targetDocument.defaultView ?? window;
   if (cover.startsWith("spotify:localfileimage:")) {
-    const img = await loadImageElement(cover);
+    const img = await loadImageElement(cover, targetWindow);
     kawarpInstance.loadImageElement(img);
     return;
   }
@@ -87,8 +89,8 @@ const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string) => {
   if (cover.startsWith("blob:") || cover.startsWith("data:image/")) {
     const response = await fetch(cover);
     const blob = await response.blob();
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement("canvas");
+    const bitmap = await (targetWindow.createImageBitmap?.(blob) ?? createImageBitmap(blob));
+    const canvas = targetDocument.createElement("canvas");
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
     const ctx = canvas.getContext("2d");
@@ -110,6 +112,7 @@ const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string) => {
 export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}) {
   if (!element) return;
   const targetDocument = element.ownerDocument ?? document;
+  const targetWindow = targetDocument.defaultView ?? window;
   dynamicBgLogger.debug("Applying dynamic background", { tag });
   const currentImgCover = getDynamicBackgroundCover();
   const IsEpisode = SpotifyPlayer.GetContentType() === "episode";
@@ -154,10 +157,10 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     }
 
     element.appendChild(dynamicBg);
-    setTimeout(() => {
+    targetWindow.setTimeout(() => {
       if (prevBg) {
         prevBg.classList.add("Hidden");
-        setTimeout(() => prevBg?.remove(), 500);
+        targetWindow.setTimeout(() => prevBg?.remove(), 500);
       }
       dynamicBg.classList.remove("Hidden");
     }, 80);
@@ -237,10 +240,10 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     dynamicBg.setAttribute("data-cover-id", currentImgCover);
     element.appendChild(dynamicBg);
 
-    setTimeout(() => {
+    targetWindow.setTimeout(() => {
       if (prevBg) {
         prevBg.classList.add("Hidden");
-        setTimeout(() => prevBg?.remove(), 500);
+        targetWindow.setTimeout(() => prevBg?.remove(), 500);
       }
       dynamicBg.classList.remove("Hidden");
     }, 80);
@@ -253,7 +256,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
 
     const existingElement = element.querySelector<HTMLElement>("canvas.spicy-dynamic-bg");
   
-    if (existingElement) {
+    if (existingElement && !opts.forceRecreate) {
       const existingBgData = existingElement.getAttribute("data-cover-id") ?? null;
 
       if (existingBgData === currentImgCover && !SpotifyPlayer.IsLocalTrack()) {
@@ -267,10 +270,14 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
 
       if (kawarpInstance) {
         existingElement.setAttribute("data-cover-id", currentImgCover ?? "");
-        await loadKawarpCover(kawarpInstance, currentImgCover);
+        await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
         kawarpInstance.start();
         return;
       }
+    }
+
+    if (existingElement && opts.forceRecreate) {
+      removeBackground(existingElement);
     }
 
     const canvas = targetDocument.createElement("canvas");
@@ -285,15 +292,15 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       kawarpInstance
     )
     element.appendChild(canvas);
-    await loadKawarpCover(kawarpInstance, currentImgCover);
+    await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
     kawarpInstance.start();
     const msDelay = KawarpOptionsStatic.transitionDuration * 2;
 
     if (opts?.doTransitionDurationAppendWithPromise) {
-      await new Promise(r => setTimeout(r, msDelay));
+      await new Promise(r => targetWindow.setTimeout(r, msDelay));
       kawarpInstance?.setOptions({ transitionDuration: KawarpTransitionDuration });
     } else {
-      setTimeout(() => {
+      targetWindow.setTimeout(() => {
         kawarpInstance?.setOptions({ transitionDuration: KawarpTransitionDuration });
       }, msDelay);
     }
@@ -348,11 +355,12 @@ Global.Event.listen("playback:songchange", () => {
       }
     }
 
-    staticColorBgTransitionTimeout = setTimeout(() => {
+    const targetWindow = PageContainer.ownerDocument.defaultView ?? window;
+    staticColorBgTransitionTimeout = targetWindow.setTimeout(() => {
       const contentBox = PageContainer.querySelector<HTMLElement>(".ContentBox");
       if (contentBox) ApplyDynamicBackground(contentBox);
 
-      clearTimeout(staticColorBgTransitionTimeout);
+      targetWindow.clearTimeout(staticColorBgTransitionTimeout);
       staticColorBgTransitionTimeout = null;
     }, 1000);
   }

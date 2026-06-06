@@ -9,6 +9,7 @@ export type SchedulerValue =
   (typeof SchedulerEnums)[keyof typeof SchedulerEnums];
 export type ScheduledDataObject = {
   cancelled: boolean;
+  targetWindow?: Window;
 };
 export type Scheduled = [SchedulerValue, number, ScheduledDataObject];
 
@@ -27,10 +28,10 @@ const Interval =
   ];
 
 const OnPreRender =
-  (cb: ScheduledCallback): Scheduled => [
+  (cb: ScheduledCallback, targetWindow: Window = window): Scheduled => [
     SchedulerEnums.raf,
-    requestAnimationFrame(cb),
-    { cancelled: false },
+    targetWindow.requestAnimationFrame(cb),
+    { cancelled: false, targetWindow },
   ];
 
 const Cancel = (scheduledItems: Scheduled | Array<Scheduled>) => {
@@ -45,7 +46,7 @@ const Cancel = (scheduledItems: Scheduled | Array<Scheduled>) => {
 
     if (type === SchedulerEnums.timeout) window.clearTimeout(id);
     else if (type === SchedulerEnums.interval) window.clearInterval(id);
-    else if (type === SchedulerEnums.raf) cancelAnimationFrame(id);
+    else if (type === SchedulerEnums.raf) (dataObject.targetWindow ?? window).cancelAnimationFrame(id);
   }
 };
 

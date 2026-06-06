@@ -1,15 +1,93 @@
 // deno-lint-ignore-file no-explicit-any
-import PageView from "../Pages/PageView.ts";
+import PageView, { PageContainer } from "../Pages/PageView.ts";
 import Fullscreen from "./Fullscreen.ts";
 import { IsPIP } from "./PopupLyrics.ts";
 import { isSpicySidebarMode, CloseSidebarLyrics } from "./SidebarLyrics.ts";
 import Session from "../Global/Session.ts";
+import Global from "../Global/Global.ts";
+import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
+import { IsPlaying } from "../../utils/Addons.ts";
+import { TickLyricsRenderer } from "../../utils/Lyrics/lyrics.ts";
+import { ScrollToActiveLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
+import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
+import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 
 export let IsExternalCinemaLyrics = false;
 
 let currentExternalWindow: Window | null = null;
 let externalPageHideHandler: ((event: Event) => void) | null = null;
 let closingExternalWindow = false;
+let externalPlaybackPump: number | null = null;
+let externalPlaybackPumpLastUri: string | null = null;
+let externalRenderFrame: number | null = null;
+
+function getExternalPlayerPosition(): number {
+  const state = (Spicetify.Player as any)?.origin?._state ?? Spicetify.Platform?.PlayerAPI?._state;
+  const rawProgress = Number(Spicetify.Player.getProgress?.());
+  if (!state) {
+    if (Number.isFinite(rawProgress)) return rawProgress;
+    return SpotifyPlayer.GetPosition() ?? 0;
+  }
+
+  const position = Number(state.positionAsOfTimestamp ?? state.position);
+  const timestamp = Number(state.timestamp);
+  const isPaused = Boolean(state.isPaused) || !Spicetify.Player.isPlaying();
+
+  if (Number.isFinite(position)) {
+    if (isPaused || !Number.isFinite(timestamp)) return position;
+    return Math.max(0, position + (Date.now() - timestamp));
+  }
+
+  if (Number.isFinite(rawProgress)) return rawProgress;
+  return SpotifyPlayer.GetPosition() ?? 0;
+}
+
+function startExternalRenderLoop(targetWindow: Window) {
+  stopExternalRenderLoop();
+  const renderLoop = () => {
+    TickLyricsRenderer();
+    KawarpMap.forEach((kawarpInstance) => {
+      kawarpInstance.renderFrame();
+    });
+    externalRenderFrame = targetWindow.requestAnimationFrame(renderLoop);
+  };
+  externalRenderFrame = targetWindow.requestAnimationFrame(renderLoop);
+}
+
+function stopExternalRenderLoop() {
+  if (externalRenderFrame === null) return;
+  (currentExternalWindow ?? window).cancelAnimationFrame(externalRenderFrame);
+  externalRenderFrame = null;
+}
+
+function startExternalPlaybackPump(targetWindow: Window) {
+  stopExternalPlaybackPump();
+  externalPlaybackPumpLastUri = SpotifyPlayer.GetUri() ?? null;
+  externalPlaybackPump = targetWindow.setInterval(() => {
+    const currentUri = SpotifyPlayer.GetUri() ?? null;
+    SpotifyPlayer.IsPlaying = IsPlaying();
+    if (ScrollSimplebar) ScrollToActiveLine(ScrollSimplebar);
+    const position = getExternalPlayerPosition();
+    Global.Event.evoke("playback:position", position);
+    Global.Event.evoke("playback:progress", { data: { position } });
+
+    if (currentUri !== externalPlaybackPumpLastUri) {
+      externalPlaybackPumpLastUri = currentUri;
+      Global.Event.evoke("playback:songchange", { data: Spicetify.Player.data });
+      targetWindow.setTimeout(() => {
+        const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
+        if (contentBox) void ApplyDynamicBackground(contentBox, "lpagebg");
+      }, 500);
+    }
+  }, 250);
+}
+
+function stopExternalPlaybackPump() {
+  if (externalPlaybackPump === null) return;
+  (currentExternalWindow ?? window).clearInterval(externalPlaybackPump);
+  externalPlaybackPump = null;
+  externalPlaybackPumpLastUri = null;
+}
 
 async function copyLyricsWindowStyles(targetWindow: Window, wrapperClass: string) {
   Array.from(document.querySelectorAll('link[rel="stylesheet"]')).forEach((link: HTMLLinkElement) => {
@@ -120,17 +198,21 @@ export const OpenExternalCinemaLyrics = async () => {
   if (!externalWindow) return;
 
   currentExternalWindow = externalWindow;
-  externalWindow.document.title = "Spicy Lyrics Cinema";
+  externalWindow.document.open();
+  externalWindow.document.write(`<!doctype html><html><head></head><body><div class="spicy-external-cinema-wrapper"></div></body></html>`);
+  externalWindow.document.close();
   await copyLyricsWindowStyles(externalWindow, "spicy-external-cinema-wrapper");
 
-  externalWindow.document.body.innerHTML = `<div class="spicy-external-cinema-wrapper"></div>`;
   const externalWrapper = externalWindow.document.body.querySelector(
     ".spicy-external-cinema-wrapper"
   ) as HTMLElement;
 
   IsExternalCinemaLyrics = true;
   PageView.Open(externalWrapper);
+  PageContainer?.classList.add("ExternalCinemaMode");
   Fullscreen.Open(true, false);
+  startExternalRenderLoop(externalWindow);
+  startExternalPlaybackPump(externalWindow);
   externalWindow.focus();
 
   externalPageHideHandler = () => {
@@ -146,6 +228,8 @@ export const CloseExternalCinemaLyrics = async (closeWindow = true) => {
 
   if (Fullscreen.IsOpen) await Fullscreen.Close(true);
   await PageView.Destroy();
+  stopExternalRenderLoop();
+  stopExternalPlaybackPump();
 
   if (currentExternalWindow && externalPageHideHandler) {
     currentExternalWindow.removeEventListener("pagehide", externalPageHideHandler);

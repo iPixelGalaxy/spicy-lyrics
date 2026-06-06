@@ -1080,7 +1080,7 @@ async function main() {
       if (ScrollSimplebar) {
         ScrollToActiveLine(ScrollSimplebar);
       }
-    }).Start();
+    }, () => PageContainer?.ownerDocument.defaultView ?? window).Start();
 
     interface Location {
       pathname: string;

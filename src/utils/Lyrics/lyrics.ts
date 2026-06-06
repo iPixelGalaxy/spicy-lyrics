@@ -176,6 +176,14 @@ const logLyric = (lyric: string) => {
   lastLyric = lyric;
 }
  */
+export const TickLyricsRenderer = () => {
+  if ($lyricsContainerExists.get()) {
+    const progress = SpotifyPlayer.GetPosition();
+    Lyrics.TimeSetter(progress);
+    Lyrics.Animate(progress);
+  }
+};
+
 const LyricsInterval = () => {
   /* { // Logging Line part
     const currentLyrics = storage.get("currentLyricsData") as string;
@@ -217,12 +225,9 @@ const LyricsInterval = () => {
     }
   } */
 
-  if ($lyricsContainerExists.get()) {
-    const progress = SpotifyPlayer.GetPosition();
-    Lyrics.TimeSetter(progress);
-    Lyrics.Animate(progress);
-  }
-  requestAnimationFrame(LyricsInterval);
+  TickLyricsRenderer();
+  const lyricsWindow = PageContainer?.ownerDocument?.defaultView ?? window;
+  lyricsWindow.requestAnimationFrame(LyricsInterval);
 };
 
 LyricsInterval();

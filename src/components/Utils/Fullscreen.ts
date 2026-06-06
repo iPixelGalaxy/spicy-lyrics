@@ -76,7 +76,7 @@ const MouseMoveChecker = () => {
     ControlsMaid.Clean("MouseMoveChecker");
     return;
   }
-  ControlsMaid.Give(Scheduler.OnPreRender(MouseMoveChecker), "MouseMoveChecker");
+  ControlsMaid.Give(Scheduler.OnPreRender(MouseMoveChecker, getPageWindow()), "MouseMoveChecker");
 };
 
 const RunMediaBoxAnimation = () => {
@@ -106,7 +106,7 @@ const RunMediaBoxAnimation = () => {
 
   animationLastTimestamp = timestampNow;
 
-  ControlsMaid.Give(Scheduler.OnPreRender(RunMediaBoxAnimation), "MediaBoxAnimation");
+  ControlsMaid.Give(Scheduler.OnPreRender(RunMediaBoxAnimation, getPageWindow()), "MediaBoxAnimation");
 };
 
 const ToggleControls = (force: boolean = false) => {

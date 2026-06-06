@@ -17,6 +17,8 @@ function getVolumeIcon(vol: number): string {
 
 export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) {
   CleanUpVolumeSlider();
+  const targetDocument = container.ownerDocument;
+  const targetWindow = targetDocument.defaultView ?? window;
 
   let lastRenderedIcon = "";
   const setIconForVolume = (vol: number) => {
@@ -26,7 +28,7 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
     icon.innerHTML = nextIcon;
   };
 
-  const icon = document.createElement("div");
+  const icon = targetDocument.createElement("div");
   icon.className = "VolumeIcon";
   setIconForVolume(Spicetify.Player.getVolume());
   icon.addEventListener("click", () => {
@@ -37,10 +39,10 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
     setIconForVolume(nextVolume);
   });
 
-  const sliderBar = document.createElement("div");
+  const sliderBar = targetDocument.createElement("div");
   sliderBar.className = "SliderBar";
 
-  const handle = document.createElement("div");
+  const handle = targetDocument.createElement("div");
   handle.className = "Handle";
   sliderBar.appendChild(handle);
 
@@ -49,7 +51,7 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
     container.appendChild(icon);
     container.appendChild(sliderBar);
   } else {
-    const topSpacer = document.createElement("div");
+    const topSpacer = targetDocument.createElement("div");
     topSpacer.className = "VolumeIconSpacer";
     container.appendChild(topSpacer);
     container.appendChild(sliderBar);
@@ -112,12 +114,12 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
 
   const handleDragStart = (event: MouseEvent | TouchEvent) => {
     isDragging = true;
-    prevUserSelect = document.body.style.userSelect;
-    document.body.style.userSelect = "none";
-    document.addEventListener("mousemove", handleDragMove);
-    document.addEventListener("touchmove", handleDragMove);
-    document.addEventListener("mouseup", handleDragEnd);
-    document.addEventListener("touchend", handleDragEnd);
+    prevUserSelect = targetDocument.body.style.userSelect;
+    targetDocument.body.style.userSelect = "none";
+    targetDocument.addEventListener("mousemove", handleDragMove);
+    targetDocument.addEventListener("touchmove", handleDragMove);
+    targetDocument.addEventListener("mouseup", handleDragEnd);
+    targetDocument.addEventListener("touchend", handleDragEnd);
     handleDragMove(event);
   };
 
@@ -125,22 +127,22 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
     if (!isDragging) return;
     pendingPercentage = getPercentageFromEvent(event);
     if (dragFrame === null) {
-      dragFrame = requestAnimationFrame(flushDragFrame);
+      dragFrame = targetWindow.requestAnimationFrame(flushDragFrame);
     }
   };
 
   const handleDragEnd = (event: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
     isDragging = false;
-    document.body.style.userSelect = prevUserSelect;
-    document.removeEventListener("mousemove", handleDragMove);
-    document.removeEventListener("touchmove", handleDragMove);
-    document.removeEventListener("mouseup", handleDragEnd);
-    document.removeEventListener("touchend", handleDragEnd);
+    targetDocument.body.style.userSelect = prevUserSelect;
+    targetDocument.removeEventListener("mousemove", handleDragMove);
+    targetDocument.removeEventListener("touchmove", handleDragMove);
+    targetDocument.removeEventListener("mouseup", handleDragEnd);
+    targetDocument.removeEventListener("touchend", handleDragEnd);
     const percentage = getPercentageFromEvent(event);
     pendingPercentage = percentage;
     if (dragFrame !== null) {
-      cancelAnimationFrame(dragFrame);
+      targetWindow.cancelAnimationFrame(dragFrame);
       dragFrame = null;
     }
     sliderBar.style.setProperty("--SliderProgress", percentage.toString());
@@ -151,18 +153,18 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
   sliderBar.addEventListener("mousedown", handleDragStart);
   sliderBar.addEventListener("touchstart", handleDragStart);
 
-  const pollInterval = setInterval(updateFromVolume, 250);
+  const pollInterval = targetWindow.setInterval(updateFromVolume, 250);
 
   cleanupFn = () => {
-    clearInterval(pollInterval);
+    targetWindow.clearInterval(pollInterval);
     sliderBar.removeEventListener("mousedown", handleDragStart);
     sliderBar.removeEventListener("touchstart", handleDragStart);
-    document.removeEventListener("mousemove", handleDragMove);
-    document.removeEventListener("touchmove", handleDragMove);
-    document.removeEventListener("mouseup", handleDragEnd);
-    document.removeEventListener("touchend", handleDragEnd);
+    targetDocument.removeEventListener("mousemove", handleDragMove);
+    targetDocument.removeEventListener("touchmove", handleDragMove);
+    targetDocument.removeEventListener("mouseup", handleDragEnd);
+    targetDocument.removeEventListener("touchend", handleDragEnd);
     if (dragFrame !== null) {
-      cancelAnimationFrame(dragFrame);
+      targetWindow.cancelAnimationFrame(dragFrame);
       dragFrame = null;
     }
     container.innerHTML = "";

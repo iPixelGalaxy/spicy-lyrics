@@ -124,6 +124,7 @@ function ApplyMarquee(baseWidth, elementWidth, name) {
 let NowBarFullscreenMaid: Maid | null = null;
 let metadataMarqueeObserver: ResizeObserver | null = null;
 let metadataMarqueeFrame = 0;
+let metadataMarqueeWindow: Window | null = null;
 
 function SyncMetadataMarquee(MetadataContainer: Element) {
   const syncPair = (containerSelector: string, spanSelector: string) => {
@@ -133,9 +134,16 @@ function SyncMetadataMarquee(MetadataContainer: Element) {
 
     const spanWidth = Math.max(span.scrollWidth, span.getBoundingClientRect().width);
     const containerWidth = Math.max(container.clientWidth, container.getBoundingClientRect().width);
+    if (containerWidth <= 1 || spanWidth <= 1) {
+      container.style.removeProperty("--sl-marquee-distance");
+      container.classList.remove("CanMarquee");
+      return;
+    }
+
     const shouldMarquee = spanWidth > containerWidth + 1;
     if (shouldMarquee) {
-      container.style.setProperty("--sl-marquee-distance", `${Math.ceil(containerWidth - spanWidth)}px`);
+      const overflowDistance = Math.max(0, spanWidth - containerWidth);
+      container.style.setProperty("--sl-marquee-distance", `${-Math.ceil(overflowDistance)}px`);
     } else {
       container.style.removeProperty("--sl-marquee-distance");
     }
@@ -148,23 +156,29 @@ function SyncMetadataMarquee(MetadataContainer: Element) {
 
 function WatchMetadataMarquee(MetadataContainer: HTMLElement) {
   metadataMarqueeObserver?.disconnect();
-  if (metadataMarqueeFrame) cancelAnimationFrame(metadataMarqueeFrame);
+  if (metadataMarqueeFrame) {
+    (metadataMarqueeWindow ?? window).cancelAnimationFrame(metadataMarqueeFrame);
+  }
+
+  const targetWindow = MetadataContainer.ownerDocument.defaultView ?? window;
+  metadataMarqueeWindow = targetWindow;
 
   const scheduleSync = () => {
-    if (metadataMarqueeFrame) cancelAnimationFrame(metadataMarqueeFrame);
-    metadataMarqueeFrame = requestAnimationFrame(() => {
+    if (metadataMarqueeFrame) targetWindow.cancelAnimationFrame(metadataMarqueeFrame);
+    metadataMarqueeFrame = targetWindow.requestAnimationFrame(() => {
       metadataMarqueeFrame = 0;
       if (!MetadataContainer.isConnected) return;
       SyncMetadataMarquee(MetadataContainer);
     });
   };
 
-  metadataMarqueeObserver = new ResizeObserver(scheduleSync);
+  metadataMarqueeObserver = new targetWindow.ResizeObserver(scheduleSync);
   metadataMarqueeObserver.observe(MetadataContainer);
   MetadataContainer.querySelectorAll<HTMLElement>(".SongName, .SongName span, .Artists, .Artists > span")
     .forEach((element) => metadataMarqueeObserver?.observe(element));
   scheduleSync();
-  setTimeout(scheduleSync, 80);
+  targetWindow.setTimeout(scheduleSync, 80);
+  targetWindow.setTimeout(scheduleSync, 250);
 }
 
 function shouldPlaceTimelineOutsideMediaContent() {

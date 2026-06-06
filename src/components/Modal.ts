@@ -11,6 +11,7 @@ type ModalDisplayOptions = {
 	contentScrollTop?: number | null;
 	/** Optional class appended to `.sl-modal` for per-modal styling/identification. */
 	modalId?: string | null;
+	targetDocument?: Document | null;
 };
 
 type ModalTransitionOptions = {
@@ -81,7 +82,7 @@ class _HTMLGenericModal extends HTMLElement {
 		header.querySelector(".sl-modal-header-left")?.remove();
 		if (!headerLeft) return;
 
-		const slot = document.createElement("div");
+		const slot = this.ownerDocument.createElement("div");
 		slot.className = "sl-modal-header-left";
 		slot.append(headerLeft);
 		header.prepend(slot);
@@ -135,7 +136,7 @@ class _HTMLGenericModal extends HTMLElement {
 			main.innerHTML = "";
 			if (typeof content === "string") {
 				main.innerHTML = content;
-			} else if (content instanceof Node) {
+			} else if (content instanceof Node || (content && typeof content === "object" && "nodeType" in content)) {
 				main.append(content);
 			}
 			this._restoreContentScroll(contentScrollTop ?? 0);
@@ -155,7 +156,7 @@ class _HTMLGenericModal extends HTMLElement {
 	 * @param {boolean} [options.closeBtn=true] - Show modal close button
 	 * @param {boolean} [options.closeOnOutsideClick=true] - Allow closing modal by clicking outside
 	 */
-	display({ title, content, isLarge = false, onClose = null, closeBtn = true, closeOnOutsideClick = true, closeHandler = null, headerLeft = null, modalId = null }: ModalDisplayOptions): void {
+	display({ title, content, isLarge = false, onClose = null, closeBtn = true, closeOnOutsideClick = true, closeHandler = null, headerLeft = null, modalId = null, targetDocument = null }: ModalDisplayOptions): void {
 		// If a previous onClose exists, call it before displaying a new popup
 		if (typeof this._onClose === "function") {
 			this._onClose();
@@ -198,14 +199,14 @@ class _HTMLGenericModal extends HTMLElement {
 		if (main) {
 			if (typeof content === "string") {
 				main.innerHTML = content;
-			} else if (content instanceof Node) {
+			} else if (content instanceof Node || (content && typeof content === "object" && "nodeType" in content)) {
 				main.append(content);
 			} else if (content !== null && content !== undefined) {
 				main.append(String(content));
 			}
 			this._resetContentScroll();
 		}
-		document.body.append(this);
+		(targetDocument ?? this.ownerDocument).body.append(this);
 
         setTimeout(() => {
             const genericModal = this.querySelector(".sl-modal-overlay-animated");

@@ -4,6 +4,7 @@ import {
   $animateFullscreenClose,
   $displayLyricsHoverPill,
   $escapeKeyFunction,
+  $externalCinemaLyricsAllowed,
   $lockedMediaBox,
   $popupLyricsAllowed,
   $releaseYearPosition,
@@ -28,6 +29,7 @@ interface Props {
 export default function InterfaceSection({ query, sectionFilter }: Props) {
   const lockedMediaBox = useStore($lockedMediaBox);
   const popupLyricsAllowed = useStore($popupLyricsAllowed);
+  const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
   const viewControlsPosition = useStore($viewControlsPosition);
   const alwaysShowInFullscreen = useStore($alwaysShowInFullscreen);
   const showVolumeSliderFullscreen = useStore($showVolumeSliderFullscreen);
@@ -41,6 +43,7 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
 
   const r2 = matches(query, "Lock Media Box Size in Compact Mode", "Prevent the media box from resizing when Forced Compact Mode is active.");
   const r3 = matches(query, "Disable Popup Lyrics Window", "Prevent lyrics from opening in a floating popup window.");
+  const r3b = matches(query, "Disable Cinema Lyrics Window", "Prevent lyrics from opening in a separate cinema window.");
   const r4 = matches(query, "Lyrics Controls Position", "Where the lyrics view controls (play, scroll, etc.) appear.");
   const r6 = matches(query, "Always Show In Fullscreen", "Keep fullscreen time or controls visible.");
   const r7 = matches(query, "Fullscreen Volume Slider", "Show a volume slider in fullscreen.");
@@ -49,7 +52,7 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
   const r10 = matches(query, "Animate closing fullscreen", "Slide the lyrics page away when closing fullscreen.");
   const r12 = matches(query, "Escape Key Function", "Choose how Escape behaves in lyrics fullscreen.");
 
-  if (!r2 && !r3 && !r4 && !r6 && !r7 && !r8 && !r9 && !r10 && !r12) return null;
+  if (!r2 && !r3 && !r3b && !r4 && !r6 && !r7 && !r8 && !r9 && !r10 && !r12) return null;
 
   const normalizedAlwaysShowInFullscreen =
     alwaysShowInFullscreen === "All" ? "Both" : alwaysShowInFullscreen;
@@ -72,6 +75,15 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
           <Toggle
             checked={!popupLyricsAllowed}
             onChange={(v) => $popupLyricsAllowed.set(!v)}
+          />
+        </Row>
+      )}
+
+      {r3b && (
+        <Row label="Disable Cinema Lyrics Window" description="Prevent lyrics from opening in a separate cinema window.">
+          <Toggle
+            checked={!externalCinemaLyricsAllowed}
+            onChange={(v) => $externalCinemaLyricsAllowed.set(!v)}
           />
         </Row>
       )}

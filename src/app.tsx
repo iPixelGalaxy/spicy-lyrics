@@ -27,6 +27,7 @@ import {
   $displayLyricsHoverPill,
   $enableExperimentalWordSync,
   $escapeKeyFunction,
+  $externalCinemaLyricsAllowed,
   $showNpvDynamicBg,
   $ignoreMusixmatchWordSync,
   $lyricsSourceOrder,
@@ -79,6 +80,11 @@ import "./components/ReactComponents/LyricsManager/styles.css";
 import "./css/polyfills/generic-modal-polyfill.css";
 import "./css/polyfills/sonner-polyfill.css";
 import { IsPIP, OpenPopupLyrics, ClosePopupLyrics } from "./components/Utils/PopupLyrics.ts";
+import {
+  IsExternalCinemaLyrics,
+  OpenExternalCinemaLyrics,
+  CloseExternalCinemaLyrics,
+} from "./components/Utils/ExternalCinemaLyrics.ts";
 import ReactDOM from "react-dom/client";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
 import "./utils/settings.ts";
@@ -400,7 +406,8 @@ async function main() {
 
   let ButtonList: any;
   const syncPopupLyricsButtonVisibility = () => {
-    const popupButton = ButtonList?.[2]?.Button;
+    const popupButtonEntry = ButtonList?.[2];
+    const popupButton = popupButtonEntry?.Button;
     const popupButtonElement = popupButton?.element as HTMLElement | undefined;
     const popupLyricsAllowed = $popupLyricsAllowed.get();
     const isPopupButtonConnected = !!popupButtonElement?.isConnected;
@@ -408,8 +415,10 @@ async function main() {
     if (popupButton) {
       if (popupLyricsAllowed && !isPopupButtonConnected) {
         popupButton.register();
+        if (popupButtonEntry) popupButtonEntry.Registered = true;
       } else if (!popupLyricsAllowed && isPopupButtonConnected) {
         popupButton.deregister();
+        if (popupButtonEntry) popupButtonEntry.Registered = false;
       }
     }
 
@@ -419,6 +428,26 @@ async function main() {
     if (spotifyPipButton) {
       spotifyPipButton.style.display = popupLyricsAllowed ? "none" : "";
     }
+  };
+
+  const syncExternalCinemaButtonVisibility = () => {
+    const externalButtonEntry = ButtonList?.[3];
+    const externalButton = externalButtonEntry?.Button;
+    const externalButtonElement = externalButton?.element as HTMLElement | undefined;
+    const externalCinemaLyricsAllowed = $externalCinemaLyricsAllowed.get();
+    const isExternalButtonConnected = !!externalButtonElement?.isConnected;
+
+    if (externalButton) {
+      if (externalCinemaLyricsAllowed && !isExternalButtonConnected) {
+        externalButton.register();
+        if (externalButtonEntry) externalButtonEntry.Registered = true;
+      } else if (!externalCinemaLyricsAllowed && isExternalButtonConnected) {
+        externalButton.deregister();
+        if (externalButtonEntry) externalButtonEntry.Registered = false;
+      }
+    }
+
+    document.querySelector<HTMLElement>("#SpicyLyrics_ExternalCinemaButton")?.classList.toggle("disabled", !externalCinemaLyricsAllowed);
   };
 
   if (SpotifyPlayer.Playbar?.Button) {
@@ -504,6 +533,22 @@ async function main() {
               false
             )
             : undefined
+        )
+      },
+      {
+        Registered: false,
+        Button: new SpotifyPlayer.Playbar.Button(
+          "Spicy Cinema Window",
+          Icons.ExternalCinema,
+          () => {
+            if (IsExternalCinemaLyrics) {
+              CloseExternalCinemaLyrics();
+            } else {
+              OpenExternalCinemaLyrics();
+            }
+          },
+          false,
+          false
         )
       }
     ];
@@ -623,13 +668,16 @@ async function main() {
 
   Global.Event.listen("pagecontainer:available", () => {
     if (!ButtonList) return;
-    for (const button of ButtonList) {
+    for (const [index, button] of ButtonList.entries()) {
       if (!button.Registered) {
+        if (index === 2 && !$popupLyricsAllowed.get()) continue;
+        if (index === 3 && !$externalCinemaLyricsAllowed.get()) continue;
         if (button.Button) button.Button.register();
         button.Registered = true;
       }
     }
     syncPopupLyricsButtonVisibility();
+    syncExternalCinemaButtonVisibility();
   });
 
   {
@@ -644,7 +692,13 @@ async function main() {
       popupLyricsButton.element.style.order = "100000";
       popupLyricsButton.element.id = "SpicyLyrics_PopupLyricsButton";
     }
+
+    const externalCinemaButton = ButtonList[3].Button;
+    externalCinemaButton.element.style.order = "99999";
+    externalCinemaButton.element.id = "SpicyLyrics_ExternalCinemaButton";
+
     syncPopupLyricsButtonVisibility();
+    syncExternalCinemaButtonVisibility();
 
     const hideUnwantedButtons = (container: Element) => {
       for (const element of container.children) {
@@ -660,7 +714,8 @@ async function main() {
         if (
           (isFullscreen || isPip || isGenericControl) &&
           element.id !== "SpicyLyrics_FullscreenButton" &&
-          element.id !== "SpicyLyrics_PopupLyricsButton"
+          element.id !== "SpicyLyrics_PopupLyricsButton" &&
+          element.id !== "SpicyLyrics_ExternalCinemaButton"
         ) {
           (element as HTMLElement).style.display = "none";
         }
@@ -727,6 +782,7 @@ async function main() {
 
     startObservingDOM();
     $popupLyricsAllowed.listen(syncPopupLyricsButtonVisibility);
+    $externalCinemaLyricsAllowed.listen(syncExternalCinemaButtonVisibility);
   }
 
   let button: any;

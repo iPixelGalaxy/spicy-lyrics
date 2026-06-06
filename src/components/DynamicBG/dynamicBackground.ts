@@ -109,6 +109,7 @@ const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string) => {
 
 export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}) {
   if (!element) return;
+  const targetDocument = element.ownerDocument ?? document;
   dynamicBgLogger.debug("Applying dynamic background", { tag });
   const currentImgCover = getDynamicBackgroundCover();
   const IsEpisode = SpotifyPlayer.GetContentType() === "episode";
@@ -141,12 +142,12 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     const prevBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.LegacyBackground");
     if (prevBg?.getAttribute("data-cover-id") === currentImgCover) return;
 
-    const dynamicBg = document.createElement("div");
+    const dynamicBg = targetDocument.createElement("div");
     dynamicBg.classList.add("spicy-dynamic-bg", "LegacyBackground", "Hidden");
     dynamicBg.setAttribute("data-cover-id", currentImgCover);
 
     for (const className of ["Back", "BackCenter", "Front"]) {
-      const layer = document.createElement("div");
+      const layer = targetDocument.createElement("div");
       layer.classList.add(className);
       layer.style.backgroundImage = `url("${currentImgCover}")`;
       dynamicBg.appendChild(layer);
@@ -174,7 +175,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       // First, create/init the background with black as a fallback
       let dynamicBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.ColorBackground");
       if (!dynamicBg) {
-        dynamicBg = document.createElement("div");
+        dynamicBg = targetDocument.createElement("div");
         dynamicBg.classList.add("spicy-dynamic-bg", "ColorBackground");
         // Set initial fallback colors to black
         dynamicBg.style.setProperty("--MinContrastColor", COLOR_BG_FALLBACK_RGB);
@@ -226,7 +227,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     if (prevBg && prevBg.getAttribute("data-cover-id") === currentImgCover) {
       return;
     }
-    const dynamicBg = document.createElement("div");
+    const dynamicBg = targetDocument.createElement("div");
 
     dynamicBg.classList.add("spicy-dynamic-bg", "StaticBackground", "Hidden");
 
@@ -272,7 +273,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       }
     }
 
-    const canvas = document.createElement("canvas");
+    const canvas = targetDocument.createElement("canvas");
     canvas.classList.add("spicy-dynamic-bg");
     canvas.setAttribute("data-cover-id", currentImgCover ?? "");
 

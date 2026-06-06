@@ -35,6 +35,9 @@ let mediaBoxHover = false;
 
 let lastPageMouseMove: number | undefined;
 
+const getPageDocument = () => PageContainer?.ownerDocument ?? document;
+const getPageWindow = () => getPageDocument().defaultView ?? window;
+
 const shouldAlwaysShowFullscreenControls = () =>
   Defaults.AlwaysShowInFullscreen === "Controls" ||
   Defaults.AlwaysShowInFullscreen === "Both" ||
@@ -153,7 +156,7 @@ function setupFullscreenVolumeSlider() {
 
   if (!Fullscreen.IsOpen || IsPIP || IsCompactMode() || Defaults.ShowVolumeSliderFullscreen === "Off") return;
 
-  const volumeContainer = document.createElement("div");
+  const volumeContainer = getPageDocument().createElement("div");
   const showBelow = Defaults.ShowVolumeSliderFullscreen === "Below";
   volumeContainer.className = `FullscreenVolumeSlider ${
     Defaults.ShowVolumeSliderFullscreen === "Right" ? "RightSide" : ""
@@ -213,28 +216,30 @@ const Page_MouseOut = () => {
 };
 
 export const ExitFullscreenElement = async () => {
-  if (document.fullscreenElement) {
-    await document.exitFullscreen();
+  const pageDocument = getPageDocument();
+  if (pageDocument.fullscreenElement) {
+    await pageDocument.exitFullscreen();
   }
   setTimeout(Compactify, 1000);
 };
 
 export const EnterSpicyLyricsFullscreen = async () => {
-  const mainElement = document.querySelector<HTMLElement>("#main");
+  const pageDocument = getPageDocument();
+  const mainElement = pageDocument.querySelector<HTMLElement>("#main");
   if (mainElement) {
     mainElement.style.display = "none";
   }
 
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
+    if (!pageDocument.fullscreenElement) {
+      await pageDocument.documentElement.requestFullscreen();
     }
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error(`Fullscreen error: ${errorMessage}`);
   }
 
-  document.documentElement.focus();
+  pageDocument.documentElement.focus();
 
   setTimeout(Compactify, 1000);
 };
@@ -255,8 +260,9 @@ function CleanupMediaBox() {
 
 function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = true) {
   const SpicyPage = PageContainer;
-  const Root = document.body as HTMLElement;
-  const mainElement = document.querySelector<HTMLElement>("#main");
+  const pageDocument = getPageDocument();
+  const Root = pageDocument.body as HTMLElement;
+  const mainElement = pageDocument.querySelector<HTMLElement>("#main");
 
   if (SpicyPage) {
     // Set state first
@@ -365,7 +371,8 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
 
 async function Close(isPip: boolean = false) {
   const SpicyPage = PageContainer;
-  const mainElement = document.querySelector<HTMLElement>("#main");
+  const pageDocument = getPageDocument();
+  const mainElement = pageDocument.querySelector<HTMLElement>("#main");
 
   if (SpicyPage) {
     Fullscreen.IsOpen = false;
@@ -396,7 +403,7 @@ async function Close(isPip: boolean = false) {
 
       if (Defaults.AnimateFullscreenClose) {
         SpicyPage.classList.add("frame_F_Exit");
-        document.body.style.pointerEvents = "none";
+        pageDocument.body.style.pointerEvents = "none";
         await new Promise(r => setTimeout(r, 650));
       }
 
@@ -423,7 +430,7 @@ async function Close(isPip: boolean = false) {
         DeregisterNowBarBtn();
       }
 
-      document.body.style.removeProperty("pointer-events");
+      pageDocument.body.style.removeProperty("pointer-events");
       SpicyPage.classList.remove("frame_F_Exit");
 
       ResetLastLine();
@@ -463,7 +470,7 @@ function RefreshFullscreenControlsVisibility() {
   ToggleControls(true);
 
   if (Defaults.ShowVolumeSliderFullscreen === "Below") {
-    window.setTimeout(setupFullscreenVolumeSlider, 0);
+    getPageWindow().setTimeout(setupFullscreenVolumeSlider, 0);
   }
 }
 

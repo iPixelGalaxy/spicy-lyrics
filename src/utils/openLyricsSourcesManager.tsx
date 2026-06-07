@@ -10,8 +10,9 @@ function getModalScrollTop() {
 export async function OpenLyricsSourcesManager() {
   const { default: SettingsPanel } = await import("../components/ReactComponents/SettingsPanel/index.tsx");
   const settingsScrollTop = getModalScrollTop();
+  const modalDocument = PopupModal.ownerDocument;
   const openSettings = () => {
-    const settingsContainer = document.createElement("div");
+    const settingsContainer = modalDocument.createElement("div");
     const settingsRoot = ReactDOM.createRoot(settingsContainer);
 
     flushSync(() => {
@@ -27,13 +28,13 @@ export async function OpenLyricsSourcesManager() {
     });
   };
 
-  const backButton = document.createElement("button");
+  const backButton = modalDocument.createElement("button");
   backButton.className = "sl-sp-btn sl-modal-header-back-btn";
   backButton.type = "button";
   backButton.textContent = "← Back";
   backButton.onclick = openSettings;
 
-  const container = document.createElement("div");
+  const container = modalDocument.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {

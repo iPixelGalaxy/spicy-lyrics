@@ -18,7 +18,8 @@ export function OpenTTMLDatabasePanel() {
     return;
   }
 
-  const container = document.createElement("div");
+  const modalDocument = PopupModal.ownerDocument;
+  const container = modalDocument.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {
@@ -36,8 +37,9 @@ export function OpenTTMLDatabasePanel() {
 export async function OpenTTMLDatabasePanelFromSettings() {
   const { default: SettingsPanel } = await import("../components/ReactComponents/SettingsPanel/index.tsx");
   const settingsScrollTop = getModalScrollTop();
+  const modalDocument = PopupModal.ownerDocument;
   const openSettings = () => {
-    const container = document.createElement("div");
+    const container = modalDocument.createElement("div");
     const root = ReactDOM.createRoot(container);
     flushSync(() => {
       root.render(<SettingsPanel />);
@@ -55,7 +57,7 @@ export async function OpenTTMLDatabasePanelFromSettings() {
 }
 
 function _openDB(onBack = _openUpload, modalId: string | null = null) {
-  const container = document.createElement("div");
+  const container = PopupModal.ownerDocument.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {
@@ -72,7 +74,7 @@ function _openDB(onBack = _openUpload, modalId: string | null = null) {
 }
 
 function _openUpload() {
-  const container = document.createElement("div");
+  const container = PopupModal.ownerDocument.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {

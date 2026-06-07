@@ -27,16 +27,19 @@ export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
 function openProfile(userId: string | undefined) {
   if (!userId) return;
   if (!IsPIP) {
-    showIframeProfileModal(userId);
+    showIframeProfileModal(userId, PageDocument);
     return;
   }
   const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
   globalThis.open?.(url, "_blank", "noopener,noreferrer");
 }
 
+let PageDocument: Document = document;
+
 export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): void {
   if (!data.source || !LyricsContainer) return;
   if (data.source !== "spl") return;
+  PageDocument = LyricsContainer.ownerDocument;
 
   // Clean up any previous listeners before adding new ones
   if (isByCommunityAbortController) {
@@ -55,7 +58,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   isByCommunityAbortController = new AbortController();
   const { signal } = isByCommunityAbortController;
 
-  const songInfoElement = document.createElement("div");
+  const songInfoElement = PageDocument.createElement("div");
   songInfoElement.classList.add("SongInfo");
 
   const makerUsername = data.TTMLUploadMetadata?.Maker?.username;
@@ -70,30 +73,30 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     username: string,
     avatarUrl?: string
   ) => {
-    const wrapperSpan = document.createElement("span");
+    const wrapperSpan = PageDocument.createElement("span");
     wrapperSpan.classList.add(type);
 
-    const innerSpan = document.createElement("span");
+    const innerSpan = PageDocument.createElement("span");
 
-    const labelSpan = document.createElement("span");
+    const labelSpan = PageDocument.createElement("span");
     labelSpan.style.opacity = "0.5";
     labelSpan.textContent = `${labelText} `;
 
-    const profileSectionSpan = document.createElement("span");
+    const profileSectionSpan = PageDocument.createElement("span");
     profileSectionSpan.classList.add("song-info-profile-section");
 
     // "@username"
-    const atText = document.createTextNode("@");
+    const atText = PageDocument.createTextNode("@");
     profileSectionSpan.appendChild(atText);
 
-    const usernameSpan = document.createElement("span");
+    const usernameSpan = PageDocument.createElement("span");
     usernameSpan.textContent = username;
     profileSectionSpan.appendChild(usernameSpan);
 
     // Optional avatar image
     if (avatarUrl) {
-      const avatarWrapper = document.createElement("span");
-      const img = document.createElement("img");
+      const avatarWrapper = PageDocument.createElement("span");
+      const img = PageDocument.createElement("img");
       img.src = avatarUrl;
       img.alt = `${username}'s avatar`;
       img.onerror = () => {

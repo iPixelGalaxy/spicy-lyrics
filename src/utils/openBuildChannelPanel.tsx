@@ -10,7 +10,7 @@ export function OpenBuildChannelPanel() {
     return;
   }
 
-  const container = document.createElement("div");
+  const container = PopupModal.ownerDocument.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {

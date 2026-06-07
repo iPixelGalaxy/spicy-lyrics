@@ -71,7 +71,21 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
       )}
 
       {r3 && (
-        <Row label="Disable Popup Lyrics Window" description="Prevent lyrics from opening in a floating popup window.">
+        <Row
+          label="Disable Popup Lyrics Window"
+          description="Prevent lyrics from opening in a floating popup window."
+          labelAccessory={
+            <a
+              className="sl-sp-help-link"
+              href="https://github.com/iPixelGalaxy/spicy-lyrics/blob/dev/ENABLE_DEVTOOLS.md"
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              Help
+            </a>
+          }
+        >
           <Toggle
             checked={!popupLyricsAllowed}
             onChange={(v) => $popupLyricsAllowed.set(!v)}

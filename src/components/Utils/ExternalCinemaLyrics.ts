@@ -16,6 +16,7 @@ export let IsExternalCinemaLyrics = false;
 
 let currentExternalWindow: Window | null = null;
 let externalPageHideHandler: ((event: Event) => void) | null = null;
+let hostPageHideHandler: ((event: Event) => void) | null = null;
 let closingExternalWindow = false;
 let externalPlaybackPump: number | null = null;
 let externalPlaybackPumpLastUri: string | null = null;
@@ -218,7 +219,12 @@ export const OpenExternalCinemaLyrics = async () => {
   externalPageHideHandler = () => {
     if (!closingExternalWindow) CloseExternalCinemaLyrics(false);
   };
+  hostPageHideHandler = () => {
+    if (!closingExternalWindow) void CloseExternalCinemaLyrics(true);
+  };
   externalWindow.addEventListener("pagehide", externalPageHideHandler);
+  window.addEventListener("pagehide", hostPageHideHandler);
+  window.addEventListener("beforeunload", hostPageHideHandler);
 };
 
 export const CloseExternalCinemaLyrics = async (closeWindow = true) => {
@@ -235,6 +241,11 @@ export const CloseExternalCinemaLyrics = async (closeWindow = true) => {
     currentExternalWindow.removeEventListener("pagehide", externalPageHideHandler);
   }
   externalPageHideHandler = null;
+  if (hostPageHideHandler) {
+    window.removeEventListener("pagehide", hostPageHideHandler);
+    window.removeEventListener("beforeunload", hostPageHideHandler);
+  }
+  hostPageHideHandler = null;
 
   if (closeWindow && currentExternalWindow && !currentExternalWindow.closed) {
     currentExternalWindow.close();

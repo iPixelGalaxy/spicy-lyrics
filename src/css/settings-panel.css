@@ -317,12 +317,43 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       min-width: 0;
     }
 
+    .sl-sp-label-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
     /* Label sits below the section title in size and weight — restoring
        hierarchy. Description is the quietest line. */
     .sl-sp-label {
       font-size: var(--text-body-size) !important;
       font-weight: var(--w-medium);
       color: var(--color-text-primary);
+    }
+
+    .sl-sp-help-link {
+      color: var(--color-text-secondary);
+      font-size: var(--text-caption-size) !important;
+      font-weight: var(--w-medium);
+      opacity: 0.85;
+      text-decoration: underline;
+      text-decoration-color: rgba(255, 255, 255, 0.35);
+      text-underline-offset: 3px;
+      text-shadow: 0 0 8px rgba(255, 255, 255, 0.12);
+      transition:
+        color var(--dur-fast) var(--ease-standard),
+        opacity var(--dur-fast) var(--ease-standard),
+        text-decoration-color var(--dur-fast) var(--ease-standard),
+        text-shadow var(--dur-fast) var(--ease-standard);
+
+      &:hover,
+      &:focus-visible {
+        color: var(--color-text-primary);
+        opacity: 1;
+        text-decoration-color: rgba(255, 255, 255, 0.8);
+        text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      }
     }
 
     .sl-sp-description {

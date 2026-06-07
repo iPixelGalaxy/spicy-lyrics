@@ -13,17 +13,22 @@ export function Row({
   children,
   disabled,
   disabledReason,
+  labelAccessory,
 }: {
   label: string;
   description?: string;
   children: React.ReactNode;
   disabled?: boolean;
   disabledReason?: string;
+  labelAccessory?: React.ReactNode;
 }) {
   return (
     <div className={`sl-sp-row sl-list-row${disabled ? " sl-sp-row--disabled" : ""}`}>
       <div className="sl-sp-label-wrap">
-        <span className="sl-sp-label">{label}</span>
+        <span className="sl-sp-label-line">
+          <span className="sl-sp-label">{label}</span>
+          {labelAccessory}
+        </span>
         {description && <span className="sl-sp-description">{description}</span>}
       </div>
       <div className="sl-sp-control">{children}</div>

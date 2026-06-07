@@ -12,9 +12,10 @@ const devLog = (...args: any[]) => {
 interface IframeProfileModalProps {
   userId: string;
   onClose: () => void;
+  messageWindow: Window;
 }
 
-function IframeProfileModal({ userId, onClose }: IframeProfileModalProps) {
+function IframeProfileModal({ userId, onClose, messageWindow }: IframeProfileModalProps) {
   const [username, setUsername] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -68,9 +69,9 @@ function IframeProfileModal({ userId, onClose }: IframeProfileModalProps) {
   }, [onClose]);
 
   useEffect(() => {
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [handleMessage]);
+    messageWindow.addEventListener("message", handleMessage);
+    return () => messageWindow.removeEventListener("message", handleMessage);
+  }, [handleMessage, messageWindow]);
 
   return (
     <div
@@ -165,10 +166,11 @@ let _profileContainer: HTMLElement | null = null;
 let _profileHost: HTMLElement | null = null;
 let _profileHostPrevPosition: string = "";
 let _resizeHandler: (() => void) | null = null;
+let _profileWindow: Window | null = null;
 
 export function closeIframeProfileModal() {
   if (_resizeHandler) {
-    window.removeEventListener("resize", _resizeHandler);
+    (_profileWindow ?? window).removeEventListener("resize", _resizeHandler);
     _resizeHandler = null;
   }
   _profileRoot?.unmount();
@@ -180,9 +182,10 @@ export function closeIframeProfileModal() {
     _profileHost = null;
     _profileHostPrevPosition = "";
   }
+  _profileWindow = null;
 }
 
-export function showIframeProfileModal(userId: string | undefined) {
+export function showIframeProfileModal(userId: string | undefined, targetDocument: Document = document) {
   devLog("showIframeProfileModal called, userId:", userId);
   if (!userId) {
     devLog("userId is falsy, aborting");
@@ -195,7 +198,8 @@ export function showIframeProfileModal(userId: string | undefined) {
   // in Spotify's rendering context (all children are absolutely/fixed positioned),
   // so absolutely-positioned children of body end up with 0×0 rects even with
   // explicit pixel dimensions. The html element retains real layout dimensions.
-  const host = document.documentElement;
+  const host = targetDocument.documentElement;
+  const targetWindow = targetDocument.defaultView ?? window;
 
   // Ensure the host is a positioning context for our absolute overlay
   _profileHost = host;
@@ -204,7 +208,7 @@ export function showIframeProfileModal(userId: string | undefined) {
     host.style.position = "relative";
   }
 
-  const container = document.createElement("div");
+  const container = targetDocument.createElement("div");
   const setContainerSize = () => {
     const rect = host.getBoundingClientRect();
     devLog("setContainerSize — host rect:", JSON.stringify(rect));
@@ -215,13 +219,14 @@ export function showIframeProfileModal(userId: string | undefined) {
   _profileContainer = container;
 
   _resizeHandler = setContainerSize;
-  window.addEventListener("resize", _resizeHandler);
+  _profileWindow = targetWindow;
+  targetWindow.addEventListener("resize", _resizeHandler);
   devLog("container appended to", host.id || host.tagName);
 
   try {
     const root = ReactDOM.createRoot(container);
     _profileRoot = root;
-    root.render(React.createElement(IframeProfileModal, { userId, onClose: closeIframeProfileModal }));
+    root.render(React.createElement(IframeProfileModal, { userId, onClose: closeIframeProfileModal, messageWindow: targetWindow }));
     devLog("React root created and rendered");
 
     setTimeout(() => {
@@ -230,7 +235,7 @@ export function showIframeProfileModal(userId: string | undefined) {
       devLog("container rect:", JSON.stringify(container.getBoundingClientRect()));
       const overlay = container.firstElementChild as HTMLElement | null;
       if (overlay) {
-        const cs = window.getComputedStyle(overlay);
+        const cs = targetWindow.getComputedStyle(overlay);
         devLog("overlay rect:", JSON.stringify(overlay.getBoundingClientRect()));
         devLog("overlay computed — position:", cs.position, "zIndex:", cs.zIndex, "display:", cs.display, "visibility:", cs.visibility);
       } else {

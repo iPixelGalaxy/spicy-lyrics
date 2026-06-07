@@ -405,6 +405,25 @@ async function main() {
   document.head.appendChild(skeletonStyle);
 
   let ButtonList: any;
+  let externalCinemaWindowSupport: boolean | null = null;
+  const canOpenExternalCinemaWindow = () => {
+    if (externalCinemaWindowSupport !== null) return externalCinemaWindowSupport;
+
+    try {
+      const probeWindow = window.open(
+        "",
+        "SpicyLyricsCinemaProbe",
+        "popup=yes,width=1,height=1,left=-10000,top=-10000"
+      );
+      externalCinemaWindowSupport = !!probeWindow;
+      probeWindow?.close();
+    } catch {
+      externalCinemaWindowSupport = false;
+    }
+
+    return externalCinemaWindowSupport;
+  };
+
   const syncPopupLyricsButtonVisibility = () => {
     const popupButtonEntry = ButtonList?.[2];
     const popupButton = popupButtonEntry?.Button;
@@ -434,7 +453,8 @@ async function main() {
     const externalButtonEntry = ButtonList?.[3];
     const externalButton = externalButtonEntry?.Button;
     const externalButtonElement = externalButton?.element as HTMLElement | undefined;
-    const externalCinemaLyricsAllowed = $externalCinemaLyricsAllowed.get();
+    const externalCinemaLyricsAllowed =
+      $externalCinemaLyricsAllowed.get() && canOpenExternalCinemaWindow();
     const isExternalButtonConnected = !!externalButtonElement?.isConnected;
 
     if (externalButton) {
@@ -547,6 +567,7 @@ async function main() {
               OpenExternalCinemaLyrics();
             }
           },
+          false,
           false,
           false
         )
@@ -671,7 +692,7 @@ async function main() {
     for (const [index, button] of ButtonList.entries()) {
       if (!button.Registered) {
         if (index === 2 && !$popupLyricsAllowed.get()) continue;
-        if (index === 3 && !$externalCinemaLyricsAllowed.get()) continue;
+        if (index === 3 && (!$externalCinemaLyricsAllowed.get() || !canOpenExternalCinemaWindow())) continue;
         if (button.Button) button.Button.register();
         button.Registered = true;
       }

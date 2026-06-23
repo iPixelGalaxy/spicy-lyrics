@@ -4,7 +4,7 @@ import { easeSinOut } from "d3-ease";
 import { $currentLyricsType, $simpleLyricsMode, $simpleLyricsModeRenderingType } from "../../../../utils/stores.ts";
 import { isSpicySidebarMode } from "../../../../components/Utils/SidebarLyrics.ts";
 import { LyricsObject, SimpleLyricsMode_LetterEffectsStrengthConfig, preHiddenDotLineMs } from "../../lyrics.ts";
-import { BlurMultiplier, SidebarBlurMultiplier, getLyricSyncOffsetMs } from "../Shared.ts";
+import { BlurMultiplier, SidebarBlurMultiplier, timeOffset } from "../Shared.ts";
 import { setOnNewElementMounted } from "../../LyricsVirtualizer.ts";
 import { Spring } from "../../../../modules/Spring.ts";
 /* import { CurveInterpolator } from "curve-interpolator"; */
@@ -444,7 +444,7 @@ setOnNewElementMounted(() => {
 });
 
 export function findActiveElement(currentTime: number): any {
-  const ProcessedPosition = currentTime + getLyricSyncOffsetMs() + AnimationResponseLeadMs;
+  const ProcessedPosition = currentTime + timeOffset + AnimationResponseLeadMs;
   const CurrentLyricsType = $currentLyricsType.get();
 
   if (!CurrentLyricsType || CurrentLyricsType === "None") return null;
@@ -534,7 +534,7 @@ function getProgressPercentage(currentTime: number, startTime: number, endTime: 
 let lastAnimateFrameTime = 0;
 
 export function Animate(position: number): void {
-  const ProcessedPosition = position + getLyricSyncOffsetMs() + AnimationResponseLeadMs;
+  const ProcessedPosition = position + timeOffset + AnimationResponseLeadMs;
 
   const now = performance.now();
 

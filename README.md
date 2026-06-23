@@ -63,22 +63,12 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.28 — Latest
-
-- **Lyrics Sync Offset setting**
-  Added a slider in **Settings → Lyrics Display** to delay or advance lyric timing by milliseconds. Positive values delay lyrics for Bluetooth speaker latency; negative values make lyrics appear earlier.
-
-<details>
-<summary>v100.10.27</summary>
-
-### v100.10.27
+### v100.10.27 — Latest
 
 - **External Cinema Lyrics window**
   Added a new playbar button that opens Spicy Lyrics in a separate cinema-mode window. You can move it to another display or fullscreen it while keeping the main Spotify window interactable.
 
 ---
-
-</details>
 
 <details>
 <summary>v100.10.26</summary>

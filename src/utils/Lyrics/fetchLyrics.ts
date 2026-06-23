@@ -307,6 +307,9 @@ async function fetchLyricsInternal(uri: string): Promise<[object | string, numbe
 
 let ContainerShowLoaderTimeout: ReturnType<typeof setTimeout> | null = null;
 
+export const LYRICS_QUEUE_MESSAGE =
+  "Your request is in the queue - hang tight, your lyrics are on the way!";
+
 /**
  * Show the loader container after a delay
  */
@@ -321,6 +324,28 @@ function ShowLoaderContainer(): void {
   }
 }
 
+export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
+  const loaderContainer = PageContainer?.querySelector<HTMLElement>(
+    ".LyricsContainer .loaderContainer"
+  );
+  if (!loaderContainer) return;
+
+  if (ContainerShowLoaderTimeout) {
+    clearTimeout(ContainerShowLoaderTimeout);
+    ContainerShowLoaderTimeout = null;
+  }
+
+  loaderContainer.classList.add("active", "queued");
+
+  let messageEl = loaderContainer.querySelector<HTMLElement>(".loaderMessage");
+  if (!messageEl) {
+    messageEl = document.createElement("div");
+    messageEl.className = "loaderMessage";
+    loaderContainer.appendChild(messageEl);
+  }
+  messageEl.textContent = message;
+}
+
 /**
  * Hide the loader container and clear any pending timeout
  */
@@ -333,7 +358,8 @@ function HideLoaderContainer(): void {
       clearTimeout(ContainerShowLoaderTimeout);
       ContainerShowLoaderTimeout = null;
     }
-    loaderContainer.classList.remove("active");
+    loaderContainer.classList.remove("active", "queued");
+    loaderContainer.querySelector(".loaderMessage")?.remove();
   }
 }
 

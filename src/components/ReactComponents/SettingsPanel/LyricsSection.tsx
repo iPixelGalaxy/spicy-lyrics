@@ -4,11 +4,12 @@ import {
   $enableExperimentalWordSync,
   $memeFormat,
   $minimalLyricsMode,
+  $playbackOffset,
   $rightAlignLyrics,
   $simpleLyricsMode,
   $simpleLyricsModeRenderingType,
 } from "../../../utils/stores.ts";
-import { matches, Row, Select, SectionTitle, Toggle } from "./components.tsx";
+import { matches, Row, Select, SectionTitle, Slider, Toggle } from "./components.tsx";
 
 const SECTION_NAME = "Lyrics Display";
 const simpleLyricsOptions = ["Off", "calculate", "animate"];
@@ -26,6 +27,7 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const rightAlignLyrics = useStore($rightAlignLyrics);
   const memeFormat = useStore($memeFormat);
   const enableExperimentalWordSync = useStore($enableExperimentalWordSync);
+  const playbackOffset = useStore($playbackOffset);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
@@ -36,8 +38,9 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const r4 = matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");
   const r6 = matches(query, "Gibberish Lyrics Mode", "Transform lyrics into gibberish text.");
   const r7 = matches(query, "Experimental Word Sync", "Estimate word sync for line/static lyrics.");
+  const r8 = matches(query, "Playback Offset", "Shift lyrics timing earlier or later, in milliseconds.");
 
-  if (!r1 && !r3 && !r4 && !r6 && !r7) return null;
+  if (!r1 && !r3 && !r4 && !r6 && !r7 && !r8) return null;
 
   const simpleLyricsValue = simpleLyricsMode ? simpleLyricsModeRenderingType : "Off";
 
@@ -95,6 +98,24 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
       {r7 && (
         <Row label="Experimental Word Sync" description="Estimate word sync for line/static lyrics.">
           <Toggle checked={enableExperimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} />
+        </Row>
+      )}
+
+      {r8 && (
+        <Row
+          label="Playback Offset"
+          description="Shift lyrics timing in milliseconds. Negative values show lyrics earlier; positive values delay them."
+          stacked
+        >
+          <Slider
+            value={playbackOffset}
+            min={-5000}
+            max={5000}
+            step={10}
+            defaultValue={0}
+            unit="ms"
+            onChange={(v) => $playbackOffset.set(v)}
+          />
         </Row>
       )}
 

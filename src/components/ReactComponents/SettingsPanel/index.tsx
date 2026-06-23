@@ -3,10 +3,9 @@ import AppearanceSection from "./AppearanceSection.tsx";
 import DeveloperSection from "./DeveloperSection.tsx";
 import InterfaceSection from "./InterfaceSection.tsx";
 import LyricsSection from "./LyricsSection.tsx";
-import PlaybackSection from "./PlaybackSection.tsx";
 import { FilterDropdown, SearchBar } from "./components.tsx";
 
-const SECTIONS = ["Appearance", "Lyrics Display", "Playback", "Interface", "Advanced"];
+const SECTIONS = ["Appearance", "Lyrics Display", "Interface", "Advanced"];
 
 export default function SettingsPanel() {
   const [query, setQuery] = useState("");
@@ -21,7 +20,6 @@ export default function SettingsPanel() {
 
       <AppearanceSection query={query} sectionFilter={sectionFilter} />
       <LyricsSection query={query} sectionFilter={sectionFilter} />
-      <PlaybackSection query={query} sectionFilter={sectionFilter} />
       <InterfaceSection query={query} sectionFilter={sectionFilter} />
       <DeveloperSection query={query} sectionFilter={sectionFilter} />
     </div>

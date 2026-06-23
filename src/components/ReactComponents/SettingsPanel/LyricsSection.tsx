@@ -2,13 +2,14 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import {
   $enableExperimentalWordSync,
+  $lyricsSyncOffsetMs,
   $memeFormat,
   $minimalLyricsMode,
   $rightAlignLyrics,
   $simpleLyricsMode,
   $simpleLyricsModeRenderingType,
 } from "../../../utils/stores.ts";
-import { matches, Row, Select, SectionTitle, Toggle } from "./components.tsx";
+import { matches, Row, Select, SectionTitle, Slider, Toggle } from "./components.tsx";
 
 const SECTION_NAME = "Lyrics Display";
 const simpleLyricsOptions = ["Off", "calculate", "animate"];
@@ -26,6 +27,7 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const rightAlignLyrics = useStore($rightAlignLyrics);
   const memeFormat = useStore($memeFormat);
   const enableExperimentalWordSync = useStore($enableExperimentalWordSync);
+  const lyricsSyncOffsetMs = useStore($lyricsSyncOffsetMs);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
@@ -36,8 +38,9 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const r4 = matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");
   const r6 = matches(query, "Gibberish Lyrics Mode", "Transform lyrics into gibberish text.");
   const r7 = matches(query, "Experimental Word Sync", "Estimate word sync for line/static lyrics.");
+  const r8 = matches(query, "Lyrics Sync Offset", "Delay or advance lyric timing to match audio output latency.");
 
-  if (!r1 && !r3 && !r4 && !r6 && !r7) return null;
+  if (!r1 && !r3 && !r4 && !r6 && !r7 && !r8) return null;
 
   const simpleLyricsValue = simpleLyricsMode ? simpleLyricsModeRenderingType : "Off";
 
@@ -95,6 +98,22 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
       {r7 && (
         <Row label="Experimental Word Sync" description="Estimate word sync for line/static lyrics.">
           <Toggle checked={enableExperimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} />
+        </Row>
+      )}
+
+      {r8 && (
+        <Row
+          label="Lyrics Sync Offset"
+          description="Positive values delay lyrics for Bluetooth speaker latency. Negative values make lyrics earlier."
+        >
+          <Slider
+            value={lyricsSyncOffsetMs}
+            min={-2000}
+            max={2000}
+            step={25}
+            suffix="ms"
+            onChange={(v) => $lyricsSyncOffsetMs.set(v)}
+          />
         </Row>
       )}
 

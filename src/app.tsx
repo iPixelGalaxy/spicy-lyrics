@@ -30,6 +30,7 @@ import {
   $externalCinemaLyricsAllowed,
   $showNpvDynamicBg,
   $ignoreMusixmatchWordSync,
+  $lyricsSyncOffsetMs,
   $lyricsSourceOrder,
   $memeFormat,
   $musixmatchToken,
@@ -183,6 +184,7 @@ function bindForkDefaults() {
   bindDefault($displayLyricsHoverPill, (value) => { Defaults.DisplayLyricsHoverPill = value; });
   bindDefault($animateFullscreenClose, (value) => { Defaults.AnimateFullscreenClose = value; });
   bindDefault($enableExperimentalWordSync, (value) => { Defaults.EnableExperimentalWordSync = value; });
+  bindDefault($lyricsSyncOffsetMs, (value) => { Defaults.LyricsSyncOffsetMs = value; });
   bindDefault($lyricsSourceOrder, (value) => {
     try {
       Defaults.LyricsSourceOrder = JSON.parse(value);

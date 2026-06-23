@@ -1,6 +1,8 @@
+import { $lyricsSyncOffsetMs } from "../../stores.ts";
+
 const IdleLyricsScale = 0.95;
 const IdleEmphasisLyricsScale = 0.95;
-const timeOffset = 0;
+const getLyricSyncOffsetMs = () => -$lyricsSyncOffsetMs.get();
 const DurationTimeOffset = 0;
 const BlurMultiplier = 1.25;
 const SidebarBlurMultiplier = 2.5;
@@ -26,7 +28,7 @@ const WordBlurs = {
 export {
   IdleLyricsScale,
   IdleEmphasisLyricsScale,
-  timeOffset,
+  getLyricSyncOffsetMs,
   DurationTimeOffset,
   BlurMultiplier,
   WordBlurs,

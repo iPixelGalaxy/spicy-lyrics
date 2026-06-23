@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 
@@ -80,6 +80,28 @@ function getBuiltJsFile(distDir, projectName) {
   throw new Error(`Could not find built JS output in ${distDir}`);
 }
 
+function replaceOnPermissionError(path, write) {
+  try {
+    write();
+    return;
+  } catch (error) {
+    if (!existsSync(path) || (error?.code !== "EACCES" && error?.code !== "EPERM")) {
+      throw error;
+    }
+
+    unlinkSync(path);
+    write();
+  }
+}
+
+function copyFileReplacing(source, destination) {
+  replaceOnPermissionError(destination, () => copyFileSync(source, destination));
+}
+
+function writeFileReplacing(destination, contents) {
+  replaceOnPermissionError(destination, () => writeFileSync(destination, contents));
+}
+
 const { version, targetDir } = parseArgs(process.argv.slice(2));
 if (!version) {
   console.error("Usage: bun run build --version <version> [outputDir]");
@@ -108,14 +130,14 @@ if (result.status !== 0) {
 try {
   const builtFile = getBuiltJsFile(defaultDist, projectName);
   const versionedOutput = join(defaultDist, outputFile);
-  copyFileSync(builtFile, versionedOutput);
-  writeFileSync(join(defaultDist, "version"), version);
+  copyFileReplacing(builtFile, versionedOutput);
+  writeFileReplacing(join(defaultDist, "version"), version);
 
   if (targetDir) {
     const dest = resolve(targetDir);
     mkdirSync(dest, { recursive: true });
-    copyFileSync(versionedOutput, join(dest, outputFile));
-    writeFileSync(join(dest, "version"), version);
+    copyFileReplacing(versionedOutput, join(dest, outputFile));
+    writeFileReplacing(join(dest, "version"), version);
     console.log(`Copied build to ${dest}`);
   }
 } catch (error) {

@@ -1,6 +1,6 @@
 import { $currentLyricsType } from "../../../../utils/stores.ts";
 import { LyricsObject, type LyricsType } from "../../lyrics.ts";
-import { timeOffset } from "../Shared.ts";
+import { getLyricSyncOffsetMs } from "../Shared.ts";
 
 // Extend the LyricsType to include "None"
 type ExtendedLyricsType = LyricsType | "None";
@@ -36,7 +36,7 @@ function getLineStatus(currentTime: number, line: any): ElementStatus {
 }
 
 export function TimeSetter(PreCurrentPosition: number): void {
-  const CurrentPosition = PreCurrentPosition + timeOffset;
+  const CurrentPosition = PreCurrentPosition + getLyricSyncOffsetMs();
   const CurrentLyricsType = $currentLyricsType.get() as ExtendedLyricsType;
 
   if (!CurrentLyricsType || CurrentLyricsType === "None") return;

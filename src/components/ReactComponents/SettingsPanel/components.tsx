@@ -87,6 +87,41 @@ export function Select({
   );
 }
 
+export function Slider({
+  value,
+  min,
+  max,
+  step = 1,
+  suffix = "",
+  onChange,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix?: string;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="sl-sp-slider-wrap">
+      <input
+        className="sl-sp-slider"
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.currentTarget.value))}
+      />
+      <span className="sl-sp-slider-value">
+        {value > 0 ? "+" : ""}
+        {value}
+        {suffix}
+      </span>
+    </div>
+  );
+}
+
 export function SectionTitle({ children }: { children: React.ReactNode }) {
   return <p className="sl-sp-section-title">{children}</p>;
 }

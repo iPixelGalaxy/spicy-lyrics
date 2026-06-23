@@ -80,6 +80,7 @@ export const $memeFormat = persistAtom<string>("memeFormat", "Off");
 export const $displayLyricsHoverPill = persistAtom<boolean>("displayLyricsHoverPill", false);
 export const $animateFullscreenClose = persistAtom<boolean>("animateFullscreenClose", false);
 export const $enableExperimentalWordSync = persistAtom<boolean>("enableExperimentalWordSync", false);
+export const $lyricsSyncOffsetMs = persistAtom<number>("lyricsSyncOffsetMs", 0);
 export const $lyricsSourceOrder = persistAtom<string>(
   "lyricsSourceOrder",
   JSON.stringify(["spicy", "musixmatch", "apple", "spotify", "lrclib", "netease"])

@@ -22,6 +22,7 @@ const Defaults = {
   DisplayLyricsHoverPill: false,
   AnimateFullscreenClose: false,
   EnableExperimentalWordSync: false,
+  LyricsSyncOffsetMs: 0,
   LyricsSourceOrder: ["spicy", "musixmatch", "apple", "spotify", "lrclib", "netease"],
   DisabledLyricsSourceIds: ["lrclib", "netease"] as string[],
   IgnoreMusixmatchWordSync: true,

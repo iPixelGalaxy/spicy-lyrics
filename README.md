@@ -63,12 +63,23 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.27 — Latest
+### v100.10.28 — Latest
+
+- Updated to be in line with Spicy Lyrics 6.1.1.
+
+---
+
+<details>
+<summary>v100.10.27</summary>
+
+### v100.10.27
 
 - **External Cinema Lyrics window**
   Added a new playbar button that opens Spicy Lyrics in a separate cinema-mode window. You can move it to another display or fullscreen it while keeping the main Spotify window interactable.
 
 ---
+
+</details>
 
 <details>
 <summary>v100.10.26</summary>
@@ -78,6 +89,8 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 - The new starting point, all older changes merged into one easy to read list at the bottom.
 
 ---
+
+</details>
 
 <details>
 <summary>Major Features</summary>
@@ -379,7 +392,5 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 - **Lockfile/package updates**  
   `bun.lock` and `package.json` changed to reflect the updated build scripts/dependency state.
-
-</details>
 
 </details>

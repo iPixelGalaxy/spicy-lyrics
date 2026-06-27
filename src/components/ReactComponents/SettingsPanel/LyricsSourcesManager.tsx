@@ -16,6 +16,7 @@ import {
   $lyricsSourceOrder,
   $musixmatchToken,
   $prioritizeAppleMusicQuality,
+  $customServers,
 } from "../../../utils/stores.ts";
 import { refreshMusixmatchToken } from "../../../utils/Lyrics/ExternalSources.ts";
 import { Toggle } from "./components.tsx";
@@ -28,9 +29,19 @@ export default function LyricsSourcesManager() {
   const ignoreMusixmatchWordSync = useStore($ignoreMusixmatchWordSync);
   const prioritizeAppleMusicQuality = useStore($prioritizeAppleMusicQuality);
   const musixmatchToken = useStore($musixmatchToken);
+  const customServersJson = useStore($customServers);
   const order = normalizeLyricsSourceOrder(storedOrder);
   const disabledIds = new Set(normalizeDisabledLyricsSourceIds(storedDisabled));
   const [expandedOptions, setExpandedOptions] = useState<Set<LyricsSourceProviderId>>(new Set());
+  const [newServerName, setNewServerName] = useState("");
+  const [newServerUrl, setNewServerUrl] = useState("");
+
+  let customServers: { id: string, name: string, url: string }[] = [];
+  try {
+    customServers = JSON.parse(customServersJson);
+  } catch (e) {
+    customServers = [];
+  }
 
   const setOrder = (nextOrder: LyricsSourceProviderId[]) => {
     $lyricsSourceOrder.set(stringifyLyricsSourceOrder(nextOrder));
@@ -60,6 +71,33 @@ export default function LyricsSourcesManager() {
   const resetSources = () => {
     $lyricsSourceOrder.set(stringifyLyricsSourceOrder(DEFAULT_LYRICS_SOURCE_ORDER));
     $disabledLyricsSources.set(stringifyDisabledLyricsSourceIds(DEFAULT_DISABLED_LYRICS_SOURCES));
+    $customServers.set(JSON.stringify([]));
+  };
+
+  const addCustomServer = () => {
+    const name = newServerName.trim();
+    const url = newServerUrl.trim();
+    if (!name || !url) {
+      toast.error("Name and URL are required.");
+      return;
+    }
+    const newId = `custom_${Date.now()}`;
+    const nextServers = [...customServers, { id: newId, name, url }];
+    $customServers.set(JSON.stringify(nextServers));
+    setOrder([newId, ...order]);
+    setNewServerName("");
+    setNewServerUrl("");
+    toast.success("Custom server added.");
+  };
+
+  const removeCustomServer = (id: string) => {
+    const nextServers = customServers.filter((s) => s.id !== id);
+    $customServers.set(JSON.stringify(nextServers));
+    setOrder(order.filter((o) => o !== id));
+    
+    const nextDisabled = new Set(disabledIds);
+    nextDisabled.delete(id);
+    setDisabled(nextDisabled);
   };
 
   const refreshToken = async () => {
@@ -89,7 +127,16 @@ export default function LyricsSourcesManager() {
     <div className="sl-sp-source-manager">
       <div className="sl-sp-source-list">
         {order.map((id, index) => {
-          const definition = LYRICS_SOURCE_PROVIDER_DEFINITIONS[id];
+          let definition = { label: "Unknown", description: "Unknown source" };
+          const isCustom = id.startsWith("custom_");
+          if (isCustom) {
+            const server = customServers.find((s) => s.id === id);
+            if (server) {
+              definition = { label: server.name, description: server.url };
+            }
+          } else {
+            definition = LYRICS_SOURCE_PROVIDER_DEFINITIONS[id as keyof typeof LYRICS_SOURCE_PROVIDER_DEFINITIONS] || definition;
+          }
           const enabled = !disabledIds.has(id);
           const optionCount = optionCounts[id] ?? 0;
           const optionsExpanded = expandedOptions.has(id);
@@ -158,6 +205,20 @@ export default function LyricsSourcesManager() {
                     <span onClick={(e) => e.stopPropagation()}>
                       <Toggle checked={enabled} onChange={(nextEnabled) => setSourceEnabled(id, nextEnabled)} />
                     </span>
+                    {isCustom && (
+                      <button
+                        className="sl-sp-icon-btn"
+                        style={{ marginLeft: "8px", color: "var(--spice-error)" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeCustomServer(id);
+                        }}
+                        aria-label={`Remove ${definition.label}`}
+                        title="Remove custom server"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -212,6 +273,31 @@ export default function LyricsSourcesManager() {
             </React.Fragment>
           );
         })}
+      </div>
+
+      <div className="sl-sp-source-add-custom">
+        <h4 style={{ margin: "0 0 8px 0", fontSize: "1rem" }}>Add Custom Server</h4>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+          <input
+            className="sl-sp-text-input"
+            type="text"
+            placeholder="Server Name (e.g. My Server)"
+            value={newServerName}
+            onChange={(e) => setNewServerName(e.currentTarget.value)}
+            style={{ flex: 1 }}
+          />
+          <input
+            className="sl-sp-text-input"
+            type="text"
+            placeholder="Server URL (e.g. http://localhost:3000/api/lyrics)"
+            value={newServerUrl}
+            onChange={(e) => setNewServerUrl(e.currentTarget.value)}
+            style={{ flex: 2 }}
+          />
+          <button className="sl-sp-btn" onClick={addCustomServer}>
+            Add
+          </button>
+        </div>
       </div>
 
       <div className="sl-sp-source-footer">

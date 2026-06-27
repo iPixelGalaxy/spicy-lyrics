@@ -92,6 +92,10 @@ export const $disabledLyricsSources = persistAtom<string>(
   "disabledLyricsSources",
   JSON.stringify(["lrclib", "netease"])
 );
+export const $customServers = persistAtom<string>(
+  "customServers",
+  JSON.stringify([])
+);
 export const $ignoreMusixmatchWordSync = persistAtom<boolean>("ignoreMusixmatchWordSync", true);
 export const $prioritizeAppleMusicQuality = persistAtom<boolean>("prioritizeAppleMusicQuality", true);
 export const $musixmatchToken = persistAtom<string>("musixmatchToken", "");

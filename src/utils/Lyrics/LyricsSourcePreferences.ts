@@ -4,7 +4,8 @@ export type LyricsSourceProviderId =
   | "apple"
   | "spotify"
   | "lrclib"
-  | "netease";
+  | "netease"
+  | (string & {});
 
 type LyricsSourceDefinition = {
   label: string;
@@ -85,7 +86,7 @@ export function normalizeLyricsSourceOrder(
   const normalized = Array.isArray(parsed)
     ? parsed.filter(
         (entry): entry is LyricsSourceProviderId =>
-          typeof entry === "string" && validIds.has(entry as LyricsSourceProviderId)
+          typeof entry === "string" && (validIds.has(entry as any) || entry.startsWith("custom_"))
       )
     : [];
 
@@ -142,7 +143,7 @@ export function normalizeDisabledLyricsSourceIds(
   const normalized = Array.isArray(parsed)
     ? parsed.filter(
         (e): e is LyricsSourceProviderId =>
-          typeof e === "string" && validIds.has(e as LyricsSourceProviderId)
+          typeof e === "string" && (validIds.has(e as any) || e.startsWith("custom_"))
       )
     : [];
 

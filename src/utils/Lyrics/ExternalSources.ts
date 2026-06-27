@@ -4,8 +4,10 @@ import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { Query } from "../API/Query.ts";
 import { SLObjPack } from "../objpack.ts";
 import storage from "../storage.ts";
+import { $customServers } from "../stores.ts";
 import type { LyricsSourceProviderId } from "./LyricsSourcePreferences.ts";
 import { resolveLyricsSourceLabel } from "./LyricsSourcePreferences.ts";
+import parseTTMLToLyrics from "./ParseTTML.ts";
 
 type TrackLyricsInfo = {
   uri: string;
@@ -1389,6 +1391,76 @@ async function fetchNeteaseLyrics(
   }
 }
 
+async function fetchMyCustomServerLyrics(
+  trackInfo: TrackLyricsInfo,
+  serverUrl: string,
+  serverName: string,
+  serverId: string
+): Promise<ExternalLyricsResult | null> {
+  try {
+    let baseUrl = serverUrl;
+    if (baseUrl.endsWith("/")) baseUrl = baseUrl.slice(0, -1);
+    
+    const url = new URL(`${baseUrl}/${trackInfo.id}`);
+    url.searchParams.set("title", trackInfo.title);
+    url.searchParams.set("artist", trackInfo.artist);
+
+    const response = await fetch(url.toString());
+    
+    if (!response.ok) return null;
+
+    const textData = await response.text(); 
+    
+    if (textData.trim().startsWith("<tt")) {
+      const parsedLyrics = parseTTMLToLyrics(textData);
+      if (parsedLyrics) {
+        return {
+          lyrics: {
+            ...parsedLyrics,
+            fetchProvider: serverId,
+            sourceDisplayName: resolveLyricsSourceLabel(serverId, serverName),
+          },
+          status: 200,
+        };
+      }
+    } else {
+      const parsed = parseLRCLikeLyrics(textData); 
+      if (parsed.synced) {
+        const lineLyrics = buildLineLyrics(
+          parsed.synced,
+          trackInfo.durationMs,
+          serverId,
+          serverName
+        );
+        if (lineLyrics) {
+          return {
+            lyrics: {
+              ...lineLyrics,
+              fetchProvider: serverId,
+            },
+            status: 200,
+          };
+        }
+      } else if (parsed.unsynced) {
+        const staticLyrics = buildStaticLyrics(parsed.unsynced, serverId, serverName);
+        if (staticLyrics) {
+          return {
+            lyrics: {
+              ...staticLyrics,
+              fetchProvider: serverId,
+            },
+            status: 200,
+          };
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    return null; 
+  }
+}
+
 const FALLBACK_PROVIDER_TIMEOUT_MS = 4000;
 
 function withProviderTimeout<T>(
@@ -1419,6 +1491,13 @@ export async function fetchLyricsFromProviders(
   let appleResult: ExternalLyricsResult | null = null;
   let appleScore = 0;
   let appleTried = false;
+  
+  let customServers: { id: string, name: string, url: string }[] = [];
+  try {
+    customServers = JSON.parse($customServers.get());
+  } catch (e) {
+    customServers = [];
+  }
 
   for (const provider of order) {
     // If a preferred source (spicy/musixmatch) already gave us something,
@@ -1427,20 +1506,29 @@ export async function fetchLyricsFromProviders(
       continue;
     }
 
-    const result =
-      provider === "spicy"
-        ? await fetchSpicyLyrics(trackInfo.id)
-        : provider === "musixmatch"
-          ? await fetchMusixmatchLyrics(trackInfo)
-          : provider === "apple"
-            ? await fetchAppleMusicLyrics(trackInfo.id)
-            : provider === "spotify"
-              ? await fetchSpotifyLyrics(trackInfo)
-              : provider === "lrclib"
-                ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                : provider === "netease"
-                  ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                  : null;
+    let result: ExternalLyricsResult | null = null;
+
+    if (provider.startsWith("custom_")) {
+      const customServer = customServers.find((s) => s.id === provider);
+      if (customServer) {
+        result = await fetchMyCustomServerLyrics(trackInfo, customServer.url, customServer.name, customServer.id);
+      }
+    } else {
+      result =
+        provider === "spicy"
+          ? await fetchSpicyLyrics(trackInfo.id)
+          : provider === "musixmatch"
+            ? await fetchMusixmatchLyrics(trackInfo)
+            : provider === "apple"
+              ? await fetchAppleMusicLyrics(trackInfo.id)
+              : provider === "spotify"
+                ? await fetchSpotifyLyrics(trackInfo)
+                : provider === "lrclib"
+                  ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                  : provider === "netease"
+                    ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                    : null;
+    }
 
     if (provider === "apple") {
       appleTried = true;

@@ -130,6 +130,8 @@ if (result.status !== 0) {
 try {
   const builtFile = getBuiltJsFile(defaultDist, projectName);
   const versionedOutput = join(defaultDist, outputFile);
+  const mjsOutput = join(defaultDist, `${projectName}.mjs`);
+  copyFileReplacing(builtFile, mjsOutput);
   copyFileReplacing(builtFile, versionedOutput);
   writeFileReplacing(join(defaultDist, "version"), version);
 

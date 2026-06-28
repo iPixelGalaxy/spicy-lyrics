@@ -1437,6 +1437,7 @@ async function fetchMyCustomServerLyrics(
             lyrics: {
               ...lineLyrics,
               fetchProvider: serverId,
+              sourceDisplayName: resolveLyricsSourceLabel(serverId, serverName),
             },
             status: 200,
           };
@@ -1448,6 +1449,7 @@ async function fetchMyCustomServerLyrics(
             lyrics: {
               ...staticLyrics,
               fetchProvider: serverId,
+              sourceDisplayName: resolveLyricsSourceLabel(serverId, serverName),
             },
             status: 200,
           };
@@ -1511,7 +1513,10 @@ export async function fetchLyricsFromProviders(
     if (provider.startsWith("custom_")) {
       const customServer = customServers.find((s) => s.id === provider);
       if (customServer) {
-        result = await fetchMyCustomServerLyrics(trackInfo, customServer.url, customServer.name, customServer.id);
+        result = await withProviderTimeout(
+          fetchMyCustomServerLyrics(trackInfo, customServer.url, customServer.name, customServer.id),
+          FALLBACK_PROVIDER_TIMEOUT_MS
+        );
       }
     } else {
       result =

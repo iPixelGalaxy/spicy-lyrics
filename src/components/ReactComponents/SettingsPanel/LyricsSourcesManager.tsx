@@ -81,6 +81,20 @@ export default function LyricsSourcesManager() {
       toast.error("Name and URL are required.");
       return;
     }
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      toast.error("URL must start with http:// or https://");
+      return;
+    }
+    try {
+      new URL(url);
+    } catch {
+      toast.error("Invalid URL format.");
+      return;
+    }
+    if (customServers.some((s) => s.url === url)) {
+      toast.error("A server with this URL already exists.");
+      return;
+    }
     const newId = `custom_${Date.now()}`;
     const nextServers = [...customServers, { id: newId, name, url }];
     $customServers.set(JSON.stringify(nextServers));

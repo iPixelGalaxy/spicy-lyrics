@@ -5,9 +5,10 @@ import {
   $customFont,
   $customFontEnabled,
   $showNpvDynamicBg,
+  $staticBackgroundBlur,
   $staticBackgroundMode,
 } from "../../../utils/stores.ts";
-import { matches, Row, SectionTitle, Select, Toggle } from "./components.tsx";
+import { matches, Row, SectionTitle, Select, Slider, Toggle } from "./components.tsx";
 
 const SECTION_NAME = "Appearance";
 const bgModeOptions = ["default", "legacy", "auto", "artistHeader", "coverArt", "color"];
@@ -22,6 +23,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
   const customFontEnabled = useStore($customFontEnabled);
   const customFont = useStore($customFont);
   const staticBackgroundMode = useStore($staticBackgroundMode);
+  const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
   const coverArtAnimation = useStore($coverArtAnimation);
 
@@ -32,8 +34,10 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
   const r3 = matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
   const r4 = matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
   const r5 = matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
+  const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
+  const r6 = blurApplies && matches(query, "Background Blur", "Soften the static background image.");
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6) return null;
 
   return (
     <>
@@ -65,6 +69,20 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
             options={bgModeOptions}
             labels={bgModeLabels}
             onChange={(v) => $staticBackgroundMode.set(v)}
+          />
+        </Row>
+      )}
+
+      {r6 && (
+        <Row label="Background Blur" description="Soften the static background image." stacked>
+          <Slider
+            value={staticBackgroundBlur}
+            min={0}
+            max={67}
+            step={1}
+            defaultValue={0}
+            unit="px"
+            onChange={(v) => $staticBackgroundBlur.set(v)}
           />
         </Row>
       )}

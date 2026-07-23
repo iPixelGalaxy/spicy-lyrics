@@ -2,9 +2,8 @@
 import Spline from "cubic-spline";
 import { easeSinOut } from "d3-ease";
 import { $currentLyricsType, $simpleLyricsMode, $simpleLyricsModeRenderingType } from "../../../../utils/stores.ts";
-import { isSpicySidebarMode } from "../../../../components/Utils/SidebarLyrics.ts";
 import { LyricsObject, SimpleLyricsMode_LetterEffectsStrengthConfig, preHiddenDotLineMs } from "../../lyrics.ts";
-import { BlurMultiplier, SidebarBlurMultiplier, timeOffset } from "../Shared.ts";
+import { BlurMultiplier, timeOffset } from "../Shared.ts";
 import { setOnNewElementMounted } from "../../LyricsVirtualizer.ts";
 import { Spring } from "../../../../modules/Spring.ts";
 /* import { CurveInterpolator } from "curve-interpolator"; */
@@ -674,7 +673,7 @@ export function Animate(position: number): void {
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
-          applyBlur(arr, index, isSpicySidebarMode ? SidebarBlurMultiplier : BlurMultiplier);
+          applyBlur(arr, index, BlurMultiplier);
           //applyScale(arr, index);
           Blurring_LastLine = index;
         }
@@ -1661,7 +1660,7 @@ export function Animate(position: number): void {
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
-          applyBlur(arr, index, isSpicySidebarMode ? SidebarBlurMultiplier : BlurMultiplier);
+          applyBlur(arr, index, BlurMultiplier);
           //applyScale(arr, index);
           Blurring_LastLine = index;
         }

@@ -63,11 +63,20 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.28 — Latest
+### v100.10.29 — Latest
+
+- Updated to be in line with Spicy Lyrics 6.2.3.
+
+<details>
+<summary>v100.10.28</summary>
+
+### v100.10.28
 
 - Updated to be in line with Spicy Lyrics 6.1.1.
 
 ---
+
+</details>
 
 <details>
 <summary>v100.10.27</summary>

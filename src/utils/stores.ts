@@ -112,5 +112,8 @@ export const $spicyLyricsVersion = atom<string>(
 // Runtime (ephemeral) atoms
 export const $currentLyricsType = atom<string>("None");
 export const $lyricsContainerExists = atom<boolean>(false);
+// Keeps a mounted lyrics page idle while the NPV card body is collapsed.
+// This is runtime-only: a new page always resumes rendering when it opens.
+export const $lyricsRendererPaused = atom<boolean>(false);
 export const $currentlyFetching = atom<boolean>(false);
 export const $currentLyricsData = atom<string>("");

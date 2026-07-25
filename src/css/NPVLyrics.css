@@ -8,6 +8,7 @@
 #SpicyLyricsNPVCard {
   display: flex;
   flex-direction: column;
+  position: relative;
   margin: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -86,7 +87,12 @@
 
 /* Collapsed shell: header only. */
 #SpicyLyricsNPVCard.Collapsed .CardBody {
-  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 225px;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 #SpicyLyricsNPVCard.Collapsed .CardHeader {

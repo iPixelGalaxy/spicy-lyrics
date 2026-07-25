@@ -28,6 +28,7 @@ import {
   $enableExperimentalWordSync,
   $memeFormat,
   $lyricsContainerExists,
+  $lyricsRendererPaused,
   $minimalLyricsMode,
   $rightAlignLyrics,
   $simpleLyricsMode,
@@ -324,6 +325,7 @@ async function OpenPage(
   // UpdateSongMoreInfo()
 
   $lyricsContainerExists.set(true);
+  $lyricsRendererPaused.set(false);
   PageView.IsOpened = true;
 
   if (IsPIP) {
@@ -383,6 +385,7 @@ async function DestroyPage() {
   PageResizeListener?.disconnect(); // Disconnect the observer
   PageView.IsOpened = false;
   $lyricsContainerExists.set(false);
+  $lyricsRendererPaused.set(false);
   DestroyAllLyricsContainers();
   CleanUpIsByCommunity();
 

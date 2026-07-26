@@ -1,3 +1,24 @@
+## v100.10.31
+
+### Features
+
+- **Configurable lyrics-view cache button**
+  Advanced settings can now show a cache button in lyrics controls. Choose whether it clears current-song caches, current state, or stored cache.
+
+- **Tighter settings dropdowns**
+  Settings dropdowns now resize to the selected option instead of reserving space for their longest option.
+
+- **Faster multi-source lyric loading**
+  Enabled lyric sources now start together while configured priority and Apple Music quality rules still choose the result.
+
+### Fixes
+
+- **Stable lyric updates**
+  Reloading lyrics or changing romanization keeps the current reading position instead of briefly jumping to the top. Lines ending at the same time no longer leave one line raised.
+
+- **Local TTML romanization parsing**
+  Locally uploaded TTML now reads nested romanization data.
+
 ## v100.10.30
 
 ### Fixes

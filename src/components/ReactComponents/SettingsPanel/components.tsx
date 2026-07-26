@@ -73,19 +73,26 @@ export function Select({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const selectedLabel = labels?.[options.indexOf(value)] ?? value;
+
   return (
-    <select
-      className="sl-sp-select"
-      value={value}
-      onChange={(e) => onChange(e.currentTarget.value)}
-      disabled={disabled}
-    >
-      {options.map((opt, i) => (
-        <option key={opt} value={opt}>
-          {labels?.[i] ?? opt}
-        </option>
-      ))}
-    </select>
+    <span className="sl-sp-select-wrap">
+      <span className="sl-sp-select-sizer" aria-hidden="true">
+        {selectedLabel}
+      </span>
+      <select
+        className="sl-sp-select"
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        disabled={disabled}
+      >
+        {options.map((opt, i) => (
+          <option key={opt} value={opt}>
+            {labels?.[i] ?? opt}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 

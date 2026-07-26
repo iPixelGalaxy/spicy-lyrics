@@ -63,13 +63,37 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.30 — Latest
+### v100.10.31 — Latest
+
+- **Configurable lyrics-view cache button**
+  Advanced settings can now show a cache button in lyrics controls. Choose whether it clears current-song caches, current state, or stored cache.
+
+- **Tighter settings dropdowns**
+  Settings dropdowns now resize to the selected option instead of reserving space for their longest option.
+
+- **Faster multi-source lyric loading**
+  Enabled lyric sources now start together while configured priority and Apple Music quality rules still choose the result.
+
+- **Stable lyric updates**
+  Reloading lyrics or changing romanization keeps the current reading position instead of briefly jumping to the top. Lines ending at the same time no longer leave one line raised.
+
+- **Local TTML romanization parsing**
+  Locally uploaded TTML now reads nested romanization data.
+
+<details>
+<summary>v100.10.30</summary>
+
+### v100.10.30
 
 - **NPV lyrics reopen stability**
   Collapsing and reopening the Now Playing View lyrics card now keeps the loaded lyrics ready instead of rebuilding the renderer.
 
 - **Local TTML romanizations**
   Romanizations included in locally uploaded TTML files are available in the lyrics renderer.
+
+---
+
+</details>
 
 <details>
 <summary>v100.10.29</summary>

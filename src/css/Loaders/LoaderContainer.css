@@ -46,10 +46,7 @@
   width: 100%;
   box-sizing: border-box;
   align-self: stretch;
-  margin-top: calc(
-    25cqh - var(--LyricsLoadingRowHeight) - var(--LyricsLoadingRowHeight) -
-      var(--LyricsLoadingRowGap) - var(--LyricsLoadingRowGap)
-  );
+  margin-top: 25cqh;
   margin-bottom: 8cqh;
   padding-right: var(--LyricsRightSidePadding);
   padding-left: var(--LyricsLeftSidePadding);

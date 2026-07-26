@@ -34,12 +34,13 @@
 
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs {
   display: flex;
-  width: auto;
+  width: 100%;
+  box-sizing: border-box;
   align-self: stretch;
   margin-top: 25cqh;
-  margin-right: var(--LyricsRightSidePadding);
   margin-bottom: 8cqh;
-  margin-left: var(--LyricsLeftSidePadding);
+  padding-right: var(--LyricsRightSidePadding);
+  padding-left: var(--LyricsLeftSidePadding);
   flex-direction: column;
   align-items: flex-start;
   gap: clamp(0.9rem, 2.3cqh, 1.5rem);

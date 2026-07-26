@@ -109,7 +109,10 @@ export default async function fetchLyrics(
 ): Promise<[object | string, number] | null> {
   const fetchKey = getSongKey(uri) || uri;
   const existingFetch = inFlightLyricsFetches.get(fetchKey);
-  if (existingFetch) return existingFetch;
+  if (existingFetch) {
+    if (!options.keepCurrentLyricsVisible) ShowLoaderContainer();
+    return existingFetch;
+  }
 
   const promise = fetchLyricsInternal(uri, options);
   inFlightLyricsFetches.set(fetchKey, promise);
@@ -176,8 +179,9 @@ async function fetchLyricsInternal(
 
   $currentlyFetching.set(true);
 
-  if (LyricsContent && !options.keepCurrentLyricsVisible) {
-    LyricsContent.classList.add("HiddenTransitioned");
+  if (!options.keepCurrentLyricsVisible) {
+    LyricsContent?.classList.add("HiddenTransitioned");
+    ShowLoaderContainer();
   }
 
 
@@ -191,12 +195,14 @@ async function fetchLyricsInternal(
         const id = split[1];
         if (id === trackId && getActiveLyricsSourceOrder().length <= 1) {
           $currentlyFetching.set(false);
+          HideLoaderContainer();
           return ["lyrics-not-found", 404];
         }
       } else {
         const lyricsData = JSON.parse(savedLyricsData);
         // Return the stored lyrics if the ID matches the track ID
         if (lyricsData?.id === trackId && isLyricsCacheCompatible(lyricsData)) {
+          if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData);
           const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
           presentLyrics(preparedLyrics);
           return [preparedLyrics, 200];
@@ -213,6 +219,7 @@ async function fetchLyricsInternal(
     const sessionLyric = SessionTTMLStore.get(songKey);
     if (sessionLyric) {
       const lyricsData = { ...sessionLyric, id: trackId, fromCache: true };
+      if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData);
       const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
       $currentLyricsData.set(JSON.stringify(preparedLyrics));
       presentLyrics(preparedLyrics);
@@ -223,6 +230,7 @@ async function fetchLyricsInternal(
   const localLyric = await LocalLyricsManager.get(uri);
   if (localLyric) {
     const lyricsData = { ...localLyric, id: trackId };
+    if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData);
     const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
     $currentLyricsData.set(JSON.stringify(preparedLyrics));
     presentLyrics(preparedLyrics);
@@ -235,6 +243,7 @@ async function fetchLyricsInternal(
   // user-uploaded TTML) but before the meaningless remote cache read.
   if (uri.startsWith("spotify:local:")) {
     $currentlyFetching.set(false);
+    HideLoaderContainer();
     return ["local-track", 400];
   }
 
@@ -244,6 +253,7 @@ async function fetchLyricsInternal(
       if (lyricsFromCacheRes) {
         if (lyricsFromCacheRes?.Value === "NO_LYRICS") {
           $currentlyFetching.set(false);
+          HideLoaderContainer();
           return ["lyrics-not-found", 404];
         }
         const lyricsFromCache = lyricsFromCacheRes ?? {};
@@ -251,6 +261,7 @@ async function fetchLyricsInternal(
           void LyricsStore.RemoveItem(trackId).catch(() => {});
           throw { isOutdatedLyricsCache: true };
         }
+        if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsFromCache);
         const preparedLyrics = await prepareLyricsForPresentation({
           ...lyricsFromCache,
           fromCache: true,
@@ -265,6 +276,7 @@ async function fetchLyricsInternal(
       } else {
       lyricsCacheLogger.error("Error parsing cache entry", error);
       $currentlyFetching.set(false);
+      HideLoaderContainer();
       return ["unknown-error", 0];
       }
     }
@@ -273,10 +285,9 @@ async function fetchLyricsInternal(
 
   if (!navigator.onLine) {
     $currentlyFetching.set(false);
+    HideLoaderContainer();
     return ["offline", 400];
   }
-
-  ShowLoaderContainer();
 
   // Fetch new lyrics if no match in localStorage
   /* const lyricsApi = storage.get("customLyricsApi") ?? Defaults.LyricsContent.api.url;

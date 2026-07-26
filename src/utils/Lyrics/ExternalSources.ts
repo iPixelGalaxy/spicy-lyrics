@@ -1398,6 +1398,10 @@ async function fetchNeteaseLyrics(
 
 const FALLBACK_PROVIDER_TIMEOUT_MS = 4000;
 
+type FetchLyricsFromProvidersOptions = {
+  onFirstLyrics?: (lyrics: any) => void;
+};
+
 function withProviderTimeout<T>(
   promise: Promise<T | null>,
   ms: number
@@ -1410,7 +1414,8 @@ function withProviderTimeout<T>(
 
 export async function fetchLyricsFromProviders(
   uri: string,
-  order: LyricsSourceProviderId[]
+  order: LyricsSourceProviderId[],
+  options: FetchLyricsFromProvidersOptions = {}
 ): Promise<ExternalLyricsResult | null> {
   const trackInfo = await getTrackLyricsInfo(uri);
   if (!trackInfo) {
@@ -1432,6 +1437,7 @@ export async function fetchLyricsFromProviders(
     LyricsSourceProviderId,
     Promise<ExternalLyricsResult | null>
   >();
+  let firstLyricsDelivered = false;
   for (const provider of order) {
     const request =
       provider === "spicy"
@@ -1448,6 +1454,13 @@ export async function fetchLyricsFromProviders(
                   ? withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
                   : Promise.resolve(null);
     providerRequests.set(provider, request);
+    void request
+      .then((result) => {
+        if (firstLyricsDelivered || !result?.lyrics) return;
+        firstLyricsDelivered = true;
+        options.onFirstLyrics?.(result.lyrics);
+      })
+      .catch(() => {});
   }
 
   let bestResult: ExternalLyricsResult | null = null;

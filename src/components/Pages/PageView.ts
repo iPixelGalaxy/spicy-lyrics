@@ -206,6 +206,15 @@ async function OpenPage(
             </div>
             <div class="LyricsContainer">
                 <div class="loaderContainer">
+                    <div class="LyricsLoadingBlobs" role="status" aria-label="Loading lyrics">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
                     <div id="DotLoader"></div>
                 </div>
                 <div class="LyricsContent ScrollbarScrollable"></div>

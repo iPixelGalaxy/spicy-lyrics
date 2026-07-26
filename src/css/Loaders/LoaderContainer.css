@@ -32,9 +32,10 @@
   padding-right: 0 !important;
 }
 
+#SpicyLyricsPage .LyricsContainer.LoadingLyrics .LyricsContent,
 #SpicyLyricsPage .LyricsContainer .loaderContainer:is(.active) + .LyricsContent {
   visibility: hidden;
-  opacity: 0;
+  opacity: 0 !important;
   pointer-events: none;
 }
 

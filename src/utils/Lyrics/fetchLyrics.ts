@@ -451,7 +451,9 @@ function ShowLoaderContainer(): void {
 
   // The loader lives inside this pane, which is normally held hidden until lyrics
   // finish processing. Reveal it first so the loading state can actually render.
-  PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+  const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
+  lyricsContainer?.classList.remove("Hidden");
+  lyricsContainer?.classList.add("LoadingLyrics");
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderHideTimeout = null;
@@ -466,6 +468,7 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
   );
   if (!loaderContainer) return;
 
+  PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.add("LoadingLyrics");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderHideTimeout = null;
   loaderContainer.classList.remove("leaving");
@@ -489,11 +492,13 @@ function HideLoaderContainer(): void {
   );
   if (!loaderContainer || !loaderContainer.classList.contains("active")) return;
 
+  const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderContainer.classList.add("leaving");
   loaderHideTimeout = setTimeout(() => {
     loaderContainer.classList.remove("active", "leaving", "queued");
     loaderContainer.querySelector(".loaderMessage")?.remove();
+    lyricsContainer?.classList.remove("LoadingLyrics");
     loaderHideTimeout = null;
   }, 450);
 }

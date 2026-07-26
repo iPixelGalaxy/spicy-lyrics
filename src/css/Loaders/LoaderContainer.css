@@ -53,6 +53,20 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--LyricsLoadingRowGap);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 64px),
+    transparent calc(100% - 16px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 64px),
+    transparent calc(100% - 16px),
+    transparent
+  );
 }
 
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span {

@@ -23,6 +23,7 @@ export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore", 13, {
 export const SessionTTMLStore = new Map<string, any>();
 const LYRICS_SOURCE_CACHE_VERSION = 3;
 const inFlightLyricsFetches = new Map<string, Promise<[object | string, number] | null>>();
+let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
 
 async function prepareLyricsForPresentation<T extends Record<string, any>>(lyrics: T): Promise<T> {
   const prepared =
@@ -452,6 +453,9 @@ function ShowLoaderContainer(): void {
   // finish processing. Reveal it first so the loading state can actually render.
   PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
+  if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  loaderHideTimeout = null;
+  loaderContainer.classList.remove("leaving");
   resetLoadingLyricsTemplate(loaderContainer);
   loaderContainer.classList.add("active");
 }
@@ -462,6 +466,9 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
   );
   if (!loaderContainer) return;
 
+  if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  loaderHideTimeout = null;
+  loaderContainer.classList.remove("leaving");
   loaderContainer.classList.add("active", "queued");
 
   let messageEl = loaderContainer.querySelector<HTMLElement>(".loaderMessage");
@@ -474,16 +481,21 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
 }
 
 /**
- * Hide the loader container and clear any pending timeout
+ * Fade the loader out before allowing the rendered lyrics to appear.
  */
 function HideLoaderContainer(): void {
   const loaderContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .loaderContainer"
   );
-  if (loaderContainer) {
-    loaderContainer.classList.remove("active", "queued");
+  if (!loaderContainer || !loaderContainer.classList.contains("active")) return;
+
+  if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  loaderContainer.classList.add("leaving");
+  loaderHideTimeout = setTimeout(() => {
+    loaderContainer.classList.remove("active", "leaving", "queued");
     loaderContainer.querySelector(".loaderMessage")?.remove();
-  }
+    loaderHideTimeout = null;
+  }, 450);
 }
 
 /**

@@ -198,7 +198,7 @@ body.player-floating:has(.glassify-bg) #SpicyLyricsPage:not(.Fullscreen) .ViewCo
   visibility: hidden;
   pointer-events: none;
   transform: scale(0.92);
-  transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+  transition: opacity 0.2s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
 }
 
 #SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric.Visible {

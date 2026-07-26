@@ -15,7 +15,7 @@
 }
 
 #SpicyLyricsPage .LyricsContainer .loaderContainer.active {
-  position: relative;
+  position: absolute;
   opacity: 1;
   z-index: 9;
 }
@@ -29,7 +29,9 @@
 }
 
 #SpicyLyricsPage .LyricsContainer .loaderContainer:is(.active) + .LyricsContent {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs {

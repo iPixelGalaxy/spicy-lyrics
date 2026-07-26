@@ -92,6 +92,7 @@ export const $releaseYearPosition = persistAtom<string>("releaseYearPosition", "
 export const $coverArtAnimation = persistAtom<boolean>("coverArtAnimation", true);
 export const $memeFormat = persistAtom<string>("memeFormat", "Off");
 export const $displayLyricsHoverPill = persistAtom<boolean>("displayLyricsHoverPill", false);
+export const $showScrollToActiveButton = persistAtom<boolean>("showScrollToActiveButton", true);
 export const $animateFullscreenClose = persistAtom<boolean>("animateFullscreenClose", false);
 export const $enableExperimentalWordSync = persistAtom<boolean>("enableExperimentalWordSync", false);
 export const $lyricsSourceOrder = persistAtom<string>(

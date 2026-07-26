@@ -6,6 +6,7 @@ import {
   $minimalLyricsMode,
   $playbackOffset,
   $rightAlignLyrics,
+  $showScrollToActiveButton,
   $simpleLyricsMode,
   $simpleLyricsModeRenderingType,
 } from "../../../utils/stores.ts";
@@ -25,6 +26,7 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const simpleLyricsModeRenderingType = useStore($simpleLyricsModeRenderingType);
   const minimalLyricsMode = useStore($minimalLyricsMode);
   const rightAlignLyrics = useStore($rightAlignLyrics);
+  const showScrollToActiveButton = useStore($showScrollToActiveButton);
   const memeFormat = useStore($memeFormat);
   const enableExperimentalWordSync = useStore($enableExperimentalWordSync);
   const playbackOffset = useStore($playbackOffset);
@@ -36,11 +38,12 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
     matches(query, "Simple Mode: Text Animation Style", "How lyrics text transitions are rendered in Simple Lyrics Mode.");
   const r3 = matches(query, "Minimal Lyrics Mode", "Hides sung lyrics lines in Fullscreen and Cinema Mode");
   const r4 = matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");
+  const r5 = matches(query, "Show Scroll to Active Button", "Show an arrow button when the active lyric is outside the viewport.");
   const r6 = matches(query, "Gibberish Lyrics Mode", "Transform lyrics into gibberish text.");
   const r7 = matches(query, "Experimental Word Sync", "Estimate word sync for line/static lyrics.");
   const r8 = matches(query, "Playback Offset", "Shift lyrics timing earlier or later, in milliseconds.");
 
-  if (!r1 && !r3 && !r4 && !r6 && !r7 && !r8) return null;
+  if (!r1 && !r3 && !r4 && !r5 && !r6 && !r7 && !r8) return null;
 
   const simpleLyricsValue = simpleLyricsMode ? simpleLyricsModeRenderingType : "Off";
 
@@ -83,6 +86,12 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
       {r4 && (
         <Row label="Right Align Lyrics" description="Flip duet/opposite lyric alignment.">
           <Toggle checked={rightAlignLyrics} onChange={(v) => $rightAlignLyrics.set(v)} />
+        </Row>
+      )}
+
+      {r5 && (
+        <Row label="Show Scroll to Active Button" description="Show an arrow when the active lyric is outside the viewport.">
+          <Toggle checked={showScrollToActiveButton} onChange={(v) => $showScrollToActiveButton.set(v)} />
         </Row>
       )}
 

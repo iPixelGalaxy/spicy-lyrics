@@ -17,6 +17,8 @@ import {
   CleanupScrollEvents,
   InitializeScrollEvents,
   ResetLastLine,
+  ScrollToCurrentActiveLine,
+  UpdateScrollToActiveButton,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import { toCssFontFamily } from "../../utils/cssFontFamily.ts";
@@ -32,6 +34,7 @@ import {
   $lyricsRendererPaused,
   $minimalLyricsMode,
   $rightAlignLyrics,
+  $showScrollToActiveButton,
   $simpleLyricsMode,
   $lyricsCacheAction,
   $showLyricsCacheActionButton,
@@ -219,6 +222,9 @@ async function OpenPage(
                     <div id="DotLoader"></div>
                 </div>
                 <div class="LyricsContent ScrollbarScrollable"></div>
+                <button id="ScrollToActiveLyric" class="ScrollToActiveLyric" type="button" aria-label="Scroll to active lyric">
+                    <svg class="NoFill" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
             </div>
             <div class="ViewControls"></div>
         </div>
@@ -293,6 +299,10 @@ async function OpenPage(
   }
 
   addLinesEvListener();
+
+  elem.querySelector<HTMLButtonElement>("#ScrollToActiveLyric")?.addEventListener("click", () => {
+    ScrollToCurrentActiveLine();
+  });
 
   {
     const currentUri = Spicetify?.Player?.data?.item?.uri;
@@ -911,6 +921,10 @@ $viewControlsPosition.listen((v) => {
 $ttmlMakerMode.listen(() => {
   if (!PageContainer) return;
   AppendViewControls(true);
+});
+
+$showScrollToActiveButton.listen(() => {
+  UpdateScrollToActiveButton();
 });
 
 $showLyricsCacheActionButton.listen(() => {

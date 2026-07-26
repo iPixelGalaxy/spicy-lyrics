@@ -11,6 +11,12 @@
 - **Faster multi-source lyric loading**
   Enabled lyric sources now start together while configured priority and Apple Music quality rules still choose the result.
 
+- **Scroll to active lyric control**
+  When the active lyric leaves the viewport, a directional button can bring it back into view. Enabled by default and configurable in settings.
+
+- **Lyric-shaped loading preview**
+  Lyrics now show a shimmer preview shaped from the first available lyric source while the final result is selected.
+
 ### Fixes
 
 - **Stable lyric updates**
@@ -18,6 +24,9 @@
 
 - **Local TTML romanization parsing**
   Locally uploaded TTML now reads nested romanization data.
+
+- **Smoother lyric loading handoff**
+  Loading previews now clear cleanly before the finished lyric view appears.
 
 ## v100.10.30
 

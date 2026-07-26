@@ -74,11 +74,20 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 - **Faster multi-source lyric loading**
   Enabled lyric sources now start together while configured priority and Apple Music quality rules still choose the result.
 
+- **Scroll to active lyric control**
+  When the active lyric leaves the viewport, a directional button can bring it back into view. Enabled by default and configurable in settings.
+
+- **Lyric-shaped loading preview**
+  Lyrics now show a shimmer preview shaped from the first available lyric source while the final result is selected.
+
 - **Stable lyric updates**
   Reloading lyrics or changing romanization keeps the current reading position instead of briefly jumping to the top. Lines ending at the same time no longer leave one line raised.
 
 - **Local TTML romanization parsing**
   Locally uploaded TTML now reads nested romanization data.
+
+- **Smoother lyric loading handoff**
+  Loading previews now clear cleanly before the finished lyric view appears.
 
 <details>
 <summary>v100.10.30</summary>

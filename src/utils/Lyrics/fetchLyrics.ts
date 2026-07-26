@@ -24,6 +24,15 @@ export const SessionTTMLStore = new Map<string, any>();
 const LYRICS_SOURCE_CACHE_VERSION = 3;
 const inFlightLyricsFetches = new Map<string, Promise<[object | string, number] | null>>();
 let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
+let loaderOwnerUri: string | null = null;
+
+function isCurrentTrack(uri: string): boolean {
+  return SpotifyPlayer.GetUri() === uri;
+}
+
+function finishFetching(uri: string): void {
+  if (isCurrentTrack(uri)) $currentlyFetching.set(false);
+}
 
 async function prepareLyricsForPresentation<T extends Record<string, any>>(lyrics: T): Promise<T> {
   const prepared =
@@ -90,9 +99,10 @@ function setRomanizationClass(hasTransliterations: boolean | undefined): void {
  * loader, publish the type, reveal the containers and view controls, and clear the
  * fetching flag. Used by every successful return path.
  */
-function presentLyrics(lyricsData: any): void {
+function presentLyrics(uri: string, lyricsData: any): void {
+  if (!isCurrentTrack(uri)) return;
   setRomanizationClass(lyricsData?.HasTransliterations);
-  HideLoaderContainer();
+  HideLoaderContainer(uri);
   $currentLyricsType.set(lyricsData.Type);
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
@@ -111,14 +121,16 @@ export default async function fetchLyrics(
   const fetchKey = getSongKey(uri) || uri;
   const existingFetch = inFlightLyricsFetches.get(fetchKey);
   if (existingFetch) {
-    if (!options.keepCurrentLyricsVisible) ShowLoaderContainer();
-    return existingFetch;
+    if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) ShowLoaderContainer(uri);
+    const result = await existingFetch;
+    return isCurrentTrack(uri) ? result : null;
   }
 
   const promise = fetchLyricsInternal(uri, options);
   inFlightLyricsFetches.set(fetchKey, promise);
   try {
-    return await promise;
+    const result = await promise;
+    return isCurrentTrack(uri) ? result : null;
   } finally {
     if (inFlightLyricsFetches.get(fetchKey) === promise) {
       inFlightLyricsFetches.delete(fetchKey);
@@ -141,7 +153,7 @@ async function fetchLyricsInternal(
   //if (!Fullscreen.IsOpen) PageView.AppendViewControls(true);
 
   if (SpotifyPlayer.IsDJ()) {
-    $currentlyFetching.set(false);
+    finishFetching(uri);
     return ["dj", 400];
   }
 
@@ -173,16 +185,11 @@ async function fetchLyricsInternal(
   const songKey = getSongKey(uri);
   const trackId = isLocalTrack ? songKey : uri.split(":")[2];
 
-  if ($currentlyFetching.get()) {
-    $currentlyFetching.set(false);
-    return null;
-  }
+  if (isCurrentTrack(uri)) $currentlyFetching.set(true);
 
-  $currentlyFetching.set(true);
-
-  if (!options.keepCurrentLyricsVisible) {
+  if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) {
     LyricsContent?.classList.add("HiddenTransitioned");
-    ShowLoaderContainer();
+    ShowLoaderContainer(uri);
   }
 
 
@@ -195,24 +202,24 @@ async function fetchLyricsInternal(
         const split = savedLyricsData.split(":");
         const id = split[1];
         if (id === trackId && getActiveLyricsSourceOrder().length <= 1) {
-          $currentlyFetching.set(false);
-          HideLoaderContainer();
+          finishFetching(uri);
+          HideLoaderContainer(uri);
           return ["lyrics-not-found", 404];
         }
       } else {
         const lyricsData = JSON.parse(savedLyricsData);
         // Return the stored lyrics if the ID matches the track ID
         if (lyricsData?.id === trackId && isLyricsCacheCompatible(lyricsData)) {
-          if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData);
+          if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
           const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
-          presentLyrics(preparedLyrics);
+          presentLyrics(uri, preparedLyrics);
           return [preparedLyrics, 200];
         }
       }
     } catch (error) {
       lyricsCacheLogger.error("Error parsing saved lyrics data", error);
-      $currentlyFetching.set(false);
-      HideLoaderContainer();
+      finishFetching(uri);
+      HideLoaderContainer(uri);
     }
   }
 
@@ -220,10 +227,10 @@ async function fetchLyricsInternal(
     const sessionLyric = SessionTTMLStore.get(songKey);
     if (sessionLyric) {
       const lyricsData = { ...sessionLyric, id: trackId, fromCache: true };
-      if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData);
+      if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
       const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
-      $currentLyricsData.set(JSON.stringify(preparedLyrics));
-      presentLyrics(preparedLyrics);
+      if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
+      presentLyrics(uri, preparedLyrics);
       return [preparedLyrics, 200];
     }
   }
@@ -231,10 +238,10 @@ async function fetchLyricsInternal(
   const localLyric = await LocalLyricsManager.get(uri);
   if (localLyric) {
     const lyricsData = { ...localLyric, id: trackId };
-    if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData);
+    if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
     const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
-    $currentLyricsData.set(JSON.stringify(preparedLyrics));
-    presentLyrics(preparedLyrics);
+    if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
+    presentLyrics(uri, preparedLyrics);
     return [preparedLyrics, 200];
   }
 
@@ -243,8 +250,8 @@ async function fetchLyricsInternal(
   // API. Bail out here — after LocalLyricsManager.get() (which serves any
   // user-uploaded TTML) but before the meaningless remote cache read.
   if (uri.startsWith("spotify:local:")) {
-    $currentlyFetching.set(false);
-    HideLoaderContainer();
+    finishFetching(uri);
+    HideLoaderContainer(uri);
     return ["local-track", 400];
   }
 
@@ -253,8 +260,8 @@ async function fetchLyricsInternal(
       const lyricsFromCacheRes = await LyricsStore.GetItem(trackId);
       if (lyricsFromCacheRes) {
         if (lyricsFromCacheRes?.Value === "NO_LYRICS") {
-          $currentlyFetching.set(false);
-          HideLoaderContainer();
+          finishFetching(uri);
+          HideLoaderContainer(uri);
           return ["lyrics-not-found", 404];
         }
         const lyricsFromCache = lyricsFromCacheRes ?? {};
@@ -262,13 +269,13 @@ async function fetchLyricsInternal(
           void LyricsStore.RemoveItem(trackId).catch(() => {});
           throw { isOutdatedLyricsCache: true };
         }
-        if (!options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsFromCache);
+        if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsFromCache, uri);
         const preparedLyrics = await prepareLyricsForPresentation({
           ...lyricsFromCache,
           fromCache: true,
         });
-        $currentLyricsData.set(JSON.stringify(preparedLyrics));
-        presentLyrics(preparedLyrics);
+        if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
+        presentLyrics(uri, preparedLyrics);
         return [preparedLyrics, 200];
       }
     } catch (error) {
@@ -276,8 +283,8 @@ async function fetchLyricsInternal(
         // fall through to fresh provider fetch
       } else {
       lyricsCacheLogger.error("Error parsing cache entry", error);
-      $currentlyFetching.set(false);
-      HideLoaderContainer();
+      finishFetching(uri);
+      HideLoaderContainer(uri);
       return ["unknown-error", 0];
       }
     }
@@ -285,8 +292,8 @@ async function fetchLyricsInternal(
 
 
   if (!navigator.onLine) {
-    $currentlyFetching.set(false);
-    HideLoaderContainer();
+    finishFetching(uri);
+    HideLoaderContainer(uri);
     return ["offline", 400];
   }
 
@@ -298,20 +305,24 @@ async function fetchLyricsInternal(
     const providerResult = await fetchLyricsFromProviders(
       uri,
       getActiveLyricsSourceOrder(),
-      { onFirstLyrics: UpdateLoadingLyricsTemplate }
+      {
+        onFirstLyrics: (lyrics) => {
+          if (isCurrentTrack(uri)) UpdateLoadingLyricsTemplate(lyrics, uri);
+        },
+      }
     );
     const lyrics = providerResult?.lyrics;
 
     if (lyrics === null || lyrics === undefined || lyrics === "") {
-      HideLoaderContainer();
-      $currentlyFetching.set(false);
+      HideLoaderContainer(uri);
+      finishFetching(uri);
       return ["lyrics-not-found", 404];
     }
 
     await ProcessLyrics(lyrics);
 
     const lyricsWithId = attachLyricsSourceCacheMetadata({ ...lyrics, id: trackId });
-    $currentLyricsData.set(JSON.stringify(lyricsWithId));
+    if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(lyricsWithId));
 
     if (LyricsStore) {
       try {
@@ -321,12 +332,12 @@ async function fetchLyricsInternal(
       }
     }
 
-    presentLyrics(lyricsWithId);
+    presentLyrics(uri, lyricsWithId);
     return [{ ...lyricsWithId, fromCache: false }, 200];
   } catch (error) {
     lyricsLogger.error("Error fetching lyrics", error);
-    $currentlyFetching.set(false);
-    HideLoaderContainer();
+    finishFetching(uri);
+    HideLoaderContainer(uri);
     return ["unknown-error", 0];
   }
 }
@@ -386,7 +397,8 @@ function resetLoadingLyricsTemplate(loaderContainer: HTMLElement): void {
   });
 }
 
-function UpdateLoadingLyricsTemplate(lyrics: any): void {
+function UpdateLoadingLyricsTemplate(lyrics: any, uri: string): void {
+  if (loaderOwnerUri !== uri || !isCurrentTrack(uri)) return;
   const loaderContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .loaderContainer.active:not(.queued)"
   );
@@ -443,7 +455,8 @@ function UpdateLoadingLyricsTemplate(lyrics: any): void {
 /**
  * Show lyric placeholders as soon as a remote fetch begins.
  */
-function ShowLoaderContainer(): void {
+function ShowLoaderContainer(uri: string): void {
+  if (!isCurrentTrack(uri)) return;
   const loaderContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .loaderContainer"
   );
@@ -457,12 +470,15 @@ function ShowLoaderContainer(): void {
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderHideTimeout = null;
+  loaderOwnerUri = uri;
   loaderContainer.classList.remove("leaving");
   resetLoadingLyricsTemplate(loaderContainer);
   loaderContainer.classList.add("active");
 }
 
 export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
+  const uri = SpotifyPlayer.GetUri();
+  if (!uri) return;
   const loaderContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .loaderContainer"
   );
@@ -471,6 +487,7 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
   PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.add("LoadingLyrics");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderHideTimeout = null;
+  loaderOwnerUri = uri;
   loaderContainer.classList.remove("leaving");
   loaderContainer.classList.add("active", "queued");
 
@@ -486,7 +503,8 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
 /**
  * Fade the loader out before allowing the rendered lyrics to appear.
  */
-function HideLoaderContainer(): void {
+function HideLoaderContainer(uri: string): void {
+  if (loaderOwnerUri !== uri) return;
   const loaderContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .loaderContainer"
   );
@@ -496,9 +514,11 @@ function HideLoaderContainer(): void {
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderContainer.classList.add("leaving");
   loaderHideTimeout = setTimeout(() => {
+    if (loaderOwnerUri !== uri) return;
     loaderContainer.classList.remove("active", "leaving", "queued");
     loaderContainer.querySelector(".loaderMessage")?.remove();
     lyricsContainer?.classList.remove("LoadingLyrics");
+    loaderOwnerUri = null;
     loaderHideTimeout = null;
   }, 450);
 }

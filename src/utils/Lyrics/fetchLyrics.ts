@@ -99,12 +99,19 @@ function presentLyrics(lyricsData: any): void {
   $currentlyFetching.set(false);
 }
 
-export default async function fetchLyrics(uri: string): Promise<[object | string, number] | null> {
+type FetchLyricsOptions = {
+  keepCurrentLyricsVisible?: boolean;
+};
+
+export default async function fetchLyrics(
+  uri: string,
+  options: FetchLyricsOptions = {}
+): Promise<[object | string, number] | null> {
   const fetchKey = getSongKey(uri) || uri;
   const existingFetch = inFlightLyricsFetches.get(fetchKey);
   if (existingFetch) return existingFetch;
 
-  const promise = fetchLyricsInternal(uri);
+  const promise = fetchLyricsInternal(uri, options);
   inFlightLyricsFetches.set(fetchKey, promise);
   try {
     return await promise;
@@ -115,7 +122,10 @@ export default async function fetchLyrics(uri: string): Promise<[object | string
   }
 }
 
-async function fetchLyricsInternal(uri: string): Promise<[object | string, number] | null> {
+async function fetchLyricsInternal(
+  uri: string,
+  options: FetchLyricsOptions
+): Promise<[object | string, number] | null> {
   lyricsLogger.debug("Fetch requested", uri);
   //if (!PageContainer) return;
   const LyricsContent =
@@ -166,7 +176,7 @@ async function fetchLyricsInternal(uri: string): Promise<[object | string, numbe
 
   $currentlyFetching.set(true);
 
-  if (LyricsContent) {
+  if (LyricsContent && !options.keepCurrentLyricsVisible) {
     LyricsContent.classList.add("HiddenTransitioned");
   }
 

@@ -24,6 +24,12 @@ const ESTIMATE: Record<string, number> = {
 
 const virtualizerLogger = new Logger("Lyrics Virtualizer");
 
+export type LyricsViewportAnchor = {
+  index: number;
+  /** Item top relative to scroll viewport. Negative means item starts above it. */
+  offset: number;
+};
+
 class LyricsVirtualizer {
   private _virtualizer: Virtualizer<HTMLElement, HTMLElement> | null = null;
   private _allElements: HTMLElement[] = [];
@@ -298,10 +304,54 @@ class LyricsVirtualizer {
     }, 200);
   };
 
+  captureViewportAnchor(): LyricsViewportAnchor | null {
+    const v = this._virtualizer;
+    const scrollEl = this._scrollEl;
+    const container = this._virtualContainer;
+    if (!v || !scrollEl || !container || this._allElements.length === 0) return null;
+
+    const containerOffset =
+      container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+    const contentOffset = scrollEl.scrollTop - containerOffset;
+    const measurements = v.measurementsCache as Array<
+      { index: number; start: number; end: number } | undefined
+    >;
+    const item = measurements.find((measurement) =>
+      measurement != null && measurement.end > contentOffset
+    );
+    if (!item) return null;
+
+    return {
+      index: item.index,
+      offset: item.start - contentOffset,
+    };
+  }
+
+  private _restoreViewportAnchor(anchor: LyricsViewportAnchor): void {
+    const v = this._virtualizer;
+    const scrollEl = this._scrollEl;
+    const container = this._virtualContainer;
+    if (!v || !scrollEl || !container) return;
+    if (anchor.index < 0 || anchor.index >= this._allElements.length) return;
+
+    const cached = v.measurementsCache[anchor.index] as
+      | { start: number; size: number }
+      | undefined;
+    const itemStart = cached?.start ?? anchor.index * this._estimateSize(anchor.index);
+    const containerOffset =
+      container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+    const target = Math.max(0, containerOffset + itemStart - anchor.offset);
+
+    scrollEl.scrollTop = target;
+    v.scrollOffset = scrollEl.scrollTop;
+    this._onVirtualizerChange(v);
+  }
+
   init(
     scrollEl: HTMLElement,
     virtualContainer: HTMLElement,
-    lineElements: HTMLElement[]
+    lineElements: HTMLElement[],
+    viewportAnchor: LyricsViewportAnchor | null = null
   ): void {
     virtualizerLogger.info("Initializing lyrics virtualizer", {
       lineCount: lineElements.length,
@@ -402,9 +452,16 @@ class LyricsVirtualizer {
       measureElement: this._measureHeight,
     });
 
-    scrollEl.scrollTop = 0;
-    virtualizerLogger.debug("Scroll position reset to top during init");
+    if (viewportAnchor) {
+      this._restoreViewportAnchor(viewportAnchor);
+      virtualizerLogger.debug("Restored viewport anchor during init", viewportAnchor);
+    } else {
+      scrollEl.scrollTop = 0;
+      virtualizerLogger.debug("Scroll position reset to top during init");
+    }
     this._virtualizer._willUpdate();
+
+    if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -424,6 +481,7 @@ class LyricsVirtualizer {
         // re-mount so the first paint isn't blank when opening the page.
         this._syncScrollRect();
         this._onVirtualizerChange(v);
+        if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
       })
     });
 
@@ -969,9 +1027,14 @@ export const lyricsVirtualizer = new LyricsVirtualizer();
 export function initLyricsVirtualizer(
   scrollEl: HTMLElement,
   virtualContainer: HTMLElement,
-  lineElements: HTMLElement[]
+  lineElements: HTMLElement[],
+  viewportAnchor: LyricsViewportAnchor | null = null
 ): void {
-  lyricsVirtualizer.init(scrollEl, virtualContainer, lineElements);
+  lyricsVirtualizer.init(scrollEl, virtualContainer, lineElements, viewportAnchor);
+}
+
+export function captureLyricsViewportAnchor(): LyricsViewportAnchor | null {
+  return lyricsVirtualizer.captureViewportAnchor();
 }
 
 export function getLyricsVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {

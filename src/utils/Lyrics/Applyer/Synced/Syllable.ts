@@ -21,7 +21,7 @@ import {
   setRomanizedStatus,
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
-import { initLyricsVirtualizer } from "../../LyricsVirtualizer.ts";
+import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -172,7 +172,11 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
   );
 }
 
-export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = false): void {
+export function ApplySyllableLyrics(
+  data: LyricsData,
+  UseRomanized: boolean = false,
+  viewportAnchor: LyricsViewportAnchor | null = null
+): void {
   if (!$lyricsContainerExists.get()) return;
   EmitNotApplyed();
 
@@ -648,7 +652,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
   else MountScrollSimplebar();
 
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements);
+  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
 
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent .simplebar-content"

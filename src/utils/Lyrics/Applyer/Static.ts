@@ -16,7 +16,7 @@ import {
   setRomanizedStatus,
 } from "../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "./CreateLyricsContainer.ts";
-import { initLyricsVirtualizer } from "../LyricsVirtualizer.ts";
+import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "./Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "./Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -48,7 +48,11 @@ export interface StaticLyricsData {
  * Apply static lyrics to the lyrics container
  * @param data - Static lyrics data
  */
-export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean = false): void {
+export function ApplyStaticLyrics(
+  data: StaticLyricsData,
+  UseRomanized: boolean = false,
+  viewportAnchor: LyricsViewportAnchor | null = null
+): void {
   if (!$lyricsContainerExists.get()) return;
 
   EmitNotApplyed();
@@ -122,7 +126,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   }
 
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements);
+  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
 
   // Apply styling to the content container
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(

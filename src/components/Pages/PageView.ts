@@ -626,21 +626,14 @@ function AppendViewControls(ReAppend: boolean = false) {
         romanizationToggle.addEventListener("click", async () => {
           const songUri = SpotifyPlayer.GetUri();
           if (!songUri) return;
-          PageContainer?.querySelector(
-            ".LyricsContainer .LyricsContent"
-          )?.classList.add("HiddenTransitioned");
-          const lyrics = await fetchLyrics(songUri);
+          const lyrics = await fetchLyrics(songUri, {
+            keepCurrentLyricsVisible: true,
+          });
 
           setRomanizedStatus(!isRomanized);
 
-          ApplyLyrics(lyrics);
-
-          setTimeout(() => {
-            AppendViewControls();
-            PageContainer?.querySelector(
-              ".LyricsContainer .LyricsContent"
-            )?.classList.remove("HiddenTransitioned");
-          }, 45);
+          await ApplyLyrics(lyrics);
+          AppendViewControls();
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Romanization tooltip", err);

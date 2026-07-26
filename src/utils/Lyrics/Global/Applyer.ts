@@ -22,6 +22,7 @@ import Fullscreen from "../../../components/Utils/Fullscreen.ts";
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
 import { ApplyMemeFormat } from "../ProcessLyrics.ts";
 import Defaults from "../../../components/Global/Defaults.ts";
+import { captureLyricsViewportAnchor } from "../LyricsVirtualizer.ts";
 
 /**
  * Union type for all lyrics data types
@@ -33,6 +34,14 @@ export type LyricsData = {
 
 
 let currentAbortController: AbortController | null = null;
+let appliedLyricsIdentity: string | null = null;
+
+function getLyricsIdentity(descriptor: object | string): string | null {
+  if (descriptor && typeof descriptor === "object" && typeof (descriptor as any).id === "string") {
+    return (descriptor as any).id;
+  }
+  return SpotifyPlayer.GetUri() ?? null;
+}
 
 export const cleanupApplyLyricsAbortController = () => {
   if (currentAbortController) {
@@ -92,6 +101,13 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   setBlurringLastLine(null);
   if (!lyricsContent) return;
 
+  const [descriptor, _status] = lyricsContent;
+  const incomingLyricsIdentity = getLyricsIdentity(descriptor);
+  const viewportAnchor =
+    incomingLyricsIdentity !== null && incomingLyricsIdentity === appliedLyricsIdentity
+      ? captureLyricsViewportAnchor()
+      : null;
+
   cleanupApplyLyricsAbortController()
 
   EmitNotApplyed();
@@ -103,8 +119,6 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   ClearLyricsPageContainer();
 
   CleanUpIsByCommunity();
-
-  const [descriptor, _status] = lyricsContent;
 
   let noticeContent: string | null = null;
 
@@ -196,6 +210,7 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
     }
 
     EmitApply("None", null)
+    appliedLyricsIdentity = null;
     return;
   }
 
@@ -245,11 +260,13 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   }
 
   if (lyrics.Type === "Syllable") {
-    ApplySyllableLyrics(lyrics as any, romanize);
+    ApplySyllableLyrics(lyrics as any, romanize, viewportAnchor);
   } else if (lyrics.Type === "Line") {
-    ApplyLineLyrics(lyrics as any, romanize);
+    ApplyLineLyrics(lyrics as any, romanize, viewportAnchor);
   } else if (lyrics.Type === "Static") {
     // Type assertion to StaticLyricsData since we've verified the Type is "Static"
-    ApplyStaticLyrics(lyrics as StaticLyricsData, romanize);
+    ApplyStaticLyrics(lyrics as StaticLyricsData, romanize, viewportAnchor);
   }
+
+  appliedLyricsIdentity = incomingLyricsIdentity;
 }

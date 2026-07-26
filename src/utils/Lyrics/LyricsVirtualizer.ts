@@ -342,7 +342,10 @@ class LyricsVirtualizer {
       container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
     const target = Math.max(0, containerOffset + itemStart - anchor.offset);
 
-    scrollEl.scrollTop = target;
+    // SimpleBar globally enables smooth scrolling. Anchor restoration is state
+    // recovery, not user-visible navigation, so it must never animate.
+    scrollEl.classList.add("InstantScroll");
+    scrollEl.scrollTo({ top: target, behavior: "instant" });
     v.scrollOffset = scrollEl.scrollTop;
     this._onVirtualizerChange(v);
   }
@@ -481,9 +484,19 @@ class LyricsVirtualizer {
         // re-mount so the first paint isn't blank when opening the page.
         this._syncScrollRect();
         this._onVirtualizerChange(v);
-        if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
       })
     });
+
+    if (viewportAnchor) {
+      // Keep the CSS smooth-scroll override disabled through the first layout
+      // frame, then hand normal automatic scrolling back to SimpleBar.
+      const initializedVirtualizer = this._virtualizer;
+      requestAnimationFrame(() => {
+        if (this._virtualizer === initializedVirtualizer) {
+          scrollEl.classList.remove("InstantScroll");
+        }
+      });
+    }
 
     scrollEl.addEventListener("scrollend", this._onScrollEnd, { passive: true });
     scrollEl.addEventListener("scroll", this._onScrollDebounced, { passive: true });

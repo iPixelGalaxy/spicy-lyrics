@@ -7,6 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
+import { AdoptReappliedScrollPosition } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
@@ -184,7 +185,7 @@ export function ApplySyllableLyrics(
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
-  const LyricsContainerInstance = CreateLyricsContainer();
+  const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 
   // Check if LyricsContainer exists
@@ -674,6 +675,8 @@ export function ApplySyllableLyrics(
   }
 
   EmitApply(data.Type, data.Content);
+
+  if (viewportAnchor) AdoptReappliedScrollPosition();
 
   setRomanizedStatus(UseRomanized);
 }

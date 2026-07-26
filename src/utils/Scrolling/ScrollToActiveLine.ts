@@ -504,6 +504,34 @@ export function QueueSmoothForceScroll() {
   smoothForceScrollQueued = true;
 }
 
+/**
+ * Rebind automatic scrolling after a same-track renderer rebuild. The old
+ * HTMLElement was destroyed, so without this the next renderer tick treats the
+ * current line as new and scrolls away from the restored viewport anchor.
+ */
+export function AdoptReappliedScrollPosition() {
+  const currentType = $currentLyricsType.get() as LyricsType;
+  if (currentType === "Static" || currentType === "None") return;
+  const lines = LyricsObject.Types[currentType]?.Lines as
+    | LyricsLine[]
+    | LyricsSyllable[]
+    | undefined;
+  if (!lines) return;
+
+  const position = SpotifyPlayer.GetPosition();
+  const currentLine = GetScrollLine(lines, position);
+  lastLine = currentLine?.HTMLElement ?? null;
+  lastPosition = position;
+  forceScrollQueued = false;
+  smoothForceScrollQueued = false;
+  scrolledToLastLine = false;
+  scrolledToFirstLine = false;
+  lastViewportLine = null;
+  lastViewportContainer = null;
+  lastIsLineInViewport = false;
+  lastViewportCheckTime = 0;
+}
+
 export function ResetLastLine() {
   lastLine = null;
   lastViewportLine = null;

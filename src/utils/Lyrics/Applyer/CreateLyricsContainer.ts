@@ -14,7 +14,9 @@ const LyricsContainerInstances = new Map<number, LyricsContainerReturnObject>();
 
 let lastMapIndex = -1;
 
-const CreateLyricsContainer = (): LyricsContainerReturnObject => {
+const CreateLyricsContainer = (
+  preserveViewport: boolean = false
+): LyricsContainerReturnObject => {
   const Container = document.createElement("div");
   Container.classList.add("SpicyLyricsScrollContainer");
 
@@ -23,7 +25,7 @@ const CreateLyricsContainer = (): LyricsContainerReturnObject => {
 
   const Resize = () => {
     requestAnimationFrame(() => {
-      QueueForceScroll();
+      if (!preserveViewport) QueueForceScroll();
       ScrollSimplebar?.recalculate();
     });
   };

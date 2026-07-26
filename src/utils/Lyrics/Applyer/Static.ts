@@ -62,7 +62,7 @@ export function ApplyStaticLyrics(
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
-  const LyricsContainerInstance = CreateLyricsContainer();
+  const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 
   if (!LyricsContainer) {

@@ -7,6 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
+import { AdoptReappliedScrollPosition } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
 import isRtl from "../../isRtl.ts";
@@ -65,7 +66,7 @@ export function ApplyLineLyrics(
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
-  const LyricsContainerInstance = CreateLyricsContainer();
+  const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 
   // Check if LyricsContainer exists
@@ -343,6 +344,8 @@ export function ApplyLineLyrics(
   }
 
   EmitApply(data.Type, data.Content);
+
+  if (viewportAnchor) AdoptReappliedScrollPosition();
 
   setRomanizedStatus(UseRomanized);
 }

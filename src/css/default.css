@@ -176,8 +176,8 @@ body.player-floating:has(.glassify-bg) #SpicyLyricsPage:not(.Fullscreen) .ViewCo
 #SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric {
   position: absolute;
   z-index: 12;
-  right: clamp(1rem, 2.2cqw, 2rem);
-  top: clamp(1rem, 4cqh, 3rem);
+  right: clamp(4rem, 8.8cqw, 8rem);
+  top: clamp(4rem, 16cqh, 12rem);
   width: clamp(3rem, 6.2cqh, 3.65rem);
   height: clamp(3rem, 6.2cqh, 3.65rem);
   display: flex;
@@ -210,7 +210,7 @@ body.player-floating:has(.glassify-bg) #SpicyLyricsPage:not(.Fullscreen) .ViewCo
 
 #SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric.ActiveAbove {
   top: auto;
-  bottom: clamp(1rem, 4cqh, 3rem);
+  bottom: clamp(4rem, 16cqh, 12rem);
 }
 
 #SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric svg {

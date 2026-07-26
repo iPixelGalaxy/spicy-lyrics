@@ -40,6 +40,7 @@ let smoothForceScrollQueued = false;
 let currentSimpleBarInstance: any | null = null;
 let wheelHandler: (() => void) | null = null;
 let touchMoveHandler: (() => void) | null = null;
+let scrollHandler: (() => void) | null = null;
 // --- END NEW ---
 
 type ActiveLineDirection = "above" | "below" | null;
@@ -60,10 +61,10 @@ function getActiveLineDirection(
 ): ActiveLineDirection {
   const lineElement = line.HTMLElement as HTMLElement | undefined;
   if (lineElement?.isConnected) {
-    const lineTop = lineElement.offsetTop;
-    const lineBottom = lineTop + lineElement.clientHeight;
-    if (lineBottom < container.scrollTop + 5) return "above";
-    if (lineTop > container.scrollTop + container.clientHeight - 5) return "below";
+    const lineRect = lineElement.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (lineRect.bottom <= containerRect.top) return "above";
+    if (lineRect.top >= containerRect.bottom) return "below";
     return null;
   }
 
@@ -173,6 +174,7 @@ export function InitializeScrollEvents(ScrollSimplebar: any) {
   currentSimpleBarInstance = ScrollSimplebar;
   wheelHandler = () => handleUserScroll(currentSimpleBarInstance);
   touchMoveHandler = () => handleUserScroll(currentSimpleBarInstance);
+  scrollHandler = () => UpdateScrollToActiveButton();
   // --- END NEW ---
 
   // Setup the observer
@@ -180,14 +182,16 @@ export function InitializeScrollEvents(ScrollSimplebar: any) {
 
   // Add scroll event listener
   const scrollElement = ScrollSimplebar?.getScrollElement();
-  if (scrollElement && wheelHandler && touchMoveHandler) {
+  if (scrollElement && wheelHandler && touchMoveHandler && scrollHandler) {
     // Check handlers exist
     // Remove potential old listeners first (optional, but safer if called multiple times)
     scrollElement.removeEventListener("wheel", wheelHandler);
     scrollElement.removeEventListener("touchmove", touchMoveHandler);
+    scrollElement.removeEventListener("scroll", scrollHandler);
     // Add new listeners
     scrollElement.addEventListener("wheel", wheelHandler);
     scrollElement.addEventListener("touchmove", touchMoveHandler);
+    scrollElement.addEventListener("scroll", scrollHandler, { passive: true });
   }
 }
 
@@ -653,6 +657,9 @@ export function CleanupScrollEvents() {
     }
     if (touchMoveHandler) {
       scrollElement.removeEventListener("touchmove", touchMoveHandler);
+    }
+    if (scrollHandler) {
+      scrollElement.removeEventListener("scroll", scrollHandler);
     }
   }
 

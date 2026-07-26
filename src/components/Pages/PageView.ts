@@ -33,6 +33,8 @@ import {
   $minimalLyricsMode,
   $rightAlignLyrics,
   $simpleLyricsMode,
+  $lyricsCacheAction,
+  $showLyricsCacheActionButton,
   $ttmlMakerMode,
   $viewControlsPosition,
 } from "../../utils/stores.ts";
@@ -66,6 +68,11 @@ import { OpenLyricsDBPanel } from "../../utils/openLyricsDBPanel.tsx";
 import { openSettingsPanel } from "../../utils/settings.ts";
 import Logger from "../../utils/Logger.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
+import {
+  getLyricsCacheActionLabel,
+  normalizeLyricsCacheAction,
+  RunLyricsCacheAction,
+} from "../../utils/LyricsCacheTools.ts";
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
@@ -83,6 +90,7 @@ export const Tooltips: {
   NowBarSideToggle: TippyInstance | null;
   LyricsManager: TippyInstance | null;
   Settings: TippyInstance | null;
+  CacheAction: TippyInstance | null;
 } = {
   Close: null,
   NowBarToggle: null,
@@ -91,7 +99,10 @@ export const Tooltips: {
   NowBarSideToggle: null,
   LyricsManager: null,
   Settings: null,
+  CacheAction: null,
 };
+
+let cacheActionRunning = false;
 
 const PageView = {
   Open: OpenPage,
@@ -453,6 +464,8 @@ function AppendViewControls(ReAppend: boolean = false) {
   const isNoLyrics =
     $currentLyricsData.get() === `NO_LYRICS:${SpotifyPlayer.GetUri()}`;
   const isTTMLMakerMode = $ttmlMakerMode.get();
+  const cacheAction = normalizeLyricsCacheAction($lyricsCacheAction.get());
+  const showCacheActionButton = $showLyricsCacheActionButton.get() && !IsPIP;
   elem.innerHTML = `
         ${
           Fullscreen.IsOpen || Fullscreen.CinemaViewOpen
@@ -498,6 +511,13 @@ function AppendViewControls(ReAppend: boolean = false) {
         ${
           isTTMLMakerMode && !IsPIP
             ? `<button id="LyricsManager" class="ViewControl">${Icons.LoadTTML}</button>`
+            : ""
+        }
+        ${
+          showCacheActionButton
+            ? `<button id="CacheAction" class="ViewControl" ${
+                cacheActionRunning ? "disabled aria-busy=\"true\"" : ""
+              }>${Icons.ClearCache}</button>`
             : ""
         }
         ${IsPIP ? "" : `<button id="SettingsToggle" class="ViewControl">${Icons.Settings}</button>`}
@@ -748,6 +768,36 @@ function AppendViewControls(ReAppend: boolean = false) {
       }
     }
 
+    const cacheActionButton = elem.querySelector<HTMLButtonElement>("#CacheAction");
+    if (cacheActionButton) {
+      try {
+        if (!isDetachedWindow) {
+          Tooltips.CacheAction = Spicetify.Tippy(cacheActionButton, {
+            ...Spicetify.TippyProps,
+            content: getLyricsCacheActionLabel(cacheAction),
+          });
+        }
+        cacheActionButton.setAttribute("aria-label", getLyricsCacheActionLabel(cacheAction));
+        cacheActionButton.addEventListener("click", async () => {
+          if (cacheActionRunning) return;
+          cacheActionRunning = true;
+          cacheActionButton.disabled = true;
+          cacheActionButton.setAttribute("aria-busy", "true");
+          try {
+            await RunLyricsCacheAction(cacheAction, true);
+          } finally {
+            cacheActionRunning = false;
+            if (cacheActionButton.isConnected) {
+              cacheActionButton.disabled = false;
+              cacheActionButton.removeAttribute("aria-busy");
+            }
+          }
+        });
+      } catch (err) {
+        controlsLogger.warn("Failed to setup cache action", err);
+      }
+    }
+
     const lyricsManagerButton = elem.querySelector("#LyricsManager");
     if (lyricsManagerButton && isTTMLMakerMode) {
       try {
@@ -849,6 +899,16 @@ $viewControlsPosition.listen((v) => {
 });
 
 $ttmlMakerMode.listen(() => {
+  if (!PageContainer) return;
+  AppendViewControls(true);
+});
+
+$showLyricsCacheActionButton.listen(() => {
+  if (!PageContainer) return;
+  AppendViewControls(true);
+});
+
+$lyricsCacheAction.listen(() => {
   if (!PageContainer) return;
   AppendViewControls(true);
 });

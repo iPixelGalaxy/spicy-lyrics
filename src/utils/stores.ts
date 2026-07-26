@@ -73,6 +73,14 @@ export const $externalCinemaLyricsAllowed = persistAtom<boolean>("externalCinema
 export const $viewControlsPosition = persistAtom<string>("viewControlsPosition", "Top");
 export const $ttmlMakerMode = persistAtom<boolean>("ttmlMakerMode", true);
 export const $developerMode = persistAtom<boolean>("developerMode", false);
+export const $showLyricsCacheActionButton = persistAtom<boolean>(
+  "showLyricsCacheActionButton",
+  false
+);
+export const $lyricsCacheAction = persistAtom<string>(
+  "lyricsCacheAction",
+  "all-current"
+);
 export const $rightAlignLyrics = persistAtom<boolean>("rightAlignLyrics", false);
 export const $escapeKeyFunction = persistAtom<string>("escapeKeyFunction", "Default");
 export const $buildChannel = persistAtom<string>("buildChannel", "Stable");

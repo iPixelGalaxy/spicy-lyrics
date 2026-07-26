@@ -436,6 +436,11 @@ function ShowLoaderContainer(): void {
     ".LyricsContainer .loaderContainer"
   );
   if (!loaderContainer) return;
+
+  // The loader lives inside this pane, which is normally held hidden until lyrics
+  // finish processing. Reveal it first so the loading state can actually render.
+  PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+  PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   resetLoadingLyricsTemplate(loaderContainer);
   loaderContainer.classList.add("active");
 }

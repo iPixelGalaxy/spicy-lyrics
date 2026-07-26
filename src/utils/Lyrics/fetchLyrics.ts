@@ -24,6 +24,7 @@ export const SessionTTMLStore = new Map<string, any>();
 const LYRICS_SOURCE_CACHE_VERSION = 3;
 const inFlightLyricsFetches = new Map<string, Promise<[object | string, number] | null>>();
 let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
+let resolveLoaderHide: (() => void) | null = null;
 let loaderOwnerUri: string | null = null;
 let loaderTransitionId = 0;
 
@@ -100,15 +101,15 @@ function setRomanizationClass(hasTransliterations: boolean | undefined): void {
  * loader, publish the type, reveal the containers and view controls, and clear the
  * fetching flag. Used by every successful return path.
  */
-function presentLyrics(uri: string, lyricsData: any): void {
+async function presentLyrics(uri: string, lyricsData: any): Promise<void> {
   if (!isCurrentTrack(uri)) return;
   setRomanizationClass(lyricsData?.HasTransliterations);
-  HideLoaderContainer(uri);
   $currentLyricsType.set(lyricsData.Type);
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
   PageView.AppendViewControls(true);
-  $currentlyFetching.set(false);
+  await HideLoaderContainer(uri);
+  finishFetching(uri);
 }
 
 type FetchLyricsOptions = {
@@ -213,7 +214,7 @@ async function fetchLyricsInternal(
         if (lyricsData?.id === trackId && isLyricsCacheCompatible(lyricsData)) {
           if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
           const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
-          presentLyrics(uri, preparedLyrics);
+          await presentLyrics(uri, preparedLyrics);
           return [preparedLyrics, 200];
         }
       }
@@ -231,7 +232,7 @@ async function fetchLyricsInternal(
       if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
       const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
       if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
-      presentLyrics(uri, preparedLyrics);
+      await presentLyrics(uri, preparedLyrics);
       return [preparedLyrics, 200];
     }
   }
@@ -242,7 +243,7 @@ async function fetchLyricsInternal(
     if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
     const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
     if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
-    presentLyrics(uri, preparedLyrics);
+    await presentLyrics(uri, preparedLyrics);
     return [preparedLyrics, 200];
   }
 
@@ -276,7 +277,7 @@ async function fetchLyricsInternal(
           fromCache: true,
         });
         if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
-        presentLyrics(uri, preparedLyrics);
+        await presentLyrics(uri, preparedLyrics);
         return [preparedLyrics, 200];
       }
     } catch (error) {
@@ -333,7 +334,7 @@ async function fetchLyricsInternal(
       }
     }
 
-    presentLyrics(uri, lyricsWithId);
+    await presentLyrics(uri, lyricsWithId);
     return [{ ...lyricsWithId, fromCache: false }, 200];
   } catch (error) {
     lyricsLogger.error("Error fetching lyrics", error);
@@ -470,6 +471,8 @@ function ShowLoaderContainer(uri: string): void {
   lyricsContainer?.classList.add("LoadingLyrics");
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  resolveLoaderHide?.();
+  resolveLoaderHide = null;
   loaderHideTimeout = null;
   loaderTransitionId++;
   loaderOwnerUri = uri;
@@ -488,6 +491,8 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
 
   PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.add("LoadingLyrics");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  resolveLoaderHide?.();
+  resolveLoaderHide = null;
   loaderHideTimeout = null;
   loaderTransitionId++;
   loaderOwnerUri = uri;
@@ -506,25 +511,32 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
 /**
  * Fade the loader out before allowing the rendered lyrics to appear.
  */
-function HideLoaderContainer(uri: string): void {
-  if (loaderOwnerUri !== uri) return;
+function HideLoaderContainer(uri: string): Promise<void> {
+  if (loaderOwnerUri !== uri) return Promise.resolve();
   const loaderContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .loaderContainer"
   );
-  if (!loaderContainer || !loaderContainer.classList.contains("active")) return;
+  if (!loaderContainer || !loaderContainer.classList.contains("active")) return Promise.resolve();
 
   const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  resolveLoaderHide?.();
   const transitionId = ++loaderTransitionId;
   loaderContainer.classList.add("leaving");
-  loaderHideTimeout = setTimeout(() => {
-    if (loaderOwnerUri !== uri || loaderTransitionId !== transitionId) return;
-    loaderContainer.classList.remove("active", "leaving", "queued");
-    loaderContainer.querySelector(".loaderMessage")?.remove();
-    lyricsContainer?.classList.remove("LoadingLyrics");
-    loaderOwnerUri = null;
-    loaderHideTimeout = null;
-  }, 450);
+  return new Promise((resolve) => {
+    resolveLoaderHide = resolve;
+    loaderHideTimeout = setTimeout(() => {
+      if (loaderOwnerUri === uri && loaderTransitionId === transitionId) {
+        loaderContainer.classList.remove("active", "leaving", "queued");
+        loaderContainer.querySelector(".loaderMessage")?.remove();
+        lyricsContainer?.classList.remove("LoadingLyrics");
+        loaderOwnerUri = null;
+        loaderHideTimeout = null;
+      }
+      if (resolveLoaderHide === resolve) resolveLoaderHide = null;
+      resolve();
+    }, 450);
+  });
 }
 
 /**

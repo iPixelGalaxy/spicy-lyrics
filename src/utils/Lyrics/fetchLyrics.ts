@@ -25,6 +25,7 @@ const LYRICS_SOURCE_CACHE_VERSION = 3;
 const inFlightLyricsFetches = new Map<string, Promise<[object | string, number] | null>>();
 let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
 let loaderOwnerUri: string | null = null;
+let loaderTransitionId = 0;
 
 function isCurrentTrack(uri: string): boolean {
   return SpotifyPlayer.GetUri() === uri;
@@ -470,6 +471,7 @@ function ShowLoaderContainer(uri: string): void {
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderHideTimeout = null;
+  loaderTransitionId++;
   loaderOwnerUri = uri;
   loaderContainer.classList.remove("leaving");
   resetLoadingLyricsTemplate(loaderContainer);
@@ -487,6 +489,7 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
   PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.add("LoadingLyrics");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   loaderHideTimeout = null;
+  loaderTransitionId++;
   loaderOwnerUri = uri;
   loaderContainer.classList.remove("leaving");
   loaderContainer.classList.add("active", "queued");
@@ -512,9 +515,10 @@ function HideLoaderContainer(uri: string): void {
 
   const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+  const transitionId = ++loaderTransitionId;
   loaderContainer.classList.add("leaving");
   loaderHideTimeout = setTimeout(() => {
-    if (loaderOwnerUri !== uri) return;
+    if (loaderOwnerUri !== uri || loaderTransitionId !== transitionId) return;
     loaderContainer.classList.remove("active", "leaving", "queued");
     loaderContainer.querySelector(".loaderMessage")?.remove();
     lyricsContainer?.classList.remove("LoadingLyrics");

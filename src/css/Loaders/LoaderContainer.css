@@ -40,23 +40,28 @@
 }
 
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs {
+  --LyricsLoadingRowHeight: clamp(2rem, 5.8cqh, 3.3rem);
+  --LyricsLoadingRowGap: clamp(0.9rem, 2.3cqh, 1.5rem);
   display: flex;
   width: 100%;
   box-sizing: border-box;
   align-self: stretch;
-  margin-top: 25cqh;
+  margin-top: calc(
+    25cqh - var(--LyricsLoadingRowHeight) - var(--LyricsLoadingRowHeight) -
+      var(--LyricsLoadingRowGap) - var(--LyricsLoadingRowGap)
+  );
   margin-bottom: 8cqh;
   padding-right: var(--LyricsRightSidePadding);
   padding-left: var(--LyricsLeftSidePadding);
   flex-direction: column;
   align-items: flex-start;
-  gap: clamp(0.9rem, 2.3cqh, 1.5rem);
+  gap: var(--LyricsLoadingRowGap);
 }
 
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span {
   position: relative;
   width: var(--LyricsLoadingBlobWidth, 76%);
-  height: clamp(2rem, 5.8cqh, 3.3rem);
+  height: var(--LyricsLoadingRowHeight);
   margin-top: var(--LyricsLoadingBlobGap, 0px);
   overflow: hidden;
   border-radius: clamp(0.24rem, 0.6cqh, 0.45rem);
@@ -87,6 +92,8 @@
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(7) { --LyricsLoadingBlobWidth: 69%; }
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(8) { --LyricsLoadingBlobWidth: 54%; }
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(9) { --LyricsLoadingBlobWidth: 72%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(10) { --LyricsLoadingBlobWidth: 44%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(11) { --LyricsLoadingBlobWidth: 86%; }
 
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(2)::after { animation-delay: -0.23s; }
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(3)::after { animation-delay: -0.46s; }
@@ -96,6 +103,8 @@
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(7)::after { animation-delay: -1.38s; }
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(8)::after { animation-delay: -1.61s; }
 #SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(9)::after { animation-delay: -1.84s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(10)::after { animation-delay: -2.07s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(11)::after { animation-delay: -2.3s; }
 
 #SpicyLyricsPage .LyricsContainer .loaderContainer #DotLoader {
   display: none;

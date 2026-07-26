@@ -219,6 +219,8 @@ async function OpenPage(
                         <span></span>
                         <span></span>
                         <span></span>
+                        <span></span>
+                        <span></span>
                     </div>
                     <div id="DotLoader"></div>
                 </div>

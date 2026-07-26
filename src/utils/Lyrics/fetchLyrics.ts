@@ -421,7 +421,7 @@ function UpdateLoadingLyricsTemplate(lyrics: any, uri: string): void {
   const currentLineIndex = lines.findIndex((line: { start: number | null; end: number | null }) =>
     line.start !== null && (line.end ?? line.start) >= playbackSeconds
   );
-  const previewStart = Math.max(0, currentLineIndex < 0 ? 0 : currentLineIndex - 3);
+  const previewStart = Math.max(0, currentLineIndex < 0 ? 0 : currentLineIndex - 5);
   const previewLines = lines.slice(previewStart, previewStart + blobs.length);
   const previewBlocks = previewLines
     .flatMap((line: { text: string; start: number | null; end: number | null }, lineIndex: number) => {

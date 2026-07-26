@@ -535,7 +535,7 @@ function HideLoaderContainer(uri: string): Promise<void> {
       }
       if (resolveLoaderHide === resolve) resolveLoaderHide = null;
       resolve();
-    }, 0);
+    }, 150);
   });
 }
 

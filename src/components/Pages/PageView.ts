@@ -5,6 +5,7 @@ import "../../css/Loaders/DotLoader.css";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
   cleanupApplyLyricsAbortController,
+  UpdateRenderedRomanization,
 } from "../../utils/Lyrics/Global/Applyer.ts";
 import {
   addLinesEvListener,
@@ -626,11 +627,18 @@ function AppendViewControls(ReAppend: boolean = false) {
         romanizationToggle.addEventListener("click", async () => {
           const songUri = SpotifyPlayer.GetUri();
           if (!songUri) return;
+          const useRomanized = !isRomanized;
+
+          if (UpdateRenderedRomanization(useRomanized)) {
+            AppendViewControls();
+            return;
+          }
+
           const lyrics = await fetchLyrics(songUri, {
             keepCurrentLyricsVisible: true,
           });
 
-          setRomanizedStatus(!isRomanized);
+          setRomanizedStatus(useRomanized);
 
           await ApplyLyrics(lyrics);
           AppendViewControls();

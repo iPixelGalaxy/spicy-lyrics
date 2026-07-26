@@ -53,6 +53,25 @@ interface LyricsData {
   experimentalWordSyncSource?: "Line" | "Static" | string;
 }
 
+function getDisplayText(line: LyricsLineData, useRomanized: boolean): string {
+  if (Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined) {
+    return line.GibberishText;
+  }
+  return useRomanized && line.TransliteratedText !== undefined
+    ? line.TransliteratedText
+    : line.Text;
+}
+
+export function UpdateLineLyricsRomanization(useRomanized: boolean): void {
+  for (const line of LyricsObject.Types.Line.Lines) {
+    if (line.DotLine) continue;
+    const text = useRomanized
+      ? line.HTMLElement.dataset.lyricsRomanizedText
+      : line.HTMLElement.dataset.lyricsOriginalText;
+    if (text !== undefined) line.HTMLElement.textContent = text;
+  }
+}
+
 export function ApplyLineLyrics(
   data: LyricsData,
   UseRomanized: boolean = false,
@@ -188,10 +207,9 @@ export function ApplyLineLyrics(
 
   data.Content.forEach((line, index, arr) => {
     const lineElem = document.createElement("div");
-    lineElem.textContent =
-      Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined
-        ? line.GibberishText
-        : UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
+    lineElem.textContent = getDisplayText(line, UseRomanized);
+    lineElem.dataset.lyricsOriginalText = getDisplayText(line, false);
+    lineElem.dataset.lyricsRomanizedText = getDisplayText(line, true);
     lineElem.classList.add("line");
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {

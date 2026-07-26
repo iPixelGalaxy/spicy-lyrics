@@ -44,6 +44,28 @@ export interface StaticLyricsData {
   experimentalWordSyncSource?: "Line" | "Static" | string;
 }
 
+function getDisplayText(
+  line: StaticLyricsData["Lines"][number],
+  useRomanized: boolean
+): string {
+  if (Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined) {
+    return line.GibberishText;
+  }
+  return useRomanized && line.TransliteratedText !== undefined
+    ? line.TransliteratedText
+    : line.Text;
+}
+
+export function UpdateStaticLyricsRomanization(useRomanized: boolean): void {
+  for (const line of LyricsObject.Types.Static.Lines) {
+    const element = line.HTMLElement;
+    const text = useRomanized
+      ? element.dataset.lyricsRomanizedText
+      : element.dataset.lyricsOriginalText;
+    if (text !== undefined) element.textContent = text;
+  }
+}
+
 /**
  * Apply static lyrics to the lyrics container
  * @param data - Static lyrics data
@@ -89,10 +111,9 @@ export function ApplyStaticLyrics(
   data.Lines.forEach((line) => {
     const lineElem = document.createElement("div");
 
-    lineElem.textContent =
-      Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined
-        ? line.GibberishText
-        : UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
+    lineElem.textContent = getDisplayText(line, UseRomanized);
+    lineElem.dataset.lyricsOriginalText = getDisplayText(line, false);
+    lineElem.dataset.lyricsRomanizedText = getDisplayText(line, true);
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
       lineElem.classList.add("rtl");

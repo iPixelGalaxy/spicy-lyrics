@@ -2,7 +2,7 @@
 import PageView, { PageContainer } from "../Pages/PageView.ts";
 import Fullscreen from "./Fullscreen.ts";
 import { IsPIP } from "./PopupLyrics.ts";
-import { isSpicySidebarMode, CloseSidebarLyrics } from "./SidebarLyrics.ts";
+import { DeRenderNPVCard, NPVCardOwnsPage, RequestNPVCardEvaluate } from "./NPVLyrics.ts";
 import Session from "../Global/Session.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
@@ -13,6 +13,7 @@ import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar
 import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 
 export let IsExternalCinemaLyrics = false;
+export let IsExternalCinemaOpening = false;
 
 let currentExternalWindow: Window | null = null;
 let externalPageHideHandler: ((event: Event) => void) | null = null;
@@ -169,18 +170,28 @@ async function copyLyricsWindowStyles(targetWindow: Window, wrapperClass: string
 export const OpenExternalCinemaLyrics = async () => {
   if (IsPIP) return;
 
+  IsExternalCinemaOpening = true;
+  try {
+    await OpenExternalCinemaLyricsFlow();
+  } finally {
+    IsExternalCinemaOpening = false;
+    RequestNPVCardEvaluate();
+  }
+};
+
+const OpenExternalCinemaLyricsFlow = async () => {
+  if (NPVCardOwnsPage()) await DeRenderNPVCard();
+
   if (PageView.IsOpened && !IsExternalCinemaLyrics) {
     if (Fullscreen.IsOpen) {
       await Fullscreen.Close();
       Session.GoBack();
-    } else if (isSpicySidebarMode) {
-      await CloseSidebarLyrics();
     } else {
       await PageView.Destroy();
       Session.GoBack();
     }
 
-    OpenExternalCinemaLyrics();
+    await OpenExternalCinemaLyricsFlow();
     return;
   }
 
@@ -254,4 +265,5 @@ export const CloseExternalCinemaLyrics = async (closeWindow = true) => {
   currentExternalWindow = null;
   IsExternalCinemaLyrics = false;
   closingExternalWindow = false;
+  RequestNPVCardEvaluate();
 };

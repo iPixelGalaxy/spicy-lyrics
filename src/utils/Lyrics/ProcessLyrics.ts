@@ -305,11 +305,17 @@ const romanizeEntry = async (
 export const ProcessLyrics = async (lyrics: any) => {
   normalizeLegacyRomanizationFields(lyrics);
   // Transliterations the API already shipped are preferred and never overwritten,
-  // but we still romanize any entry that's missing one — partial API data should
-  // not leave gaps.
-  const hadApiTransliterations = lyrics.HasTransliterations === true;
-
   const { francText, scriptText, entries } = gatherText(lyrics);
+
+  // Locally parsed TTML does not pass through the server, which normally adds
+  // HasTransliterations. Its romanizations already live on the parsed lines or
+  // syllables, so treat those as supplied transliterations too.
+  //
+  // We still romanize any entry that's missing one — partial TTML/API data
+  // should not leave gaps.
+  const hadSuppliedTransliterations =
+    lyrics.HasTransliterations === true ||
+    entries.some((entry) => hasTransliteration(entry.target));
 
   const language = franc(francText);
   const languageISO2 = langs.where("3", language)?.["1"];
@@ -330,7 +336,7 @@ export const ProcessLyrics = async (lyrics: any) => {
   }
 
   // True if the API shipped transliterations or we generated any here.
-  lyrics.HasTransliterations = hadApiTransliterations || appliedRomanization;
+  lyrics.HasTransliterations = hadSuppliedTransliterations || appliedRomanization;
 
   if (lyrics.HasTransliterations === true) {
     PageContainer?.classList.add("Lyrics_RomanizationAvailable");

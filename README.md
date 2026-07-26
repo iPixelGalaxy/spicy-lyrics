@@ -63,11 +63,35 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.28 — Latest
+### v100.10.30 — Latest
+
+- **NPV lyrics reopen stability**
+  Collapsing and reopening the Now Playing View lyrics card now keeps the loaded lyrics ready instead of rebuilding the renderer.
+
+- **Local TTML romanizations**
+  Romanizations included in locally uploaded TTML files are available in the lyrics renderer.
+
+<details>
+<summary>v100.10.29</summary>
+
+### v100.10.29
+
+- Updated to be in line with Spicy Lyrics 6.2.3.
+
+---
+
+</details>
+
+<details>
+<summary>v100.10.28</summary>
+
+### v100.10.28
 
 - Updated to be in line with Spicy Lyrics 6.1.1.
 
 ---
+
+</details>
 
 <details>
 <summary>v100.10.27</summary>

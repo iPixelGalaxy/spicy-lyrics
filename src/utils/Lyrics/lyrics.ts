@@ -1,4 +1,8 @@
-import { $lyricsContainerExists, $minimalLyricsMode } from "../stores.ts";
+import {
+  $lyricsContainerExists,
+  $lyricsRendererPaused,
+  $minimalLyricsMode,
+} from "../stores.ts";
 import { $romanization } from "../uiState.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
@@ -177,7 +181,7 @@ const logLyric = (lyric: string) => {
 }
  */
 export const TickLyricsRenderer = () => {
-  if ($lyricsContainerExists.get()) {
+  if ($lyricsContainerExists.get() && !$lyricsRendererPaused.get()) {
     const progress = SpotifyPlayer.GetPosition();
     Lyrics.TimeSetter(progress);
     Lyrics.Animate(progress);

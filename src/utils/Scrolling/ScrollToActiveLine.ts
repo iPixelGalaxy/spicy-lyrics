@@ -1,4 +1,8 @@
-import { $currentLyricsType, $lyricsContainerExists } from "../../utils/stores.ts";
+import {
+  $currentLyricsType,
+  $lyricsContainerExists,
+  $lyricsRendererPaused,
+} from "../../utils/stores.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
@@ -224,7 +228,7 @@ export const GetForceScrollingPolicy = () => {
 
 export function ScrollToActiveLine(ScrollSimplebar: any) {
   if ($currentLyricsType.get() === "Static" || $currentLyricsType.get() === "None") return;
-  if (!$lyricsContainerExists.get()) return;
+  if (!$lyricsContainerExists.get() || $lyricsRendererPaused.get()) return;
 
   const currentType = $currentLyricsType.get() as LyricsType;
   const Lines = LyricsObject.Types[currentType]?.Lines as LyricsLine[] | LyricsSyllable[];

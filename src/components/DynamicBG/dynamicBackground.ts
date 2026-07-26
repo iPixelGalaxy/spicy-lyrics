@@ -1,4 +1,4 @@
-import { $staticBackgroundMode } from "../../utils/stores.ts";
+import { $staticBackgroundBlur, $staticBackgroundMode } from "../../utils/stores.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import ArtistVisuals from "./ArtistVisuals/Main.ts";
@@ -71,7 +71,7 @@ const getDynamicBackgroundCover = (): string => {
 
 const loadImageElement = (src: string, targetWindow: Window = window): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
-    const img = new targetWindow.Image();
+    const img = new (targetWindow as Window & typeof globalThis).Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     img.src = src;
@@ -111,6 +111,8 @@ const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string, targetDocu
 
 export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}) {
   if (!element) return;
+  // The NPV lyrics card must stay transparent so the NPV background remains visible.
+  if (element.closest("#SpicyLyricsPage.CardMode")) return;
   const targetDocument = element.ownerDocument ?? document;
   const targetWindow = targetDocument.defaultView ?? window;
   dynamicBgLogger.debug("Applying dynamic background", { tag });
@@ -222,12 +224,12 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       }
       return;
     }
-    const currentImgCover = await GetStaticBackground(TrackArtist, TrackId);
+    const staticBackgroundCover = await GetStaticBackground(TrackArtist, TrackId);
 
-    if (IsEpisode || !currentImgCover) return;
+    if (IsEpisode || !staticBackgroundCover) return;
     const prevBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.StaticBackground");
 
-    if (prevBg && prevBg.getAttribute("data-cover-id") === currentImgCover) {
+    if (prevBg && prevBg.getAttribute("data-cover-id") === staticBackgroundCover) {
       return;
     }
     const dynamicBg = targetDocument.createElement("div");
@@ -236,8 +238,8 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
 
     //const processedCover = `https://i.scdn.co/image/${currentImgCover.replace("spotify:image:", "")}`;
 
-    dynamicBg.style.backgroundImage = `url("${currentImgCover}")`;
-    dynamicBg.setAttribute("data-cover-id", currentImgCover);
+    dynamicBg.style.backgroundImage = `url("${staticBackgroundCover}")`;
+    dynamicBg.setAttribute("data-cover-id", staticBackgroundCover);
     element.appendChild(dynamicBg);
 
     targetWindow.setTimeout(() => {
@@ -459,6 +461,27 @@ Global.Event.listen("nowbar:cover-art", () => {
   if (!contentBox) return;
 
   void ApplyDynamicBackground(contentBox, "lpagebg");
+});
+
+// Blur is a pure paint change on the existing element, so push it straight into a
+// CSS var rather than tearing the background down and rebuilding it.
+//
+// The var goes on #SpicyLyricsPage itself, not just the root, because in PiP the
+// page lives in the popup's own document — that document's <html> never sees
+// anything we write here, so a root-only var falls back to 0px there.
+const applyStaticBackgroundBlur = (blur: number) => {
+  const value = `${blur}px`;
+  document.documentElement.style.setProperty("--StaticBackgroundBlur", value);
+  PageContainer?.style.setProperty("--StaticBackgroundBlur", value);
+};
+
+applyStaticBackgroundBlur($staticBackgroundBlur.get());
+$staticBackgroundBlur.listen(applyStaticBackgroundBlur);
+
+// A freshly opened page (PiP or otherwise) is a brand new element with no inline
+// var on it, so seed it from the current setting.
+Global.Event.listen("page:open", () => {
+  applyStaticBackgroundBlur($staticBackgroundBlur.get());
 });
 
 Global.Event.listen("playback:progress", async (e) => {

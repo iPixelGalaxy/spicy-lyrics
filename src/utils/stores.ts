@@ -47,6 +47,8 @@ function persistAtom<T>(key: string, defaultValue: T) {
 
 // Setting atoms (persisted)
 export const $staticBackgroundMode = persistAtom<string>("staticBackgroundMode", "default");
+// Blur radius (px) applied to image-based static backgrounds — not the "color" mode.
+export const $staticBackgroundBlur = persistAtom<number>("staticBackgroundBlur", 0);
 export const $simpleLyricsMode = persistAtom<boolean>("simpleLyricsMode", false);
 export const $simpleLyricsModeRenderingType = persistAtom<string>(
   "simpleLyricsModeRenderingType",
@@ -114,5 +116,8 @@ export const $spicyLyricsVersion = atom<string>(
 // Runtime (ephemeral) atoms
 export const $currentLyricsType = atom<string>("None");
 export const $lyricsContainerExists = atom<boolean>(false);
+// Keeps a mounted lyrics page idle while the NPV card body is collapsed.
+// This is runtime-only: a new page always resumes rendering when it opens.
+export const $lyricsRendererPaused = atom<boolean>(false);
 export const $currentlyFetching = atom<boolean>(false);
 export const $currentLyricsData = atom<string>("");

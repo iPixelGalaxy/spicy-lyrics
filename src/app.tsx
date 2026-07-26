@@ -57,13 +57,6 @@ import Fullscreen, {
   RefreshFullscreenVolumeSlider,
 } from "./components/Utils/Fullscreen.ts";
 import { UpdateNowBar } from "./components/Utils/NowBar.ts";
-import {
-  CloseSidebarLyrics,
-  OpenSidebarLyrics,
-  RegisterSidebarLyrics,
-  getQueueContainer,
-  isSpicySidebarMode,
-} from "./components/Utils/SidebarLyrics.ts";
 import { IsPlaying } from "./utils/Addons.ts";
 import { requestPositionSync } from "./utils/Gets/GetProgress.ts";
 import { IntervalManager } from "./utils/IntervalManager.ts";
@@ -72,24 +65,26 @@ import ApplyLyrics from "./utils/Lyrics/Global/Applyer.ts";
 import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts";
-import { $fromVersion, $lastFetchedUri, $previousVersion, $sidebarStatus } from "./utils/uiState.ts";
+import { $fromVersion, $lastFetchedUri, $previousVersion } from "./utils/uiState.ts";
 import { needsMigration, showMigrationModal } from "./utils/migration/DataMigration.tsx";
 import { OpenBuildChannelPanel } from "./utils/openBuildChannelPanel.tsx";
 import "./css/settings-panel.css";
 import "./components/ReactComponents/LyricsManager/styles.css";
 import "./css/polyfills/generic-modal-polyfill.css";
 import "./css/polyfills/sonner-polyfill.css";
+import "./css/NPVLyrics.css";
+import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
 import { IsPIP, OpenPopupLyrics, ClosePopupLyrics } from "./components/Utils/PopupLyrics.ts";
 import {
   IsExternalCinemaLyrics,
   OpenExternalCinemaLyrics,
   CloseExternalCinemaLyrics,
 } from "./components/Utils/ExternalCinemaLyrics.ts";
+import { initNPVLyrics } from "./components/Utils/NPVLyrics.ts";
 import ReactDOM from "react-dom/client";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
 import "./utils/settings.ts";
 import SLToaster from "./components/ReactComponents/SLToaster.tsx";
-import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
 import { openSettingsPanel } from "./utils/settings.ts";
 import { PopupModal } from "./components/Modal.ts";
 import { exposeToWindow } from "./utils/expose.ts";
@@ -97,6 +92,7 @@ import Logger from "./utils/Logger.ts";
 import Whentil from "./modules/Whentil.ts";
 import App from "./utils/app.ts";
 import { toCssFontFamily } from "./utils/cssFontFamily.ts";
+import { initSession } from "./utils/SessionManager/index.ts";
 
 function bindDefault<T>(store: { get: () => T; listen: (listener: (value: T) => void) => () => void }, assign: (value: T) => void) {
   assign(store.get());
@@ -112,7 +108,7 @@ function applyCustomFont(enabled = $customFontEnabled.get(), font = $customFont.
   }
 }
 
-function closeSettingsOwnedModalOnNavigation(data: Location) {
+function closeSettingsOwnedModalOnNavigation(data: { pathname: string }) {
   if (!PopupModal.isConnected) return;
   if (data.pathname === "/SpicyLyrics/Update") return;
 
@@ -207,7 +203,6 @@ bindForkDefaults();
 
 async function main() {
   const appLogger = new Logger("App");
-  const sidebarLogger = new Logger("Sidebar");
   const dynamicBgLogger = new Logger("Dynamic Background");
   const playbackLogger = new Logger("Playback");
 
@@ -269,6 +264,7 @@ async function main() {
   }
 
   $fromVersion.set(spicyLyricsVersion);
+  void initSession();
 
   LoadFonts();
   ApplyFontPixel();
@@ -490,26 +486,18 @@ async function main() {
           "Enter Fullscreen",
           `<svg role="img" height="16" width="16" aria-hidden="true" viewBox="0 0 16 16" data-encore-id="icon" class="Svg-sc-ytk21e-0 Svg-img-16-icon"><path d="M6.064 10.229l-2.418 2.418L2 11v4h4l-1.647-1.646 2.418-2.418-.707-.707zM11 2l1.647 1.647-2.418 2.418.707.707 2.418-2.418L15 6V2h-4z"/></svg>`,
           async (self) => {
-            if (isSpicySidebarMode) {
-              await CloseSidebarLyrics();
-            }
-            Whentil.When(
-              () => !isSpicySidebarMode,
-              async () => {
-                if (!self.active) {
-                  Session.Navigate({ pathname: "/SpicyLyrics" });
-                  const pageWhentil = Whentil.When(
-                    () => document.querySelector<HTMLElement>(".Root__main-view #SpicyLyricsPage"),
-                    () => {
-                      Fullscreen.Open(Global.Saves.shift_key_pressed ?? false);
-                      pageWhentil?.Cancel();
-                    }
-                  );
-                } else {
-                  Session.GoBack();
+            if (!self.active) {
+              Session.Navigate({ pathname: "/SpicyLyrics" });
+              const pageWhentil = Whentil.When(
+                () => document.querySelector<HTMLElement>(".Root__main-view #SpicyLyricsPage"),
+                () => {
+                  Fullscreen.Open(Global.Saves.shift_key_pressed ?? false);
+                  pageWhentil?.Cancel();
                 }
-              }
-            );
+              );
+            } else {
+              Session.GoBack();
+            }
           },
           false,
           false
@@ -554,45 +542,6 @@ async function main() {
       }
     ];
   }
-
-  RegisterSidebarLyrics();
-
-  // console.log("[Spicy Lyrics Debug] Setting up initial sidebar status check");
-  //Whentil.When(() => document.querySelector<HTMLElement>(".Root__right-sidebar .XOawmCGZcQx4cesyNfVO:not(:has(.h0XG5HZ9x0lYV7JNwhoA.JHlPg4iOkqbXmXjXwVdo)):has(.jD_TVjbjclUwewP7P9e8)") && getQueuePlaybarButton(), () => {
-
-  if (!isSpicySidebarMode && getQueueContainer()) {
-    // console.log("[Spicy Lyrics Debug] Got now playing view parent container");
-    const sidebarStatus = $sidebarStatus.get();
-    sidebarLogger.debug("Restoring sidebar state", sidebarStatus);
-    // console.log("[Spicy Lyrics Debug] Sidebar status from storage:", sidebarStatus);
-    if (sidebarStatus === "open") {
-      // console.log("[Spicy Lyrics Debug] Sidebar status is 'open', checking current path");
-      if (Spicetify.Platform.History.location.pathname === "/SpicyLyrics") {
-        // console.log("[Spicy Lyrics Debug] Currently on /SpicyLyrics, going back");
-        Session.GoBack();
-        // console.log("[Spicy Lyrics Debug] Setting up Whentil to open sidebar after navigation");
-        Whentil.When(
-          () =>
-            !PageView.IsOpened && Spicetify.Platform.History.location.pathname !== "/SpicyLyrics",
-          () => {
-            // console.log("[Spicy Lyrics Debug] Page closed and navigated away, opening sidebar");
-            OpenSidebarLyrics(!!getQueueContainer());
-          }
-        );
-      } else {
-        // console.log("[Spicy Lyrics Debug] Not on /SpicyLyrics, setting up Whentil to open sidebar");
-        Whentil.When(
-          () =>
-            !PageView.IsOpened && Spicetify.Platform.History.location.pathname !== "/SpicyLyrics",
-          () => {
-            // console.log("[Spicy Lyrics Debug] Conditions met, opening sidebar");
-            OpenSidebarLyrics(!!getQueueContainer());
-          }
-        );
-      }
-    }
-  }
-  // })
 
   // Add shift key tracking
   Global.Saves.shift_key_pressed = false;
@@ -841,12 +790,21 @@ async function main() {
 
       nowPlayingBarObserver = new MutationObserver((mutations) => {
         const shouldReapply = mutations.some((mutation) => {
+          // Ignore mutations inside the NPV lyrics card — its animating
+          // lyrics constantly rewrite style attributes, which would reset
+          // the debounce below forever and starve the npvbg apply. The
+          // card's own insertion/removal still passes (targets its parent).
+          const target = mutation.target;
+          const targetElement =
+            target instanceof Element ? target : target.parentElement;
+          if (targetElement?.closest("#SpicyLyricsNPVCard")) return false;
           if (mutation.type === "childList") return true;
           if (mutation.type !== "attributes") return false;
           return (
             mutation.attributeName === "src" ||
             mutation.attributeName === "style" ||
-            mutation.attributeName === "class"
+            mutation.attributeName === "class" ||
+            mutation.attributeName === "inert"
           );
         });
 
@@ -858,7 +816,7 @@ async function main() {
         subtree: true,
         childList: true,
         attributes: true,
-        attributeFilter: ["src", "style", "class"],
+        attributeFilter: ["src", "style", "class", "inert"],
       });
     };
 
@@ -946,9 +904,13 @@ async function main() {
       const nowPlayingBar = getNowPlayingBarElement();
       const topContainer = getTopContainerElement();
       const cinemaViewExists = Boolean(topContainer?.querySelector(".Root__cinema-view"));
+      // Same rule as the NPV lyrics card: an inert ancestor chain
+      // (.Root__right-sidebar <-> aside) means the NPV is not interactive,
+      // so its dynamic background should be de-rendered too.
+      const npvIsInert = Boolean(nowPlayingBar?.closest("[inert]"));
 
       try {
-        if (!nowPlayingBar || cinemaViewExists || isSpicySidebarMode) {
+        if (!nowPlayingBar || cinemaViewExists || npvIsInert) {
           lastImgUrl = null;
           CleanupNowBarDynamicBgLets();
           return;
@@ -1093,17 +1055,8 @@ async function main() {
     async function loadPage(location: Location) {
       appLogger.debug("Handling route change", location.pathname);
       if (location.pathname === "/SpicyLyrics") {
-        if (isSpicySidebarMode) {
-          await CloseSidebarLyrics();
-        }
-        Whentil.When(
-          () => !isSpicySidebarMode,
-          () => {
-            PageView.Open();
-            if (!button) return;
-            button.Button.active = true;
-          }
-        );
+        PageView.Open();
+        if (button) button.Button.active = true;
       } else {
         if (lastLocation?.pathname === "/SpicyLyrics") {
           await PageView.Destroy();
@@ -1188,7 +1141,7 @@ async function main() {
             return;
           }
 
-          PageView.Open(TippyElementContent, true);
+          PageView.Open(TippyElementContent);
       },
       onHide(instance: any) {
           if (PageView.IsTippyCapable) {
@@ -1344,6 +1297,8 @@ async function main() {
       }
     }
   );
+
+  initNPVLyrics();
 
   Hometinue();
 

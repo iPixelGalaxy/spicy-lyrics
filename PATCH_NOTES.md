@@ -1,3 +1,13 @@
+## v100.10.30
+
+### Fixes
+
+- **NPV lyrics reopen stability**
+  Collapsing and reopening the Now Playing View lyrics card now keeps the loaded lyrics ready instead of rebuilding the renderer.
+
+- **Local TTML romanizations**
+  Romanizations included in locally uploaded TTML files are available in the lyrics renderer.
+
 ## Features
 
 - **Persistent / temporary / session TTML load modes reworked to require less clicks**  
@@ -280,4 +290,3 @@
 
 - **Lockfile/package updates**  
   `bun.lock` and `package.json` changed to reflect the updated build scripts/dependency state.
-

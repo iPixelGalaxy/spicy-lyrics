@@ -5,10 +5,12 @@ import {
   $displayLyricsHoverPill,
   $escapeKeyFunction,
   $externalCinemaLyricsAllowed,
+  $hideNpvLyricsWhenUnavailable,
   $lockedMediaBox,
   $popupLyricsAllowed,
   $releaseYearPosition,
   $showVolumeSliderFullscreen,
+  $timelineOutsideMediaContent,
   $viewControlsPosition,
 } from "../../../utils/stores.ts";
 import { $isGlobalNav } from "../../../utils/uiState.ts";
@@ -37,6 +39,8 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
   const escapeKeyFunction = useStore($escapeKeyFunction);
   const displayLyricsHoverPill = useStore($displayLyricsHoverPill);
   const animateFullscreenClose = useStore($animateFullscreenClose);
+  const timelineOutsideMediaContent = useStore($timelineOutsideMediaContent);
+  const hideNpvLyricsWhenUnavailable = useStore($hideNpvLyricsWhenUnavailable);
   const isGlobalNav = useStore($isGlobalNav);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
@@ -45,14 +49,16 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
   const r3 = matches(query, "Disable Popup Lyrics Window", "Prevent lyrics from opening in a floating popup window.");
   const r3b = matches(query, "Disable Cinema Lyrics Window", "Prevent lyrics from opening in a separate cinema window.");
   const r4 = matches(query, "Lyrics Controls Position", "Where the lyrics view controls (play, scroll, etc.) appear.");
+  const r5 = matches(query, "Timeline Outside Media Box", "Display the playback timeline outside the media box, in the NowBar header. Stays inside the media box in Compact Mode or PIP.");
   const r6 = matches(query, "Always Show In Fullscreen", "Keep fullscreen time or controls visible.");
   const r7 = matches(query, "Fullscreen Volume Slider", "Show a volume slider in fullscreen.");
   const r8 = matches(query, "Release Year Position", "Show release year near track metadata.");
   const r9 = matches(query, "Display pill on lyrics hover", "Show a pill background when hovering over lyrics.");
   const r10 = matches(query, "Animate closing fullscreen", "Slide the lyrics page away when closing fullscreen.");
+  const r11 = matches(query, "Hide NPV Lyrics When No Lyrics Are Available", "Remove the lyrics card from the Now Playing sidebar while the current song has no lyrics, instead of showing a notice. It comes back on the next song that has them.");
   const r12 = matches(query, "Escape Key Function", "Choose how Escape behaves in lyrics fullscreen.");
 
-  if (!r2 && !r3 && !r3b && !r4 && !r6 && !r7 && !r8 && !r9 && !r10 && !r12) return null;
+  if (!r2 && !r3 && !r3b && !r4 && !r5 && !r6 && !r7 && !r8 && !r9 && !r10 && !r11 && !r12) return null;
 
   const normalizedAlwaysShowInFullscreen =
     alwaysShowInFullscreen === "All" ? "Both" : alwaysShowInFullscreen;
@@ -117,6 +123,18 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
         </Row>
       )}
 
+      {r5 && (
+        <Row
+          label="Timeline Outside Media Box"
+          description="Display the playback timeline outside the media box, in the NowBar header. Stays inside the media box in Compact Mode or PIP."
+        >
+          <Toggle
+            checked={timelineOutsideMediaContent}
+            onChange={(v) => $timelineOutsideMediaContent.set(v)}
+          />
+        </Row>
+      )}
+
       {r6 && (
         <Row label="Always Show In Fullscreen" description="Keep fullscreen time or controls visible.">
           <Select value={normalizedAlwaysShowInFullscreen} options={fullscreenOptions} onChange={(v) => $alwaysShowInFullscreen.set(v)} />
@@ -150,6 +168,18 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
       {r12 && (
         <Row label="Escape Key Function" description="Choose how Escape behaves in lyrics fullscreen.">
           <Select value={escapeKeyFunction} options={escapeOptions} onChange={(v) => $escapeKeyFunction.set(v)} />
+        </Row>
+      )}
+
+      {r11 && (
+        <Row
+          label="Hide NPV Lyrics When No Lyrics Are Available"
+          description="Remove the lyrics card from the Now Playing sidebar while the current song has no lyrics, instead of showing a notice. It comes back on the next song that has them."
+        >
+          <Toggle
+            checked={hideNpvLyricsWhenUnavailable}
+            onChange={(v) => $hideNpvLyricsWhenUnavailable.set(v)}
+          />
         </Row>
       )}
     </>

@@ -1,3 +1,7 @@
+## v100.10.32
+
+- Updated to be inline with 6.2.4
+
 ## v100.10.31
 
 ### Features

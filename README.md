@@ -63,7 +63,14 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.31 — Latest
+### v100.10.32 — Latest
+
+- Updated to be inline with 6.2.4
+
+<details>
+<summary>v100.10.31</summary>
+
+### v100.10.31
 
 - **Configurable lyrics-view cache button**
   Advanced settings can now show a cache button in lyrics controls. Choose whether it clears current-song caches, current state, or stored cache.
@@ -88,6 +95,8 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 - **Smoother lyric loading handoff**
   Loading previews now clear cleanly before the finished lyric view appears.
+
+</details>
 
 <details>
 <summary>v100.10.30</summary>

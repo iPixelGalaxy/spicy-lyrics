@@ -4,6 +4,7 @@ import {
   EXPERIMENTS,
   type RegisteredExperiment,
 } from "../../../utils/experiments.ts";
+import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../../../utils/stores.ts";
 import { Row, Toggle } from "./components.tsx";
 
 /**
@@ -11,6 +12,9 @@ import { Row, Toggle } from "./components.tsx";
  * new experiment shows up here the moment it's added to `utils/experiments.ts`.
  */
 export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
+  const experimentalWordSync = useStore($enableExperimentalWordSync);
+  const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
+
   return (
     <div style={{ padding: "8px 0" }} className="slm w-40">
       <div className="sl-sp-subheader">
@@ -42,6 +46,26 @@ export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
       {EXPERIMENTS.map((exp) => (
         <ExperimentRow key={exp.id} experiment={exp} />
       ))}
+      <Row
+        label="Enable Cinema Lyrics Window"
+        description="Show or hide the Cinema Lyrics button in the playback bar."
+        labelAccessory={
+          <a
+            className="sl-sp-help-link"
+            href="https://github.com/iPixelGalaxy/spicy-lyrics/blob/dev/ENABLE_DEVTOOLS.md"
+            target="_blank"
+            rel="noreferrer"
+            onClick={(event) => event.stopPropagation()}
+          >
+            Help
+          </a>
+        }
+      >
+        <Toggle checked={externalCinemaLyricsAllowed} onChange={(v) => $externalCinemaLyricsAllowed.set(v)} />
+      </Row>
+      <Row label="Experimental Word Sync" description="Estimate word sync for line or static lyrics.">
+        <Toggle checked={experimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} />
+      </Row>
     </div>
   );
 }

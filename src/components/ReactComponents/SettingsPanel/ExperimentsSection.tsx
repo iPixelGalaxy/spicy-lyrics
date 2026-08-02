@@ -6,6 +6,10 @@ const SECTION_NAME = "Experiments";
 const LABEL = "Experiments";
 const DESCRIPTION =
   "Try out in-progress features, and switch back if you prefer the old behaviour.";
+const SETTINGS = [
+  ["Enable Cinema Lyrics Window", "Show or hide the Cinema Lyrics button in the playback bar."],
+  ["Experimental Word Sync", "Estimate word sync for line or static lyrics."],
+];
 
 interface Props {
   query: string;
@@ -20,11 +24,12 @@ export default function ExperimentsSection({ query, sectionFilter, onOpen }: Pro
   // otherwise the flags would be invisible to the search box.
   const hit =
     matches(query, LABEL, DESCRIPTION) ||
-    EXPERIMENTS.some((exp) => matches(query, exp.label, exp.description));
+    EXPERIMENTS.some((exp) => matches(query, exp.label, exp.description)) ||
+    SETTINGS.some(([label, description]) => matches(query, label, description));
 
   if (!hit) return null;
 
-  const count = EXPERIMENTS.length;
+  const count = EXPERIMENTS.length + SETTINGS.length;
 
   return (
     <>

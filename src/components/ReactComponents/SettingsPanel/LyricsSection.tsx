@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/react";
 import React from "react";
 import {
-  $enableExperimentalWordSync,
   $lineHoverBackground,
   $memeFormat,
   $minimalLyricsMode,
@@ -25,7 +24,6 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const rightAlignLyrics = useStore($rightAlignLyrics);
   const showScrollToActiveButton = useStore($showScrollToActiveButton);
   const memeFormat = useStore($memeFormat);
-  const enableExperimentalWordSync = useStore($enableExperimentalWordSync);
   const playbackOffset = useStore($playbackOffset);
   const lineHoverBackground = useStore($lineHoverBackground);
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
@@ -35,10 +33,9 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const r4 = matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");
   const r5 = matches(query, "Show Scroll to Active Button", "Show an arrow button when the active lyric is outside the viewport.");
   const r6 = matches(query, "Gibberish Lyrics Mode", "Transform lyrics into gibberish text.");
-  const r7 = matches(query, "Experimental Word Sync", "Estimate word sync for line/static lyrics.");
   const r8 = matches(query, "Playback Offset", "Shift lyrics timing earlier or later, in milliseconds.");
   const r9 = matches(query, "Line Hover Background", "Shows a highlight box behind a lyrics line when you hover over it");
-  if (!r1 && !r3 && !r4 && !r5 && !r6 && !r7 && !r8 && !r9) return null;
+  if (!r1 && !r3 && !r4 && !r5 && !r6 && !r8 && !r9) return null;
   const simpleLyricsValue = simpleLyricsMode ? simpleLyricsModeRenderingType : "Off";
   const setSimpleLyricsValue = (value: string) => {
     if (value === "Off") { $simpleLyricsMode.set(false); return; }
@@ -53,7 +50,6 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
     {r4 && <Row label="Right Align Lyrics" description="Flip duet/opposite lyric alignment."><Toggle checked={rightAlignLyrics} onChange={(v) => $rightAlignLyrics.set(v)} /></Row>}
     {r5 && <Row label="Show Scroll to Active Button" description="Show an arrow when the active lyric is outside the viewport."><Toggle checked={showScrollToActiveButton} onChange={(v) => $showScrollToActiveButton.set(v)} /></Row>}
     {r6 && <Row label="Gibberish Lyrics Mode" description="Transform lyrics into gibberish text."><Toggle checked={memeFormat === "Gibberish"} onChange={(v) => $memeFormat.set(v ? "Gibberish" : "Off")} /></Row>}
-    {r7 && <Row label="Experimental Word Sync" description="Estimate word sync for line/static lyrics."><Toggle checked={enableExperimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} /></Row>}
     {r8 && <Row label="Playback Offset" description="Shift lyrics timing earlier or later, in milliseconds." stacked><Slider value={playbackOffset} min={-5000} max={5000} step={10} defaultValue={0} unit="ms" onChange={(v) => $playbackOffset.set(v)} /></Row>}
     {r9 && <Row label="Line Hover Background" description="Shows a highlight box behind a lyrics line when you hover over it"><Toggle checked={lineHoverBackground} onChange={(v) => $lineHoverBackground.set(v)} /></Row>}
   </>;

@@ -1278,6 +1278,7 @@
   position: absolute;
   inset: 0;
   background: #fff;
+  border-radius: inherit;
   transform: scaleX(var(--SliderProgress));
   transform-origin: left;
   transition: transform 0.18s cubic-bezier(0.23, 1, 0.32, 1);
@@ -2962,7 +2963,7 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  opacity: var(--ControlsOpacity, 0);
+  opacity: min(0.985, calc(var(--ControlsOpacity, 0) * 1.5154));
   transition: opacity 160ms ease;
 }
 
@@ -2989,7 +2990,6 @@
   flex-direction: row;
   justify-content: center;
   gap: 12px;
-  opacity: var(--ControlsOpacity, 0);
 }
 
 #SpicyLyricsPage .FullscreenVolumeSlider .VolumeIcon,
@@ -3049,7 +3049,7 @@
 #SpicyLyricsPage .FullscreenVolumeSlider.Below .SliderBar {
   flex: 0 1 28rem;
   width: min(64cqw, 28rem);
-  height: max(6px, 0.79cqh);
+  height: max(12px, 1.58cqh);
   min-height: 0;
 }
 
@@ -3096,6 +3096,73 @@
   display: none;
 }
 
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) {
+  width: max(29px, 4.8cqw);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) .SliderBar {
+  width: 100%;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider.Below .SliderBar {
+  height: max(29px, 4.8cqw);
+  transition-property: height;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider.Below .SliderBar:is(:hover, .Dragging) {
+  height: max(34px, 6.48cqw);
+}
+
 #SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) .SliderBar:is(:hover, .Dragging) {
-  width: max(16px, 2.1cqh);
+  width: max(34px, 6.48cqw);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .VolumeIcon {
+  position: absolute;
+  z-index: 1;
+  color: #fff;
+  mix-blend-mode: difference;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .VolumeIcon svg {
+  width: auto;
+  height: min(22px, 3cqh);
+  fill: currentColor;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeWaveLow,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeWaveHigh,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeMute {
+  transition: opacity 180ms ease;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeMute,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Low #SpicyLyrics_VolumeWaveHigh,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Muted #SpicyLyrics_VolumeWaveLow,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Muted #SpicyLyrics_VolumeWaveHigh {
+  opacity: 0;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Muted #SpicyLyrics_VolumeMute {
+  opacity: 1;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) .VolumeIcon {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: max(26px, 6cqh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider.Below .VolumeIcon {
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

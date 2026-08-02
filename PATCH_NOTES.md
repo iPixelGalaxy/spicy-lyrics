@@ -1,6 +1,16 @@
 ## v100.10.33
 
-- Updated to be in line with 6.3.0, with refinements to its fullscreen controls and experimental settings.
+- **Updated for 6.3.0**
+  Synced the fork with upstream 6.3.0 changes while retaining the fork's fullscreen volume placement options.
+
+- **Fullscreen volume controls**
+  Volume sliders now use the upstream volume icon inside a glass-style bar. Left, right, and below placements brighten on mouse activity, expand while hovered or dragged, and use matching thickness.
+
+- **Rounded playback progress**
+  The played portion of the fullscreen timeline now has rounded ends instead of a flat progress edge.
+
+- **Experimental settings**
+  Cinema Lyrics Window and Experimental Word Sync moved to Experiments. The Cinema setting now enables its playback-bar button directly and includes the DevTools help link. Popup Lyrics settings now describe their playback-bar button behavior.
 
 ## v100.10.32
 

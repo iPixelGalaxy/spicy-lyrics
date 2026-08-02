@@ -63,9 +63,9 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.32 — Latest
+### v100.10.33 — Latest
 
-- Updated to be inline with 6.2.4
+- Updated to be in line with 6.3.0, with refinements to its fullscreen controls and experimental settings.
 
 <details>
 <summary>v100.10.31</summary>

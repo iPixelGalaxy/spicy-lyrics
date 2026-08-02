@@ -1,3 +1,7 @@
+## v100.10.33
+
+- Updated to be in line with 6.3.0, with refinements to its fullscreen controls and experimental settings.
+
 ## v100.10.32
 
 - Updated to be inline with 6.2.4

@@ -1,4 +1,6 @@
 // Spotify's own volume icons (extracted from the Spotify web player)
+import Global from "../Global/Global.ts";
+
 let cleanupFn: (() => void) | null = null;
 
 const VolumeIcons = {
@@ -32,11 +34,11 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
   icon.className = "VolumeIcon";
   setIconForVolume(Spicetify.Player.getVolume());
   icon.addEventListener("click", () => {
-    const vol = Spicetify.Player.getVolume();
-    const nextVolume = vol > 0 ? 0 : 0.5;
-    Spicetify.Player.setVolume(nextVolume);
-    sliderBar.style.setProperty("--SliderProgress", nextVolume.toString());
-    setIconForVolume(nextVolume);
+    try {
+      Spicetify.Player.toggleMute();
+    } finally {
+      targetWindow.setTimeout(updateFromVolume, 60);
+    }
   });
 
   const sliderBar = targetDocument.createElement("div");
@@ -114,6 +116,7 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
 
   const handleDragStart = (event: MouseEvent | TouchEvent) => {
     isDragging = true;
+    sliderBar.classList.add("Dragging");
     prevUserSelect = targetDocument.body.style.userSelect;
     targetDocument.body.style.userSelect = "none";
     targetDocument.addEventListener("mousemove", handleDragMove);
@@ -134,6 +137,7 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
   const handleDragEnd = (event: MouseEvent | TouchEvent) => {
     if (!isDragging) return;
     isDragging = false;
+    sliderBar.classList.remove("Dragging");
     targetDocument.body.style.userSelect = prevUserSelect;
     targetDocument.removeEventListener("mousemove", handleDragMove);
     targetDocument.removeEventListener("touchmove", handleDragMove);
@@ -153,12 +157,29 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
   sliderBar.addEventListener("mousedown", handleDragStart);
   sliderBar.addEventListener("touchstart", handleDragStart);
 
+  const wheelHandler = (event: WheelEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const next = Math.max(0, Math.min(1, Spicetify.Player.getVolume() + (event.deltaY < 0 ? 0.05 : -0.05)));
+    sliderBar.style.setProperty("--SliderProgress", next.toString());
+    setIconForVolume(next);
+    commitVolume(next, true);
+  };
+  sliderBar.addEventListener("wheel", wheelHandler, { passive: false });
+
+  const volumeEventId = Global.Event.listen("playback:volume", (volume: number) => {
+    if (isDragging || typeof volume !== "number") return;
+    sliderBar.style.setProperty("--SliderProgress", volume.toString());
+    setIconForVolume(volume);
+  });
+
   const pollInterval = targetWindow.setInterval(updateFromVolume, 250);
 
   cleanupFn = () => {
     targetWindow.clearInterval(pollInterval);
     sliderBar.removeEventListener("mousedown", handleDragStart);
     sliderBar.removeEventListener("touchstart", handleDragStart);
+    sliderBar.removeEventListener("wheel", wheelHandler);
     targetDocument.removeEventListener("mousemove", handleDragMove);
     targetDocument.removeEventListener("touchmove", handleDragMove);
     targetDocument.removeEventListener("mouseup", handleDragEnd);
@@ -167,6 +188,7 @@ export function SetupVolumeSlider(container: HTMLElement, horizontal?: boolean) 
       targetWindow.cancelAnimationFrame(dragFrame);
       dragFrame = null;
     }
+    Global.Event.unListen(volumeEventId);
     container.innerHTML = "";
     container.classList.remove("Horizontal");
     container.classList.remove("RightSide");

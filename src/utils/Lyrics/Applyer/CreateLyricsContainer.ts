@@ -23,8 +23,16 @@ const CreateLyricsContainer = (
   lastMapIndex += 1;
   const currentIndex = lastMapIndex;
 
+  // Coalesce to one pass per frame. Each ResizeObserver callback used to queue
+  // its own rAF, so a burst (or anything that resizes the container every frame,
+  // like the NPV card's open/close morph) stacked several SimpleBar
+  // recalculate() calls — each a forced layout — onto the same frame.
+  let resizeRAF: number | null = null;
+
   const Resize = () => {
-    requestAnimationFrame(() => {
+    if (resizeRAF !== null) return;
+    resizeRAF = requestAnimationFrame(() => {
+      resizeRAF = null;
       if (!preserveViewport) QueueForceScroll();
       ScrollSimplebar?.recalculate();
     });
@@ -35,6 +43,10 @@ const CreateLyricsContainer = (
   });
 
   const Remove = () => {
+    if (resizeRAF !== null) {
+      cancelAnimationFrame(resizeRAF);
+      resizeRAF = null;
+    }
     ResizeListener.unobserve(Container.parentElement as HTMLElement);
     ResizeListener.disconnect();
     Container.remove();

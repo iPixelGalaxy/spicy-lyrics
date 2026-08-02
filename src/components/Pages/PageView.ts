@@ -27,8 +27,8 @@ import {
   $currentLyricsData,
   $customFont,
   $customFontEnabled,
-  $displayLyricsHoverPill,
   $enableExperimentalWordSync,
+  $lineHoverBackground,
   $memeFormat,
   $lyricsContainerExists,
   $lyricsRendererPaused,
@@ -70,6 +70,7 @@ import { CleanUpIsByCommunity } from "../../utils/Lyrics/Applyer/Credits/ApplyIs
 import { OpenLyricsDBPanel } from "../../utils/openLyricsDBPanel.tsx";
 import { openSettingsPanel } from "../../utils/settings.ts";
 import Logger from "../../utils/Logger.ts";
+import { ApplyExperimentClasses, onExperimentChange } from "../../utils/experiments.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
 import {
   getLyricsCacheActionLabel,
@@ -270,7 +271,6 @@ async function OpenPage(
   }
   applyCustomFontSetting($customFont.get(), targetDocument);
 
-  elem.classList.toggle("DisplayLyricsHoverPill", $displayLyricsHoverPill.get());
   elem.classList.toggle("GibberishLyricsMode", $memeFormat.get() === "Gibberish");
 
   if ($simpleLyricsMode.get()) {
@@ -280,6 +280,12 @@ async function OpenPage(
   if ($minimalLyricsMode.get()) {
     elem.classList.add("MinimalLyricsMode");
   }
+
+  if (!$lineHoverBackground.get()) {
+    elem.classList.add("NoLineHoverBackground");
+  }
+
+  ApplyExperimentClasses(elem);
 
   const contentBox = elem.querySelector<HTMLElement>(
     ".ContentBox"
@@ -898,6 +904,11 @@ $rightAlignLyrics.listen(() => {
   RefreshRightAlignedLyrics();
 });
 
+$lineHoverBackground.listen((v) => {
+  if (!PageContainer) return;
+  PageContainer.classList.toggle("NoLineHoverBackground", !v);
+});
+
 $customFontEnabled.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("UseSpicyFont", !v);
@@ -908,8 +919,11 @@ $customFont.listen((v) => {
   applyCustomFontSetting(v);
 });
 
-$displayLyricsHoverPill.listen((v) => {
-  PageContainer?.classList.toggle("DisplayLyricsHoverPill", v);
+// Experiments own their CSS hook here; NowBar.ts handles the rebuild for the ones
+// that need one. Adding an experiment requires no change to this file.
+onExperimentChange(() => {
+  if (!PageContainer) return;
+  ApplyExperimentClasses(PageContainer);
 });
 
 $viewControlsPosition.listen((v) => {

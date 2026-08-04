@@ -923,24 +923,30 @@ async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyricsResul
   }
 }
 
-async function fetchSpicyLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
-  const raw = await fetchSpicyLyricsRaw(trackId);
+async function fetchSpicyLyrics(
+  rawPromise: Promise<ExternalLyricsResult | null>
+): Promise<ExternalLyricsResult | null> {
+  const raw = await rawPromise;
   if (!raw) return null;
   // Community-only: source must be "spl"
   if (raw.lyrics?.source !== "spl") return null;
   return raw;
 }
 
-async function fetchAppleMusicLyrics(trackId: string): Promise<ExternalLyricsResult | null> {
-  const raw = await fetchSpicyLyricsRaw(trackId);
+async function fetchAppleMusicLyrics(
+  rawPromise: Promise<ExternalLyricsResult | null>
+): Promise<ExternalLyricsResult | null> {
+  const raw = await rawPromise;
   if (!raw) return null;
   // Apple Music only: source must be "aml"
   if (raw.lyrics?.source !== "aml") return null;
   return raw;
 }
 
-async function fetchSpicySongWriters(trackId: string): Promise<string[] | null> {
-  const spicyResult = await fetchSpicyLyricsRaw(trackId);
+async function fetchSpicySongWriters(
+  rawPromise: Promise<ExternalLyricsResult | null>
+): Promise<string[] | null> {
+  const spicyResult = await rawPromise;
   return tryGetSongWriters(spicyResult?.lyrics);
 }
 
@@ -1021,7 +1027,8 @@ async function fetchSpotifyLyrics(
 }
 
 async function fetchMusixmatchLyrics(
-  trackInfo: TrackLyricsInfo
+  trackInfo: TrackLyricsInfo,
+  getSpicyRaw: () => Promise<ExternalLyricsResult | null>
 ): Promise<ExternalLyricsResult | null> {
   try {
     const macroCalls = await fetchMusixmatchMacro(trackInfo);
@@ -1036,7 +1043,7 @@ async function fetchMusixmatchLyrics(
       ? null
       : getMusixmatchKaraokeLines(richsync);
     if (karaokeLines) {
-      const spicySongWriters = await fetchSpicySongWriters(trackInfo.id);
+      const spicySongWriters = await fetchSpicySongWriters(getSpicyRaw());
       const syllableLyrics = applySongWriters(
         applyMusixmatchBracketBackgrounds(
           buildSyllableLyrics(
@@ -1061,7 +1068,7 @@ async function fetchMusixmatchLyrics(
 
     const syncedLines = getMusixmatchSyncedLines(macroCalls);
     if (syncedLines) {
-      const spicySongWriters = await fetchSpicySongWriters(trackInfo.id);
+      const spicySongWriters = await fetchSpicySongWriters(getSpicyRaw());
       const lineLyrics = applySongWriters(
         buildLineLyrics(
           syncedLines,
@@ -1465,6 +1472,10 @@ async function fetchMyCustomServerLyrics(
 
 const FALLBACK_PROVIDER_TIMEOUT_MS = 4000;
 
+type FetchLyricsFromProvidersOptions = {
+  onFirstLyrics?: (lyrics: any) => void;
+};
+
 function withProviderTimeout<T>(
   promise: Promise<T | null>,
   ms: number
@@ -1477,7 +1488,8 @@ function withProviderTimeout<T>(
 
 export async function fetchLyricsFromProviders(
   uri: string,
-  order: LyricsSourceProviderId[]
+  order: LyricsSourceProviderId[],
+  options: FetchLyricsFromProvidersOptions = {}
 ): Promise<ExternalLyricsResult | null> {
   const trackInfo = await getTrackLyricsInfo(uri);
   if (!trackInfo) {
@@ -1486,6 +1498,44 @@ export async function fetchLyricsFromProviders(
 
   const prioritizeApple = Defaults.PrioritizeAppleMusicQuality;
   const appleIsInOrder = order.includes("apple");
+  let spicyRawPromise: Promise<ExternalLyricsResult | null> | null = null;
+  const getSpicyRaw = () => {
+    spicyRawPromise ??= fetchSpicyLyricsRaw(trackInfo.id);
+    return spicyRawPromise;
+  };
+
+  // Start every enabled provider now. Results are still consumed in configured
+  // order below, so this removes serial fallback wait without changing source
+  // preference or quality selection.
+  const providerRequests = new Map<
+    LyricsSourceProviderId,
+    Promise<ExternalLyricsResult | null>
+  >();
+  let firstLyricsDelivered = false;
+  for (const provider of order) {
+    const request =
+      provider === "spicy"
+        ? fetchSpicyLyrics(getSpicyRaw())
+        : provider === "musixmatch"
+          ? fetchMusixmatchLyrics(trackInfo, getSpicyRaw)
+          : provider === "apple"
+            ? fetchAppleMusicLyrics(getSpicyRaw())
+            : provider === "spotify"
+              ? fetchSpotifyLyrics(trackInfo)
+              : provider === "lrclib"
+                ? withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                : provider === "netease"
+                  ? withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                  : Promise.resolve(null);
+    providerRequests.set(provider, request);
+    void request
+      .then((result) => {
+        if (firstLyricsDelivered || !result?.lyrics) return;
+        firstLyricsDelivered = true;
+        options.onFirstLyrics?.(result.lyrics);
+      })
+      .catch(() => {});
+  }
 
   let bestResult: ExternalLyricsResult | null = null;
   let bestScore = 0;

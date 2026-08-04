@@ -5,6 +5,7 @@ import "../../css/Loaders/DotLoader.css";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
   cleanupApplyLyricsAbortController,
+  UpdateRenderedRomanization,
 } from "../../utils/Lyrics/Global/Applyer.ts";
 import {
   addLinesEvListener,
@@ -16,6 +17,8 @@ import {
   CleanupScrollEvents,
   InitializeScrollEvents,
   ResetLastLine,
+  ScrollToCurrentActiveLine,
+  UpdateScrollToActiveButton,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import { toCssFontFamily } from "../../utils/cssFontFamily.ts";
@@ -24,14 +27,17 @@ import {
   $currentLyricsData,
   $customFont,
   $customFontEnabled,
-  $displayLyricsHoverPill,
   $enableExperimentalWordSync,
+  $lineHoverBackground,
   $memeFormat,
   $lyricsContainerExists,
   $lyricsRendererPaused,
   $minimalLyricsMode,
   $rightAlignLyrics,
+  $showScrollToActiveButton,
   $simpleLyricsMode,
+  $lyricsCacheAction,
+  $showLyricsCacheActionButton,
   $ttmlMakerMode,
   $viewControlsPosition,
 } from "../../utils/stores.ts";
@@ -64,7 +70,13 @@ import { CleanUpIsByCommunity } from "../../utils/Lyrics/Applyer/Credits/ApplyIs
 import { OpenLyricsDBPanel } from "../../utils/openLyricsDBPanel.tsx";
 import { openSettingsPanel } from "../../utils/settings.ts";
 import Logger from "../../utils/Logger.ts";
+import { ApplyExperimentClasses, onExperimentChange } from "../../utils/experiments.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
+import {
+  getLyricsCacheActionLabel,
+  normalizeLyricsCacheAction,
+  RunLyricsCacheAction,
+} from "../../utils/LyricsCacheTools.ts";
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
@@ -82,6 +94,7 @@ export const Tooltips: {
   NowBarSideToggle: TippyInstance | null;
   LyricsManager: TippyInstance | null;
   Settings: TippyInstance | null;
+  CacheAction: TippyInstance | null;
 } = {
   Close: null,
   NowBarToggle: null,
@@ -90,7 +103,10 @@ export const Tooltips: {
   NowBarSideToggle: null,
   LyricsManager: null,
   Settings: null,
+  CacheAction: null,
 };
+
+let cacheActionRunning = false;
 
 const PageView = {
   Open: OpenPage,
@@ -194,9 +210,23 @@ async function OpenPage(
             </div>
             <div class="LyricsContainer">
                 <div class="loaderContainer">
+                    <div class="LyricsLoadingBlobs" role="status" aria-label="Loading lyrics">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
                     <div id="DotLoader"></div>
                 </div>
                 <div class="LyricsContent ScrollbarScrollable"></div>
+                <button id="ScrollToActiveLyric" class="ScrollToActiveLyric" type="button" aria-label="Scroll to active lyric">
+                    <svg class="NoFill" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
             </div>
             <div class="ViewControls"></div>
         </div>
@@ -241,7 +271,6 @@ async function OpenPage(
   }
   applyCustomFontSetting($customFont.get(), targetDocument);
 
-  elem.classList.toggle("DisplayLyricsHoverPill", $displayLyricsHoverPill.get());
   elem.classList.toggle("GibberishLyricsMode", $memeFormat.get() === "Gibberish");
 
   if ($simpleLyricsMode.get()) {
@@ -251,6 +280,12 @@ async function OpenPage(
   if ($minimalLyricsMode.get()) {
     elem.classList.add("MinimalLyricsMode");
   }
+
+  if (!$lineHoverBackground.get()) {
+    elem.classList.add("NoLineHoverBackground");
+  }
+
+  ApplyExperimentClasses(elem);
 
   const contentBox = elem.querySelector<HTMLElement>(
     ".ContentBox"
@@ -271,6 +306,10 @@ async function OpenPage(
   }
 
   addLinesEvListener();
+
+  elem.querySelector<HTMLButtonElement>("#ScrollToActiveLyric")?.addEventListener("click", () => {
+    ScrollToCurrentActiveLine();
+  });
 
   {
     const currentUri = Spicetify?.Player?.data?.item?.uri;
@@ -452,6 +491,8 @@ function AppendViewControls(ReAppend: boolean = false) {
   const isNoLyrics =
     $currentLyricsData.get() === `NO_LYRICS:${SpotifyPlayer.GetUri()}`;
   const isTTMLMakerMode = $ttmlMakerMode.get();
+  const cacheAction = normalizeLyricsCacheAction($lyricsCacheAction.get());
+  const showCacheActionButton = $showLyricsCacheActionButton.get() && !IsPIP;
   elem.innerHTML = `
         ${
           Fullscreen.IsOpen || Fullscreen.CinemaViewOpen
@@ -497,6 +538,13 @@ function AppendViewControls(ReAppend: boolean = false) {
         ${
           isTTMLMakerMode && !IsPIP
             ? `<button id="LyricsManager" class="ViewControl">${Icons.LoadTTML}</button>`
+            : ""
+        }
+        ${
+          showCacheActionButton
+            ? `<button id="CacheAction" class="ViewControl" ${
+                cacheActionRunning ? "disabled aria-busy=\"true\"" : ""
+              }>${Icons.ClearCache}</button>`
             : ""
         }
         ${IsPIP ? "" : `<button id="SettingsToggle" class="ViewControl">${Icons.Settings}</button>`}
@@ -626,21 +674,21 @@ function AppendViewControls(ReAppend: boolean = false) {
         romanizationToggle.addEventListener("click", async () => {
           const songUri = SpotifyPlayer.GetUri();
           if (!songUri) return;
-          PageContainer?.querySelector(
-            ".LyricsContainer .LyricsContent"
-          )?.classList.add("HiddenTransitioned");
-          const lyrics = await fetchLyrics(songUri);
+          const useRomanized = !isRomanized;
 
-          setRomanizedStatus(!isRomanized);
-
-          ApplyLyrics(lyrics);
-
-          setTimeout(() => {
+          if (UpdateRenderedRomanization(useRomanized)) {
             AppendViewControls();
-            PageContainer?.querySelector(
-              ".LyricsContainer .LyricsContent"
-            )?.classList.remove("HiddenTransitioned");
-          }, 45);
+            return;
+          }
+
+          const lyrics = await fetchLyrics(songUri, {
+            keepCurrentLyricsVisible: true,
+          });
+
+          setRomanizedStatus(useRomanized);
+
+          await ApplyLyrics(lyrics);
+          AppendViewControls();
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Romanization tooltip", err);
@@ -747,6 +795,36 @@ function AppendViewControls(ReAppend: boolean = false) {
       }
     }
 
+    const cacheActionButton = elem.querySelector<HTMLButtonElement>("#CacheAction");
+    if (cacheActionButton) {
+      try {
+        if (!isDetachedWindow) {
+          Tooltips.CacheAction = Spicetify.Tippy(cacheActionButton, {
+            ...Spicetify.TippyProps,
+            content: getLyricsCacheActionLabel(cacheAction),
+          });
+        }
+        cacheActionButton.setAttribute("aria-label", getLyricsCacheActionLabel(cacheAction));
+        cacheActionButton.addEventListener("click", async () => {
+          if (cacheActionRunning) return;
+          cacheActionRunning = true;
+          cacheActionButton.disabled = true;
+          cacheActionButton.setAttribute("aria-busy", "true");
+          try {
+            await RunLyricsCacheAction(cacheAction, true);
+          } finally {
+            cacheActionRunning = false;
+            if (cacheActionButton.isConnected) {
+              cacheActionButton.disabled = false;
+              cacheActionButton.removeAttribute("aria-busy");
+            }
+          }
+        });
+      } catch (err) {
+        controlsLogger.warn("Failed to setup cache action", err);
+      }
+    }
+
     const lyricsManagerButton = elem.querySelector("#LyricsManager");
     if (lyricsManagerButton && isTTMLMakerMode) {
       try {
@@ -826,6 +904,11 @@ $rightAlignLyrics.listen(() => {
   RefreshRightAlignedLyrics();
 });
 
+$lineHoverBackground.listen((v) => {
+  if (!PageContainer) return;
+  PageContainer.classList.toggle("NoLineHoverBackground", !v);
+});
+
 $customFontEnabled.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("UseSpicyFont", !v);
@@ -836,8 +919,11 @@ $customFont.listen((v) => {
   applyCustomFontSetting(v);
 });
 
-$displayLyricsHoverPill.listen((v) => {
-  PageContainer?.classList.toggle("DisplayLyricsHoverPill", v);
+// Experiments own their CSS hook here; NowBar.ts handles the rebuild for the ones
+// that need one. Adding an experiment requires no change to this file.
+onExperimentChange(() => {
+  if (!PageContainer) return;
+  ApplyExperimentClasses(PageContainer);
 });
 
 $viewControlsPosition.listen((v) => {
@@ -848,6 +934,20 @@ $viewControlsPosition.listen((v) => {
 });
 
 $ttmlMakerMode.listen(() => {
+  if (!PageContainer) return;
+  AppendViewControls(true);
+});
+
+$showScrollToActiveButton.listen(() => {
+  UpdateScrollToActiveButton();
+});
+
+$showLyricsCacheActionButton.listen(() => {
+  if (!PageContainer) return;
+  AppendViewControls(true);
+});
+
+$lyricsCacheAction.listen(() => {
   if (!PageContainer) return;
   AppendViewControls(true);
 });

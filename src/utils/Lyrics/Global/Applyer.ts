@@ -14,7 +14,7 @@ import {
 } from "../ExperimentalWordSync.ts";
 import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
 import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
-import { ClearLyricsContentArrays, isRomanized } from "../lyrics.ts";
+import { ClearLyricsContentArrays, isRomanized, setRomanizedStatus } from "../lyrics.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
 import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx";
 import { IsCompactMode } from "../../../components/Utils/CompactMode.ts";
@@ -22,6 +22,10 @@ import Fullscreen from "../../../components/Utils/Fullscreen.ts";
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
 import { ApplyMemeFormat } from "../ProcessLyrics.ts";
 import Defaults from "../../../components/Global/Defaults.ts";
+import { captureLyricsViewportAnchor, triggerRemeasureLV } from "../LyricsVirtualizer.ts";
+import { UpdateStaticLyricsRomanization } from "../Applyer/Static.ts";
+import { UpdateLineLyricsRomanization } from "../Applyer/Synced/Line.ts";
+import { UpdateSyllableLyricsRomanization } from "../Applyer/Synced/Syllable.ts";
 
 /**
  * Union type for all lyrics data types
@@ -33,6 +37,33 @@ export type LyricsData = {
 
 
 let currentAbortController: AbortController | null = null;
+let appliedLyricsIdentity: string | null = null;
+let renderedLyrics: LyricsData | null = null;
+
+export function UpdateRenderedRomanization(useRomanized: boolean): boolean {
+  if (!renderedLyrics) return false;
+
+  if (renderedLyrics.Type === "Syllable") {
+    UpdateSyllableLyricsRomanization(useRomanized);
+  } else if (renderedLyrics.Type === "Line") {
+    UpdateLineLyricsRomanization(useRomanized);
+  } else if (renderedLyrics.Type === "Static") {
+    UpdateStaticLyricsRomanization(useRomanized);
+  } else {
+    return false;
+  }
+
+  setRomanizedStatus(useRomanized);
+  triggerRemeasureLV();
+  return true;
+}
+
+function getLyricsIdentity(descriptor: object | string): string | null {
+  if (descriptor && typeof descriptor === "object" && typeof (descriptor as any).id === "string") {
+    return (descriptor as any).id;
+  }
+  return SpotifyPlayer.GetUri() ?? null;
+}
 
 export const cleanupApplyLyricsAbortController = () => {
   if (currentAbortController) {
@@ -92,6 +123,13 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   setBlurringLastLine(null);
   if (!lyricsContent) return;
 
+  const [descriptor, _status] = lyricsContent;
+  const incomingLyricsIdentity = getLyricsIdentity(descriptor);
+  const viewportAnchor =
+    incomingLyricsIdentity !== null && incomingLyricsIdentity === appliedLyricsIdentity
+      ? captureLyricsViewportAnchor()
+      : null;
+
   cleanupApplyLyricsAbortController()
 
   EmitNotApplyed();
@@ -103,8 +141,6 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   ClearLyricsPageContainer();
 
   CleanUpIsByCommunity();
-
-  const [descriptor, _status] = lyricsContent;
 
   let noticeContent: string | null = null;
 
@@ -196,6 +232,8 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
     }
 
     EmitApply("None", null)
+    appliedLyricsIdentity = null;
+    renderedLyrics = null;
     return;
   }
 
@@ -245,11 +283,14 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   }
 
   if (lyrics.Type === "Syllable") {
-    ApplySyllableLyrics(lyrics as any, romanize);
+    ApplySyllableLyrics(lyrics as any, romanize, viewportAnchor);
   } else if (lyrics.Type === "Line") {
-    ApplyLineLyrics(lyrics as any, romanize);
+    ApplyLineLyrics(lyrics as any, romanize, viewportAnchor);
   } else if (lyrics.Type === "Static") {
     // Type assertion to StaticLyricsData since we've verified the Type is "Static"
-    ApplyStaticLyrics(lyrics as StaticLyricsData, romanize);
+    ApplyStaticLyrics(lyrics as StaticLyricsData, romanize, viewportAnchor);
   }
+
+  appliedLyricsIdentity = incomingLyricsIdentity;
+  renderedLyrics = lyrics;
 }

@@ -173,6 +173,73 @@ body.player-floating:has(.glassify-bg) #SpicyLyricsPage:not(.Fullscreen) .ViewCo
   scale: 1.15;
 }
 
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric {
+  position: absolute;
+  z-index: 12;
+  right: clamp(2rem, 4.4cqw, 4rem);
+  top: clamp(2rem, 8cqh, 6rem);
+  width: clamp(3rem, 6.2cqh, 3.65rem);
+  height: clamp(3rem, 6.2cqh, 3.65rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+  background: var(--material-regular-bg);
+  border: 0;
+  border-radius: clamp(0.8rem, 1.5cqh, 1.15rem);
+  -webkit-backdrop-filter: var(--material-regular-blur);
+  backdrop-filter: var(--material-regular-blur);
+  box-shadow:
+    0 10px 24px -8px rgba(8, 10, 18, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.92);
+  transition: opacity 0.2s ease, transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric.Visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric.ActiveAbove {
+  top: auto;
+  bottom: clamp(2rem, 8cqh, 6rem);
+}
+
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric svg {
+  transition: transform 0.2s ease;
+}
+
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric.ActiveAbove svg {
+  transform: rotate(180deg);
+}
+
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+#SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric:active {
+  transform: scale(0.94);
+}
+
+#SpicyLyricsPage.CardMode .ScrollToActiveLyric {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric,
+  #SpicyLyricsPage .LyricsContainer .ScrollToActiveLyric svg {
+    transition: none;
+  }
+}
+
 /* #SpicyLyricsPage:not(.Fullscreen, .NowBarSide__Right) .ViewControls:hover {
   opacity: 1 !important;
   left: var(--ControlsHoverOffset) !important;

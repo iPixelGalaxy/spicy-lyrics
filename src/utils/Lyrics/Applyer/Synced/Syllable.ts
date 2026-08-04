@@ -7,6 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
+import { AdoptReappliedScrollPosition } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
@@ -21,7 +22,7 @@ import {
   setRomanizedStatus,
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
-import { initLyricsVirtualizer } from "../../LyricsVirtualizer.ts";
+import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -163,6 +164,69 @@ function getSyllableText(syllable: SyllableData, useRomanized: boolean): string 
     : syllable.Text;
 }
 
+function setSyllableTextVariants(
+  element: HTMLElement,
+  syllable: SyllableData,
+  displayedText: string
+): void {
+  const isGibberish = Defaults.MemeFormat !== "Off" && syllable.GibberishText !== undefined;
+  element.dataset.lyricsOriginalText = isGibberish ? displayedText : syllable.Text;
+  element.dataset.lyricsRomanizedText = isGibberish
+    ? displayedText
+    : syllable.TransliteratedText ?? syllable.Text;
+}
+
+function replaceLetterGroupText(word: any, text: string): void {
+  const letters = Array.from(text);
+  const existingLetters = word.Letters as Array<any> | undefined;
+
+  if (existingLetters?.length === letters.length) {
+    existingLetters.forEach((letter, index) => {
+      letter.HTMLElement.textContent = letters[index];
+    });
+    return;
+  }
+
+  const totalDuration = word.EndTime - word.StartTime;
+  const letterDuration = letters.length > 0 ? totalDuration / letters.length : totalDuration;
+  word.HTMLElement.replaceChildren();
+  word.Letters = letters.map((letter, index) => {
+    const element = document.createElement("span");
+    element.textContent = letter;
+    element.classList.add("letter", "Emphasis");
+    if (index === letters.length - 1) element.classList.add("LastLetterInWord");
+    if (!$simpleLyricsMode.get()) element.style.setProperty("--gradient-position", "-20%");
+    element.style.setProperty("--text-shadow-opacity", "0%");
+    element.style.setProperty("--text-shadow-blur-radius", "4px");
+    element.style.scale = IdleEmphasisLyricsScale.toString();
+    element.style.transform = "translateY(calc(var(--DefaultLyricsSize) * 0.02))";
+    word.HTMLElement.appendChild(element);
+    return {
+      HTMLElement: element,
+      StartTime: word.StartTime + index * letterDuration,
+      EndTime: word.StartTime + (index + 1) * letterDuration,
+      TotalTime: letterDuration,
+      Emphasis: true,
+      ...(word.BGWord ? { BGLetter: true } : {}),
+    };
+  });
+}
+
+export function UpdateSyllableLyricsRomanization(useRomanized: boolean): void {
+  for (const line of LyricsObject.Types.Syllable.Lines) {
+    for (const word of line.Syllables?.Lead ?? []) {
+      if (word.Dot) continue;
+      const text = useRomanized
+        ? word.HTMLElement.dataset.lyricsRomanizedText
+        : word.HTMLElement.dataset.lyricsOriginalText;
+      if (text === undefined) continue;
+
+      if (word.LetterGroup) replaceLetterGroupText(word, text);
+      else word.HTMLElement.textContent = text;
+    }
+  }
+}
+
 function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean): boolean {
   if (syllable.IsPartOfWord) return true;
   return (
@@ -172,7 +236,11 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
   );
 }
 
-export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = false): void {
+export function ApplySyllableLyrics(
+  data: LyricsData,
+  UseRomanized: boolean = false,
+  viewportAnchor: LyricsViewportAnchor | null = null
+): void {
   if (!$lyricsContainerExists.get()) return;
   EmitNotApplyed();
 
@@ -180,7 +248,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
-  const LyricsContainerInstance = CreateLyricsContainer();
+  const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 
   // Check if LyricsContainer exists
@@ -404,6 +472,8 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
         }
       }
 
+      setSyllableTextVariants(word, lead, leadText);
+
       const prev = aL[iL - 1];
       const prevShouldJoinToNext = prev ? shouldJoinSyllableToNext(prev, false) : false;
 
@@ -515,6 +585,8 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
               bwE.classList.add("PartOfWord");
             }
           }
+
+          setSyllableTextVariants(bwE, bw, bwText);
 
           const prevBG = bA[bI - 1];
           const prevShouldJoinToNext = prevBG ? shouldJoinSyllableToNext(prevBG, false) : false;
@@ -648,7 +720,7 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
   else MountScrollSimplebar();
 
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements);
+  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
 
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent .simplebar-content"
@@ -670,6 +742,8 @@ export function ApplySyllableLyrics(data: LyricsData, UseRomanized: boolean = fa
   }
 
   EmitApply(data.Type, data.Content);
+
+  if (viewportAnchor) AdoptReappliedScrollPosition();
 
   setRomanizedStatus(UseRomanized);
 }

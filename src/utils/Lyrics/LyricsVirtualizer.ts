@@ -24,6 +24,12 @@ const ESTIMATE: Record<string, number> = {
 
 const virtualizerLogger = new Logger("Lyrics Virtualizer");
 
+export type LyricsViewportAnchor = {
+  index: number;
+  /** Item top relative to scroll viewport. Negative means item starts above it. */
+  offset: number;
+};
+
 class LyricsVirtualizer {
   private _virtualizer: Virtualizer<HTMLElement, HTMLElement> | null = null;
   private _allElements: HTMLElement[] = [];
@@ -298,10 +304,57 @@ class LyricsVirtualizer {
     }, 200);
   };
 
+  captureViewportAnchor(): LyricsViewportAnchor | null {
+    const v = this._virtualizer;
+    const scrollEl = this._scrollEl;
+    const container = this._virtualContainer;
+    if (!v || !scrollEl || !container || this._allElements.length === 0) return null;
+
+    const containerOffset =
+      container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+    const contentOffset = scrollEl.scrollTop - containerOffset;
+    const measurements = v.measurementsCache as Array<
+      { index: number; start: number; end: number } | undefined
+    >;
+    const item = measurements.find((measurement) =>
+      measurement != null && measurement.end > contentOffset
+    );
+    if (!item) return null;
+
+    return {
+      index: item.index,
+      offset: item.start - contentOffset,
+    };
+  }
+
+  private _restoreViewportAnchor(anchor: LyricsViewportAnchor): void {
+    const v = this._virtualizer;
+    const scrollEl = this._scrollEl;
+    const container = this._virtualContainer;
+    if (!v || !scrollEl || !container) return;
+    if (anchor.index < 0 || anchor.index >= this._allElements.length) return;
+
+    const cached = v.measurementsCache[anchor.index] as
+      | { start: number; size: number }
+      | undefined;
+    const itemStart = cached?.start ?? anchor.index * this._estimateSize(anchor.index);
+    const containerOffset =
+      container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+    const target = Math.max(0, containerOffset + itemStart - anchor.offset);
+
+    // SimpleBar globally enables smooth scrolling. Anchor restoration is state
+    // recovery, not user-visible navigation, so it must never animate.
+    scrollEl.classList.add("InstantScroll");
+    scrollEl.scrollTo({ top: target, behavior: "instant" });
+    v.scrollOffset = scrollEl.scrollTop;
+    this._onVirtualizerChange(v);
+  }
+
   init(
     scrollEl: HTMLElement,
     virtualContainer: HTMLElement,
-    lineElements: HTMLElement[]
+    lineElements: HTMLElement[],
+    viewportAnchor: LyricsViewportAnchor | null = null
   ): void {
     virtualizerLogger.info("Initializing lyrics virtualizer", {
       lineCount: lineElements.length,
@@ -402,9 +455,16 @@ class LyricsVirtualizer {
       measureElement: this._measureHeight,
     });
 
-    scrollEl.scrollTop = 0;
-    virtualizerLogger.debug("Scroll position reset to top during init");
+    if (viewportAnchor) {
+      this._restoreViewportAnchor(viewportAnchor);
+      virtualizerLogger.debug("Restored viewport anchor during init", viewportAnchor);
+    } else {
+      scrollEl.scrollTop = 0;
+      virtualizerLogger.debug("Scroll position reset to top during init");
+    }
     this._virtualizer._willUpdate();
+
+    if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -426,6 +486,17 @@ class LyricsVirtualizer {
         this._onVirtualizerChange(v);
       })
     });
+
+    if (viewportAnchor) {
+      // Keep the CSS smooth-scroll override disabled through the first layout
+      // frame, then hand normal automatic scrolling back to SimpleBar.
+      const initializedVirtualizer = this._virtualizer;
+      requestAnimationFrame(() => {
+        if (this._virtualizer === initializedVirtualizer) {
+          scrollEl.classList.remove("InstantScroll");
+        }
+      });
+    }
 
     scrollEl.addEventListener("scrollend", this._onScrollEnd, { passive: true });
     scrollEl.addEventListener("scroll", this._onScrollDebounced, { passive: true });
@@ -850,19 +921,30 @@ class LyricsVirtualizer {
     // Diagnostics: distinguishes a smooth-scroll stall, an unscrollable container,
     // and the Wayland failure — a DOM/virtualizer offset desync (observedScrollTop
     // moved but tanstackOffset did not, because the 'scroll' event never dispatched).
-    virtualizerLogger.debug("scrollToIndex applied", {
-      retry,
-      finalScrollTop: Math.round(finalScrollTop),
-      observedScrollTop: Math.round(observedScrollTop),
-      tanstackOffset: tanstackOffsetBefore == null ? null : Math.round(tanstackOffsetBefore),
-      scrollHeight: scrollEl.scrollHeight,
-      clientHeight: scrollEl.clientHeight,
-      maxScroll: scrollEl.scrollHeight - scrollEl.clientHeight,
-      virtualHeight: this._virtualContainer.offsetHeight,
-      scrollBehavior: getComputedStyle(scrollEl).scrollBehavior,
-      hasInstantScroll: scrollEl.classList.contains("InstantScroll"),
-      targetMounted: this._mountedIndices.has(index),
-    });
+    //
+    // Gated on isEnabled rather than left to Logger.debug's own early return:
+    // arguments are evaluated at the call site, so building this payload cost a
+    // forced style recalc (getComputedStyle) plus five layout reads on EVERY
+    // retry — up to 31 per scroll — even with developer mode off. Sitting between
+    // the scrollTo() above and the measureElement() reads below, that turned the
+    // convergence chain into sustained layout thrash while the lyrics render.
+    if (virtualizerLogger.isEnabled) {
+      const scrollHeight = scrollEl.scrollHeight;
+      const clientHeight = scrollEl.clientHeight;
+      virtualizerLogger.debug("scrollToIndex applied", {
+        retry,
+        finalScrollTop: Math.round(finalScrollTop),
+        observedScrollTop: Math.round(observedScrollTop),
+        tanstackOffset: tanstackOffsetBefore == null ? null : Math.round(tanstackOffsetBefore),
+        scrollHeight,
+        clientHeight,
+        maxScroll: scrollHeight - clientHeight,
+        virtualHeight: this._virtualContainer.offsetHeight,
+        scrollBehavior: getComputedStyle(scrollEl).scrollBehavior,
+        hasInstantScroll: scrollEl.classList.contains("InstantScroll"),
+        targetMounted: this._mountedIndices.has(index),
+      });
+    }
 
     // Wayland quirk: a programmatic scrollTop write may not dispatch a 'scroll' event,
     // so observeElementOffset never updates scrollOffset and the virtual window stays
@@ -969,9 +1051,14 @@ export const lyricsVirtualizer = new LyricsVirtualizer();
 export function initLyricsVirtualizer(
   scrollEl: HTMLElement,
   virtualContainer: HTMLElement,
-  lineElements: HTMLElement[]
+  lineElements: HTMLElement[],
+  viewportAnchor: LyricsViewportAnchor | null = null
 ): void {
-  lyricsVirtualizer.init(scrollEl, virtualContainer, lineElements);
+  lyricsVirtualizer.init(scrollEl, virtualContainer, lineElements, viewportAnchor);
+}
+
+export function captureLyricsViewportAnchor(): LyricsViewportAnchor | null {
+  return lyricsVirtualizer.captureViewportAnchor();
 }
 
 export function getLyricsVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {

@@ -7,6 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
+import { AdoptReappliedScrollPosition } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
 import isRtl from "../../isRtl.ts";
@@ -20,7 +21,7 @@ import {
   setRomanizedStatus,
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
-import { initLyricsVirtualizer } from "../../LyricsVirtualizer.ts";
+import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -52,7 +53,30 @@ interface LyricsData {
   experimentalWordSyncSource?: "Line" | "Static" | string;
 }
 
-export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false): void {
+function getDisplayText(line: LyricsLineData, useRomanized: boolean): string {
+  if (Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined) {
+    return line.GibberishText;
+  }
+  return useRomanized && line.TransliteratedText !== undefined
+    ? line.TransliteratedText
+    : line.Text;
+}
+
+export function UpdateLineLyricsRomanization(useRomanized: boolean): void {
+  for (const line of LyricsObject.Types.Line.Lines) {
+    if (line.DotLine) continue;
+    const text = useRomanized
+      ? line.HTMLElement.dataset.lyricsRomanizedText
+      : line.HTMLElement.dataset.lyricsOriginalText;
+    if (text !== undefined) line.HTMLElement.textContent = text;
+  }
+}
+
+export function ApplyLineLyrics(
+  data: LyricsData,
+  UseRomanized: boolean = false,
+  viewportAnchor: LyricsViewportAnchor | null = null
+): void {
   if (!$lyricsContainerExists.get()) return;
   EmitNotApplyed();
 
@@ -61,7 +85,7 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
-  const LyricsContainerInstance = CreateLyricsContainer();
+  const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 
   // Check if LyricsContainer exists
@@ -183,10 +207,9 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
 
   data.Content.forEach((line, index, arr) => {
     const lineElem = document.createElement("div");
-    lineElem.textContent =
-      Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined
-        ? line.GibberishText
-        : UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
+    lineElem.textContent = getDisplayText(line, UseRomanized);
+    lineElem.dataset.lyricsOriginalText = getDisplayText(line, false);
+    lineElem.dataset.lyricsRomanizedText = getDisplayText(line, true);
     lineElem.classList.add("line");
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
@@ -317,7 +340,7 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
   else MountScrollSimplebar();
 
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements);
+  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
 
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent .simplebar-content"
@@ -339,6 +362,8 @@ export function ApplyLineLyrics(data: LyricsData, UseRomanized: boolean = false)
   }
 
   EmitApply(data.Type, data.Content);
+
+  if (viewportAnchor) AdoptReappliedScrollPosition();
 
   setRomanizedStatus(UseRomanized);
 }

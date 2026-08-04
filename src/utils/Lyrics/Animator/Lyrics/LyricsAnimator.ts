@@ -1633,21 +1633,10 @@ export function Animate(position: number): void {
           }
         };
 
-        {
-          const NextLine = arr[index + 1];
-          if (NextLine) {
-            const nextLineStatus = getElementState(
-              ProcessedPosition,
-              NextLine.StartTime,
-              NextLine.EndTime
-            );
-            if (nextLineStatus === "NotSung" || nextLineStatus === "Active") {
-              checkNextLine();
-            }
-          } else if (!NextLine) {
-            checkNextLine();
-          }
-        }
+        // Every sung line must keep stepping toward its resting state. Tying this
+        // to the following line leaves a concurrent line frozen at its last active
+        // spring value when both lines end on the same frame.
+        checkNextLine();
       }
     }
   } else if (CurrentLyricsType === "Line") {

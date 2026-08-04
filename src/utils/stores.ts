@@ -21,11 +21,12 @@ function migrateSettingsKeys(blob: Record<string, any>): Record<string, any> {
   const renames: Record<string, string> = {
     "skip-spicy-font": "skipSpicyFont",
     show_npv_dynamic_bg: "showNpvDynamicBg",
+    displayLyricsHoverPill: "lineHoverBackground",
   };
   let changed = false;
   for (const [oldKey, newKey] of Object.entries(renames)) {
     if (oldKey in blob) {
-      blob[newKey] = blob[oldKey];
+      if (!(newKey in blob)) blob[newKey] = blob[oldKey];
       delete blob[oldKey];
       changed = true;
     }
@@ -36,7 +37,12 @@ function migrateSettingsKeys(blob: Record<string, any>): Record<string, any> {
 
 const _settings: Record<string, any> = migrateSettingsKeys(readSettingsBlob());
 
-function persistAtom<T>(key: string, defaultValue: T) {
+/**
+ * An atom backed by the settings blob. Exported so feature modules (e.g.
+ * `experiments.ts`) can register their own persisted settings without having to
+ * add a line here for every one.
+ */
+export function persistAtom<T>(key: string, defaultValue: T) {
   const store = atom<T>(_settings[key] !== undefined ? _settings[key] : defaultValue);
   store.listen((v) => {
     _settings[key] = v;
@@ -55,8 +61,18 @@ export const $simpleLyricsModeRenderingType = persistAtom<string>(
   "calculate"
 );
 export const $minimalLyricsMode = persistAtom<boolean>("minimalLyricsMode", false);
+// Tinted box drawn behind a lyrics line while the pointer is over it.
+export const $lineHoverBackground = persistAtom<boolean>("lineHoverBackground", true);
 export const $skipSpicyFont = persistAtom<boolean>("skipSpicyFont", false);
 export const $showNpvDynamicBg = persistAtom<boolean>("showNpvDynamicBg", true);
+// Never inject the lyrics card into the Now Playing sidebar at all.
+export const $disableNpvLyrics = persistAtom<boolean>("disableNpvLyrics", false);
+// Pull the whole NPV lyrics card out of the sidebar while the current track has
+// no lyrics, instead of leaving it up showing the "no lyrics" notice.
+export const $hideNpvLyricsWhenUnavailable = persistAtom<boolean>(
+  "hideNpvLyricsWhenUnavailable",
+  true
+);
 export const $lockedMediaBox = persistAtom<boolean>("lockedMediaBox", false);
 // $popupLyricsAllowed: stored as actual boolean "popupLyricsAllowed" in the settings blob.
 export const $popupLyricsAllowed = (() => {
@@ -73,6 +89,14 @@ export const $externalCinemaLyricsAllowed = persistAtom<boolean>("externalCinema
 export const $viewControlsPosition = persistAtom<string>("viewControlsPosition", "Top");
 export const $ttmlMakerMode = persistAtom<boolean>("ttmlMakerMode", true);
 export const $developerMode = persistAtom<boolean>("developerMode", false);
+export const $showLyricsCacheActionButton = persistAtom<boolean>(
+  "showLyricsCacheActionButton",
+  false
+);
+export const $lyricsCacheAction = persistAtom<string>(
+  "lyricsCacheAction",
+  "all-current"
+);
 export const $rightAlignLyrics = persistAtom<boolean>("rightAlignLyrics", false);
 export const $escapeKeyFunction = persistAtom<string>("escapeKeyFunction", "Default");
 export const $buildChannel = persistAtom<string>("buildChannel", "Stable");
@@ -83,7 +107,7 @@ export const $showVolumeSliderFullscreen = persistAtom<string>("showVolumeSlider
 export const $releaseYearPosition = persistAtom<string>("releaseYearPosition", "Off");
 export const $coverArtAnimation = persistAtom<boolean>("coverArtAnimation", true);
 export const $memeFormat = persistAtom<string>("memeFormat", "Off");
-export const $displayLyricsHoverPill = persistAtom<boolean>("displayLyricsHoverPill", false);
+export const $showScrollToActiveButton = persistAtom<boolean>("showScrollToActiveButton", true);
 export const $animateFullscreenClose = persistAtom<boolean>("animateFullscreenClose", false);
 export const $enableExperimentalWordSync = persistAtom<boolean>("enableExperimentalWordSync", false);
 export const $lyricsSourceOrder = persistAtom<string>(
@@ -105,6 +129,9 @@ export const $timelineOutsideMediaContent = persistAtom<boolean>(
   "timelineOutsideMediaContent",
   true
 );
+// Reserved for upstream's in-artwork volume controller. This fork keeps its
+// own placement selector, so the controller stays disabled.
+export const $showVolumeSlider = persistAtom<boolean>("showVolumeSlider", false);
 // Playback timing offset in milliseconds (bipolar: negative = earlier, positive = later)
 export const $playbackOffset = persistAtom<number>("playbackOffset", 0);
 

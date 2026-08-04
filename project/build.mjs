@@ -8,11 +8,17 @@ const require = createRequire(import.meta.url);
 function parseArgs(args) {
   let version;
   let targetDir;
+  let testBuild = false;
   let versionFromOption = false;
   const positional = [];
 
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
+
+    if (arg === "-test" || arg === "--test") {
+      testBuild = true;
+      continue;
+    }
 
     if (arg === "--version" || arg === "-v") {
       version = args[i + 1];
@@ -51,7 +57,9 @@ function parseArgs(args) {
     positional.push(arg);
   }
 
-  if (!version) {
+  if (testBuild) {
+    targetDir ??= positional[0];
+  } else if (!version) {
     version = positional[0];
     targetDir ??= positional[1];
   } else if (versionFromOption) {
@@ -60,7 +68,7 @@ function parseArgs(args) {
     targetDir ??= positional[1];
   }
 
-  return { version, targetDir };
+  return { version, targetDir, testBuild };
 }
 
 function readProjectName() {
@@ -102,10 +110,15 @@ function writeFileReplacing(destination, contents) {
   replaceOnPermissionError(destination, () => writeFileSync(destination, contents));
 }
 
-const { version, targetDir } = parseArgs(process.argv.slice(2));
+const TEST_BUILD_VERSION = "100.10.0";
+const parsedArgs = parseArgs(process.argv.slice(2));
+const version = parsedArgs.testBuild ? TEST_BUILD_VERSION : parsedArgs.version;
+const { targetDir } = parsedArgs;
+
 if (!version) {
   console.error("Usage: bun run build --version <version> [outputDir]");
   console.error("   or: node project/build.mjs --version <version> [outputDir]");
+  console.error("   or: node project/build.mjs -test [outputDir]");
   process.exit(1);
 }
 
@@ -133,14 +146,18 @@ try {
   const mjsOutput = join(defaultDist, `${projectName}.mjs`);
   copyFileReplacing(builtFile, mjsOutput);
   copyFileReplacing(builtFile, versionedOutput);
-  writeFileReplacing(join(defaultDist, "version"), version);
+  if (!parsedArgs.testBuild) {
+    writeFileReplacing(join(defaultDist, "version"), version);
+  }
 
   if (targetDir) {
     const dest = resolve(targetDir);
     mkdirSync(dest, { recursive: true });
     copyFileReplacing(versionedOutput, join(dest, outputFile));
-    writeFileReplacing(join(dest, "version"), version);
-    console.log(`Copied build to ${dest}`);
+    if (!parsedArgs.testBuild) {
+      writeFileReplacing(join(dest, "version"), version);
+    }
+    console.log(`Copied ${parsedArgs.testBuild ? "test " : ""}build to ${dest}`);
   }
 } catch (error) {
   console.error("Error copying build output:", error);

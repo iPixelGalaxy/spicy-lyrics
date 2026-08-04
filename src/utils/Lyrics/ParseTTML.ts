@@ -52,6 +52,18 @@ function findElements(root: ParentNode, ...tagNames: string[]): Element[] {
   });
 }
 
+function hasAncestorNamed(element: Element, name: string): boolean {
+  const normalized = name.toLowerCase();
+  let current = element.parentElement;
+
+  while (current) {
+    if (current.localName.toLowerCase() === normalized) return true;
+    current = current.parentElement;
+  }
+
+  return false;
+}
+
 function parseTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
 
@@ -149,20 +161,22 @@ function readITunesMetadata(root: Element) {
       const key = getAttr(text, "for");
       if (!key) continue;
 
-      const parent = text.parentElement?.tagName;
       const textValue = text.textContent?.trim() ?? "";
 
-      if (parent === "translations" && textValue) {
+      if (hasAncestorNamed(text, "translations") && textValue) {
         translations.set(key, textValue);
       }
 
-      if (parent === "transliterations") {
+      // Apple TTML nests <text> inside <transliteration>, not directly under
+      // <transliterations>. Check its ancestors so local uploads retain these
+      // supplied syllable-by-syllable romanizations.
+      if (hasAncestorNamed(text, "transliterations")) {
         if (textValue) {
           transliterations.set(key, textValue);
         }
 
         const pieces = Array.from(text.children)
-          .filter((child) => child.tagName === "span")
+          .filter((child) => child.localName.toLowerCase() === "span")
           .map((child) => child.textContent?.trim() ?? "")
           .filter(Boolean);
 

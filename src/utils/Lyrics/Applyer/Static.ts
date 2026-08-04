@@ -16,7 +16,7 @@ import {
   setRomanizedStatus,
 } from "../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "./CreateLyricsContainer.ts";
-import { initLyricsVirtualizer } from "../LyricsVirtualizer.ts";
+import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "./Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "./Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -44,11 +44,37 @@ export interface StaticLyricsData {
   experimentalWordSyncSource?: "Line" | "Static" | string;
 }
 
+function getDisplayText(
+  line: StaticLyricsData["Lines"][number],
+  useRomanized: boolean
+): string {
+  if (Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined) {
+    return line.GibberishText;
+  }
+  return useRomanized && line.TransliteratedText !== undefined
+    ? line.TransliteratedText
+    : line.Text;
+}
+
+export function UpdateStaticLyricsRomanization(useRomanized: boolean): void {
+  for (const line of LyricsObject.Types.Static.Lines) {
+    const element = line.HTMLElement;
+    const text = useRomanized
+      ? element.dataset.lyricsRomanizedText
+      : element.dataset.lyricsOriginalText;
+    if (text !== undefined) element.textContent = text;
+  }
+}
+
 /**
  * Apply static lyrics to the lyrics container
  * @param data - Static lyrics data
  */
-export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean = false): void {
+export function ApplyStaticLyrics(
+  data: StaticLyricsData,
+  UseRomanized: boolean = false,
+  viewportAnchor: LyricsViewportAnchor | null = null
+): void {
   if (!$lyricsContainerExists.get()) return;
 
   EmitNotApplyed();
@@ -58,7 +84,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
-  const LyricsContainerInstance = CreateLyricsContainer();
+  const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 
   if (!LyricsContainer) {
@@ -85,10 +111,9 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   data.Lines.forEach((line) => {
     const lineElem = document.createElement("div");
 
-    lineElem.textContent =
-      Defaults.MemeFormat !== "Off" && line.GibberishText !== undefined
-        ? line.GibberishText
-        : UseRomanized && line.TransliteratedText !== undefined ? line.TransliteratedText : line.Text;
+    lineElem.textContent = getDisplayText(line, UseRomanized);
+    lineElem.dataset.lyricsOriginalText = getDisplayText(line, false);
+    lineElem.dataset.lyricsRomanizedText = getDisplayText(line, true);
 
     if (isRtl(line.Text) && !lineElem.classList.contains("rtl")) {
       lineElem.classList.add("rtl");
@@ -122,7 +147,7 @@ export function ApplyStaticLyrics(data: StaticLyricsData, UseRomanized: boolean 
   }
 
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements);
+  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
 
   // Apply styling to the content container
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(

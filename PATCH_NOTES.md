@@ -1,3 +1,51 @@
+## v100.10.33
+
+- **Updated for 6.3.0**
+  Synced the fork with upstream 6.3.0 changes while retaining the fork's fullscreen volume placement options.
+
+- **Fullscreen volume controls**
+  Volume sliders now use the upstream volume icon inside a glass-style bar. Left, right, and below placements brighten on mouse activity, expand while hovered or dragged, and use matching thickness.
+
+- **Rounded playback progress**
+  The played portion of the fullscreen timeline now has rounded ends instead of a flat progress edge.
+
+- **Experimental settings**
+  Cinema Lyrics Window and Experimental Word Sync moved to Experiments. The Cinema setting now enables its playback-bar button directly and includes the DevTools help link. Popup Lyrics settings now describe their playback-bar button behavior.
+
+## v100.10.32
+
+- Updated to be inline with 6.2.4
+
+## v100.10.31
+
+### Features
+
+- **Configurable lyrics-view cache button**
+  Advanced settings can now show a cache button in lyrics controls. Choose whether it clears current-song caches, current state, or stored cache.
+
+- **Tighter settings dropdowns**
+  Settings dropdowns now resize to the selected option instead of reserving space for their longest option.
+
+- **Faster multi-source lyric loading**
+  Enabled lyric sources now start together while configured priority and Apple Music quality rules still choose the result.
+
+- **Scroll to active lyric control**
+  When the active lyric leaves the viewport, a directional button can bring it back into view. Enabled by default and configurable in settings.
+
+- **Lyric-shaped loading preview**
+  Lyrics now show a shimmer preview shaped from the first available lyric source while the final result is selected.
+
+### Fixes
+
+- **Stable lyric updates**
+  Reloading lyrics or changing romanization keeps the current reading position instead of briefly jumping to the top. Lines ending at the same time no longer leave one line raised.
+
+- **Local TTML romanization parsing**
+  Locally uploaded TTML now reads nested romanization data.
+
+- **Smoother lyric loading handoff**
+  Loading previews now clear cleanly before the finished lyric view appears.
+
 ## v100.10.30
 
 ### Fixes

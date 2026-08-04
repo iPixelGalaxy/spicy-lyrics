@@ -2,6 +2,7 @@ import {
   $currentLyricsType,
   $lyricsContainerExists,
   $lyricsRendererPaused,
+  $showScrollToActiveButton,
 } from "../../utils/stores.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
@@ -39,7 +40,111 @@ let smoothForceScrollQueued = false;
 let currentSimpleBarInstance: any | null = null;
 let wheelHandler: (() => void) | null = null;
 let touchMoveHandler: (() => void) | null = null;
+let scrollHandler: (() => void) | null = null;
 // --- END NEW ---
+
+type ActiveLineDirection = "above" | "below" | null;
+
+function getScrollToActiveButton(): HTMLButtonElement | null {
+  return PageContainer?.querySelector<HTMLButtonElement>("#ScrollToActiveLyric") ?? null;
+}
+
+function hideScrollToActiveButton(): void {
+  const button = getScrollToActiveButton();
+  if (!button) return;
+  button.classList.remove("Visible", "ActiveAbove");
+}
+
+function getActiveLineDirection(
+  container: HTMLElement,
+  line: EnhancedLyricsItem
+): ActiveLineDirection {
+  const lineElement = line.HTMLElement as HTMLElement | undefined;
+  if (lineElement?.isConnected) {
+    const lineRect = lineElement.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (lineRect.bottom <= containerRect.top) return "above";
+    if (lineRect.top >= containerRect.bottom) return "below";
+    return null;
+  }
+
+  const virtualItems = getLyricsVirtualizer()?.getVirtualItems() ?? [];
+  const firstIndex = virtualItems[0]?.index;
+  const lastIndex = virtualItems[virtualItems.length - 1]?.index;
+  if (firstIndex === undefined || lastIndex === undefined) return null;
+  if (line._LineIndex < firstIndex) return "above";
+  if (line._LineIndex > lastIndex) return "below";
+  return null;
+}
+
+function getPlaybackTargetLine(
+  lines: LyricsLine[] | LyricsSyllable[],
+  position: number
+): EnhancedLyricsItem | null {
+  const activeLine = GetScrollLine(lines, position) as EnhancedLyricsItem | null;
+  if (activeLine) return activeLine;
+
+  const nextLineIndex = lines.findIndex(
+    (line) => typeof line.StartTime === "number" && line.StartTime > position
+  );
+  if (nextLineIndex !== -1) {
+    const nextStartTime = lines[nextLineIndex].StartTime;
+    const foregroundLineIndex = lines.findIndex(
+      (line) =>
+        line.StartTime === nextStartTime &&
+        (!("BGLine" in line) || line.BGLine !== true)
+    );
+    const lineIndex = foregroundLineIndex !== -1 ? foregroundLineIndex : nextLineIndex;
+    return { ...lines[lineIndex], _LineIndex: lineIndex } as EnhancedLyricsItem;
+  }
+
+  const lastLineIndex = lines.length - 1;
+  return lastLineIndex >= 0
+    ? ({ ...lines[lastLineIndex], _LineIndex: lastLineIndex } as EnhancedLyricsItem)
+    : null;
+}
+
+function getCurrentPlaybackTargetLine(): {
+  line: EnhancedLyricsItem;
+} | null {
+  const currentType = $currentLyricsType.get() as LyricsType;
+  if (currentType === "Static" || currentType === "None") return null;
+  const lines = LyricsObject.Types[currentType]?.Lines as LyricsLine[] | LyricsSyllable[] | undefined;
+  if (!lines) return null;
+  const line = getPlaybackTargetLine(lines, SpotifyPlayer.GetPosition());
+  return line ? { line } : null;
+}
+
+export function UpdateScrollToActiveButton(): void {
+  const button = getScrollToActiveButton();
+  const container = currentSimpleBarInstance?.getScrollElement() as HTMLElement | undefined;
+  const targetLine = getCurrentPlaybackTargetLine();
+  if (!$showScrollToActiveButton.get() || !button || !container || !targetLine) {
+    hideScrollToActiveButton();
+    return;
+  }
+
+  const direction = getActiveLineDirection(container, targetLine.line);
+  button.classList.toggle("Visible", direction !== null);
+  button.classList.toggle("ActiveAbove", direction === "above");
+  button.setAttribute(
+    "aria-label",
+    direction === "above" ? "Scroll up to active lyric" : "Scroll down to active lyric"
+  );
+}
+
+export function ScrollToCurrentActiveLine(): void {
+  const container = currentSimpleBarInstance?.getScrollElement() as HTMLElement | undefined;
+  const targetLine = getCurrentPlaybackTargetLine();
+  if (!container || !targetLine) return;
+
+  isUserScrolling = false;
+  lastUserScrollTime = 0;
+  lastLine = targetLine.line.HTMLElement as HTMLElement;
+  PageContainer?.querySelector(".LyricsContainer .LyricsContent")?.classList.remove("HideLineBlur");
+  ScrollTo(container, lastLine, false, GetScrollType(), targetLine.line._LineIndex);
+  hideScrollToActiveButton();
+}
 
 const wasDrasticPositionChange = (lastPosition: number, newPosition: number) => {
   const positionChange = Math.abs(newPosition - lastPosition);
@@ -86,6 +191,7 @@ function handleUserScroll(ScrollSimplebar: any | null) {
     }
   }
   lastUserScrollTime = performance.now();
+  requestAnimationFrame(UpdateScrollToActiveButton);
 }
 
 // Initialization function for scroll events and observers
@@ -95,6 +201,7 @@ export function InitializeScrollEvents(ScrollSimplebar: any) {
   currentSimpleBarInstance = ScrollSimplebar;
   wheelHandler = () => handleUserScroll(currentSimpleBarInstance);
   touchMoveHandler = () => handleUserScroll(currentSimpleBarInstance);
+  scrollHandler = () => UpdateScrollToActiveButton();
   // --- END NEW ---
 
   // Setup the observer
@@ -102,14 +209,16 @@ export function InitializeScrollEvents(ScrollSimplebar: any) {
 
   // Add scroll event listener
   const scrollElement = ScrollSimplebar?.getScrollElement();
-  if (scrollElement && wheelHandler && touchMoveHandler) {
+  if (scrollElement && wheelHandler && touchMoveHandler && scrollHandler) {
     // Check handlers exist
     // Remove potential old listeners first (optional, but safer if called multiple times)
     scrollElement.removeEventListener("wheel", wheelHandler);
     scrollElement.removeEventListener("touchmove", touchMoveHandler);
+    scrollElement.removeEventListener("scroll", scrollHandler);
     // Add new listeners
     scrollElement.addEventListener("wheel", wheelHandler);
     scrollElement.addEventListener("touchmove", touchMoveHandler);
+    scrollElement.addEventListener("scroll", scrollHandler, { passive: true });
   }
 }
 
@@ -227,12 +336,21 @@ export const GetForceScrollingPolicy = () => {
 };
 
 export function ScrollToActiveLine(ScrollSimplebar: any) {
-  if ($currentLyricsType.get() === "Static" || $currentLyricsType.get() === "None") return;
-  if (!$lyricsContainerExists.get() || $lyricsRendererPaused.get()) return;
+  if ($currentLyricsType.get() === "Static" || $currentLyricsType.get() === "None") {
+    hideScrollToActiveButton();
+    return;
+  }
+  if (!$lyricsContainerExists.get() || $lyricsRendererPaused.get()) {
+    hideScrollToActiveButton();
+    return;
+  }
 
   const currentType = $currentLyricsType.get() as LyricsType;
   const Lines = LyricsObject.Types[currentType]?.Lines as LyricsLine[] | LyricsSyllable[];
-  if (!Lines) return;
+  if (!Lines) {
+    hideScrollToActiveButton();
+    return;
+  }
 
   // Check if a force scroll was queued
   const isForceScrollQueued = forceScrollQueued;
@@ -244,6 +362,11 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
   const ProcessedPosition = Position + PositionOffset;
   const isPlaybackBacktrack = lastPosition !== 0 && Position < lastPosition - 250;
   const currentLine = GetScrollLine(Lines, ProcessedPosition) as EnhancedLyricsItem | null;
+  const playbackTargetLine = currentLine ?? getPlaybackTargetLine(Lines, ProcessedPosition);
+
+  if (!currentLine) {
+    UpdateScrollToActiveButton();
+  }
 
   const allLinesNotSung = Lines.every((line: any) => line.Status === "NotSung");
   const activeLines = Lines.filter((line: any) => line.Status === "Active");
@@ -257,15 +380,16 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
     (!SpotifyPlayer.IsPlaying && lastPosition !== Position) ||
     (lastPosition !== 0 && wasDrasticPositionChange(lastPosition ?? 0, Position))
   ) {
+    hideScrollToActiveButton();
     if (!allowForceScrolling) return;
     const container = ScrollSimplebar?.getScrollElement() as HTMLElement;
     if (!container) return;
     isUserScrolling = false;
     const scrollToLine = allLinesSung
       ? Lines[Lines.length - 1]?.HTMLElement
-      : currentLine?.HTMLElement;
+      : playbackTargetLine?.HTMLElement;
     if (!scrollToLine) return;
-    const forceScrollLineIndex = allLinesSung ? Lines.length - 1 : currentLine?._LineIndex;
+    const forceScrollLineIndex = allLinesSung ? Lines.length - 1 : playbackTargetLine?._LineIndex;
     if (!canAutoScrollToIndex(Lines, forceScrollLineIndex, isPlaybackBacktrack)) return;
     lastLine = scrollToLine;
     ScrollTo(
@@ -285,15 +409,16 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
   lastPosition = Position;
 
   if (isSmoothForceScrollQueued) {
+    hideScrollToActiveButton();
     if (!allowForceScrolling) return;
     const container = ScrollSimplebar?.getScrollElement() as HTMLElement;
     if (!container) return;
     isUserScrolling = false;
     const scrollToLine = allLinesSung
       ? Lines[Lines.length - 1]?.HTMLElement
-      : currentLine?.HTMLElement;
+      : playbackTargetLine?.HTMLElement;
     if (!scrollToLine) return;
-    const smoothScrollLineIndex = allLinesSung ? Lines.length - 1 : currentLine?._LineIndex;
+    const smoothScrollLineIndex = allLinesSung ? Lines.length - 1 : playbackTargetLine?._LineIndex;
     if (!canAutoScrollToIndex(Lines, smoothScrollLineIndex, isPlaybackBacktrack)) return;
     lastLine = scrollToLine;
     ScrollTo(container, scrollToLine, false, GetScrollType(), smoothScrollLineIndex);
@@ -385,6 +510,7 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
       if (!LineElem) return;
       const container = ScrollSimplebar?.getScrollElement() as HTMLElement;
       if (!container) return;
+      UpdateScrollToActiveButton();
       const now = performance.now();
       const timeSinceLastScroll = now - lastUserScrollTime;
 
@@ -504,6 +630,34 @@ export function QueueSmoothForceScroll() {
   smoothForceScrollQueued = true;
 }
 
+/**
+ * Rebind automatic scrolling after a same-track renderer rebuild. The old
+ * HTMLElement was destroyed, so without this the next renderer tick treats the
+ * current line as new and scrolls away from the restored viewport anchor.
+ */
+export function AdoptReappliedScrollPosition() {
+  const currentType = $currentLyricsType.get() as LyricsType;
+  if (currentType === "Static" || currentType === "None") return;
+  const lines = LyricsObject.Types[currentType]?.Lines as
+    | LyricsLine[]
+    | LyricsSyllable[]
+    | undefined;
+  if (!lines) return;
+
+  const position = SpotifyPlayer.GetPosition();
+  const currentLine = GetScrollLine(lines, position);
+  lastLine = currentLine?.HTMLElement ?? null;
+  lastPosition = position;
+  forceScrollQueued = false;
+  smoothForceScrollQueued = false;
+  scrolledToLastLine = false;
+  scrolledToFirstLine = false;
+  lastViewportLine = null;
+  lastViewportContainer = null;
+  lastIsLineInViewport = false;
+  lastViewportCheckTime = 0;
+}
+
 export function ResetLastLine() {
   lastLine = null;
   lastViewportLine = null;
@@ -531,6 +685,9 @@ export function CleanupScrollEvents() {
     }
     if (touchMoveHandler) {
       scrollElement.removeEventListener("touchmove", touchMoveHandler);
+    }
+    if (scrollHandler) {
+      scrollElement.removeEventListener("scroll", scrollHandler);
     }
   }
 

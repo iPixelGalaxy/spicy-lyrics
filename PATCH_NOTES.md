@@ -1,3 +1,14 @@
+## v100.10.34
+
+- **Stable playback timeline**
+  Fullscreen playback progress stays on Spotify's live clock when Playback Offset changes.
+
+- **Local TTML spaces**
+  Locally uploaded TTML keeps word boundaries from spaces inside timed spans, including word-synced lyrics.
+
+- **Experimental SliderBar wording**
+  The experimental progress-bar setting now uses the upstream SliderBar name and description.
+
 ## v100.10.33
 
 - **Updated for 6.3.0**

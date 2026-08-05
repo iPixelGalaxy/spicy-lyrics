@@ -146,36 +146,10 @@ function isPartOfWord(nodes: ChildNode[], index: number): boolean {
   const nextText = getNodeText(next).trim();
 
   if (!currentText || !nextText) return false;
+  if (/\s$/.test(getNodeText(current))) return false;
   if (hasExplicitSpaceBeforeNextMeaningfulNode(nodes, index)) return false;
 
   return true;
-}
-
-function preserveInlineWhitespace(
-  nodes: ChildNode[],
-  syllablesByNodeIndex: Map<number, SyllableEntry>
-): void {
-  for (const [index, syllable] of syllablesByNodeIndex) {
-    let whitespace = "";
-
-    for (let nextIndex = index + 1; nextIndex < nodes.length; nextIndex += 1) {
-      if (syllablesByNodeIndex.has(nextIndex)) break;
-
-      const node = nodes[nextIndex];
-      if (node.nodeType !== Node.TEXT_NODE || isSkippableWhitespace(node)) continue;
-
-      const text = node.textContent ?? "";
-      if (text.trim()) break;
-      whitespace += text;
-    }
-
-    if (whitespace) {
-      syllable.Text += whitespace;
-      // Text now contains the exact separator. Do not synthesize another one
-      // when building or rendering the lyric line.
-      syllable.IsPartOfWord = true;
-    }
-  }
 }
 
 function readITunesMetadata(root: Element) {
@@ -312,7 +286,6 @@ function applyRomanizedPieces(
 
 function parseSyllableNodes(nodes: ChildNode[], lineStart: number, lineEnd: number): SyllableEntry[] {
   const syllables: SyllableEntry[] = [];
-  const syllablesByNodeIndex = new Map<number, SyllableEntry>();
 
   nodes.forEach((node, index) => {
     if (node.nodeType !== Node.ELEMENT_NODE) return;
@@ -329,17 +302,14 @@ function parseSyllableNodes(nodes: ChildNode[], lineStart: number, lineEnd: numb
     const startTime = parseTimestamp(getAttr(element, "begin")) ?? lineStart;
     const endTime = parseTimestamp(getAttr(element, "end")) ?? lineEnd;
 
-    const syllable = {
+    syllables.push({
       Text: text.trim(),
       StartTime: startTime,
       EndTime: endTime,
       IsPartOfWord: isPartOfWord(nodes, index),
-    };
-    syllables.push(syllable);
-    syllablesByNodeIndex.set(index, syllable);
+    });
   });
 
-  preserveInlineWhitespace(nodes, syllablesByNodeIndex);
   return syllables;
 }
 
@@ -380,7 +350,6 @@ function parseParagraph(
 
   const childNodes = Array.from(paragraph.childNodes).filter((node) => !isSkippableWhitespace(node));
   const leadSyllables: SyllableEntry[] = [];
-  const leadSyllablesByNodeIndex = new Map<number, SyllableEntry>();
   const plainNodes: ChildNode[] = [];
   const background: BackgroundEntry[] = [];
 
@@ -422,21 +391,17 @@ function parseParagraph(
     const endTime = parseTimestamp(getAttr(element, "end"));
 
     if (startTime !== null || endTime !== null) {
-      const syllable = {
+      leadSyllables.push({
         Text: text,
         StartTime: startTime ?? paragraphStart,
         EndTime: endTime ?? paragraphEnd,
         IsPartOfWord: isPartOfWord(childNodes, index),
-      };
-      leadSyllables.push(syllable);
-      leadSyllablesByNodeIndex.set(index, syllable);
+      });
       return;
     }
 
     plainNodes.push(node);
   });
-
-  preserveInlineWhitespace(childNodes, leadSyllablesByNodeIndex);
 
   applyRomanizedPieces(leadSyllables, lineKey ? transliterationPieces.get(lineKey) : undefined);
 

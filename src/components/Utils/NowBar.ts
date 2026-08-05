@@ -1896,18 +1896,6 @@ Global.Event.listen("playback:shuffle", (e: string) => {
   }
 });
 
-Global.Event.listen("playback:position", (e: number) => {
-  if (Fullscreen.IsOpen) {
-    if (ActiveSetupSongProgressBarInstance) {
-      const updateTimelineState = ActiveSongProgressBarInstance_Map.get(
-        "updateTimelineState_Function"
-      );
-      updateTimelineState(e);
-      // console.log("Timeline Updated!");
-    }
-  }
-});
-
 Global.Event.listen("playback:volume", (volume: number) => {
   if (!Fullscreen.IsOpen) return;
   if (!$showVolumeSlider.get()) return;

@@ -54,8 +54,15 @@ let lastDisplayedReleaseYear: string | undefined;
 const releaseYearCache = new Map<string, string>();
 
 function getNowBarPlayerPosition(): number {
-  const state = (Spicetify.Player as any)?.origin?._state ?? Spicetify.Platform?.PlayerAPI?._state;
   const rawProgress = Number(Spicetify.Player.getProgress?.());
+
+  // Spotify's public progress API already follows the active playback clock.
+  // Prefer it over the state snapshot below: that snapshot can arrive roughly a
+  // second late, making the timeline jump backward before its timestamp-based
+  // extrapolation catches back up.
+  if (Number.isFinite(rawProgress)) return rawProgress;
+
+  const state = (Spicetify.Player as any)?.origin?._state ?? Spicetify.Platform?.PlayerAPI?._state;
 
   if (state) {
     const position = Number(state.positionAsOfTimestamp ?? state.position);
@@ -68,7 +75,6 @@ function getNowBarPlayerPosition(): number {
     }
   }
 
-  if (Number.isFinite(rawProgress)) return rawProgress;
   return SpotifyPlayer.GetPosition() ?? 0;
 }
 

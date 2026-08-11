@@ -7,6 +7,7 @@ import { $romanization } from "../uiState.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { Lyrics } from "./Animator/Main.ts";
+import { tickSpaceGravity } from "./SpaceGravity.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import { Maid } from "../../modules/Maid.ts";
 
@@ -185,6 +186,7 @@ export const TickLyricsRenderer = () => {
     const progress = SpotifyPlayer.GetPosition();
     Lyrics.TimeSetter(progress);
     Lyrics.Animate(progress);
+    tickSpaceGravity(progress);
   }
 };
 
@@ -257,9 +259,25 @@ function shouldBlockSeekForCurrentTrack() {
   return true;
 }
 
+function seekToLyric(startTime: number): void {
+  const targetTime = Math.max(0, startTime - 400);
+  SpotifyPlayer.Seek(targetTime);
+  Global.Event.evoke("song:seek", targetTime);
+}
+
 // Define proper type for event parameter
 function LinesEvListener(e: MouseEvent) {
   const target = e.target as HTMLElement;
+  const gravityWord = target.closest<HTMLElement>(".SpaceGravityWord");
+  if (PageContainer?.classList.contains("SpaceGravityMode")) {
+    const startTime = Number(gravityWord?.dataset.spaceGravitySeekTime);
+    if (!gravityWord || !Number.isFinite(startTime) || gravityWord.closest(".musical-line")) return;
+    if (shouldBlockSeekForCurrentTrack()) return;
+
+    seekToLyric(startTime);
+    return;
+  }
+
   if (target.classList.contains("line")) {
     if (target.classList.contains("musical-line")) {
       return;
@@ -280,8 +298,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   } else if (target.classList.contains("word")) {
     if (target.closest(".musical-line")) {
@@ -307,8 +324,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   } else if (target.classList.contains("Emphasis")) {
     if (target.closest(".musical-line")) {
@@ -338,8 +354,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   }
 }

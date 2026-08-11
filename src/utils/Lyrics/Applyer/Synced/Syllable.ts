@@ -1,4 +1,4 @@
-import { $lyricsContainerExists, $minimalLyricsMode, $simpleLyricsMode } from "../../../../utils/stores.ts";
+import { $lyricsContainerExists, $minimalLyricsMode, $simpleLyricsMode, $spaceGravityMode } from "../../../../utils/stores.ts";
 import { PageContainer } from "../../../../components/Pages/PageView.ts";
 import { applyStyles, removeAllStyles } from "../../../CSS/Styles.ts";
 import {
@@ -23,6 +23,7 @@ import {
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
 import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
+import { mountSpaceGravity } from "../../SpaceGravity.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -30,7 +31,9 @@ import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
+import { CreateLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../../components/Global/Defaults.ts";
+import { SpotifyPlayer } from "../../../../components/Global/SpotifyPlayer.ts";
 
 // Define the data structure for syllable lyrics
 interface SyllableData {
@@ -277,6 +280,7 @@ export function ApplySyllableLyrics(
   LyricsContainer.appendChild(virtualContainer);
 
   const lineElements: HTMLElement[] = [];
+  const spaceGravityMode = $spaceGravityMode.get();
   const syllableMode = "Default";
   const allowLetterEmphasis = !data.experimentalWordSync;
 
@@ -507,6 +511,8 @@ export function ApplySyllableLyrics(
           EndTime: ConvertTime(bg.EndTime),
           TotalTime: ConvertTime(bg.EndTime) - ConvertTime(bg.StartTime),
           BGLine: true,
+          ActivationStartTime: ConvertTime(line.Lead.StartTime),
+          ActivationEndTime: ConvertTime(line.Lead.EndTime),
         });
         SetWordArrayInCurentLine();
 
@@ -611,7 +617,14 @@ export function ApplySyllableLyrics(
         });
       });
     }
-    if (arr[index + 1] && arr[index + 1].Lead.StartTime - line.Lead.EndTime >= getLyricsBetweenShow()) {
+    const nextLine = arr[index + 1];
+    const nextVocalStart = nextLine
+      ? Math.min(
+          nextLine.Lead.StartTime,
+          ...(nextLine.Background?.map((background) => background.StartTime) ?? [])
+        )
+      : undefined;
+    if (nextLine && nextVocalStart! - line.Lead.EndTime >= getLyricsBetweenShow()) {
       const musicalLine = document.createElement("div");
       musicalLine.classList.add("line");
       musicalLine.classList.add("musical-line");
@@ -619,16 +632,16 @@ export function ApplySyllableLyrics(
       LyricsObject.Types.Syllable.Lines.push({
         HTMLElement: musicalLine,
         StartTime: ConvertTime(line.Lead.EndTime),
-        EndTime: ConvertTime(arr[index + 1].Lead.StartTime),
+        EndTime: ConvertTime(nextVocalStart!),
         TotalTime:
-          ConvertTime(arr[index + 1].Lead.StartTime) -
+          ConvertTime(nextVocalStart!) -
           ConvertTime(line.Lead.EndTime),
         DotLine: true,
       });
 
       SetWordArrayInCurentLine();
 
-      if (arr[index + 1].OppositeAligned) {
+      if (nextLine.OppositeAligned) {
         musicalLine.classList.add("OppositeAligned");
       }
 
@@ -640,7 +653,7 @@ export function ApplySyllableLyrics(
       const musicalDots3 = document.createElement("span");
 
       const gapStartTime = ConvertTime(line.Lead.EndTime);
-      const totalTime = ConvertTime(arr[index + 1].Lead.StartTime) - gapStartTime;
+      const totalTime = ConvertTime(nextVocalStart!) - gapStartTime;
       const baseDotTime = totalTime / 3;
       const dotPadding = getInterludeTimePadding() / 3;
       const dot1EndTime = Math.max(gapStartTime, gapStartTime + baseDotTime + dotPadding);
@@ -707,31 +720,33 @@ export function ApplySyllableLyrics(
     }
   });
 
-  ApplyLyricsCredits(data, LyricsContainer);
-  ApplyExperimentalWordSyncNotice(data, LyricsContainer);
-  ApplyLyricsProvider(data, LyricsContainer);
-  ApplyIsByCommunity(data, LyricsContainer);
+  const footer = CreateLyricsFooter(LyricsContainer, LyricsContainerParent, spaceGravityMode);
+
+  ApplyLyricsCredits(data, footer);
+  ApplyExperimentalWordSyncNotice(data, footer);
+  ApplyLyricsProvider(data, footer);
+  ApplyIsByCommunity(data, footer);
 
   if (LyricsContainerParent) {
     LyricsContainerInstance.Append(LyricsContainerParent);
   }
 
-  if (ScrollSimplebar) RecalculateScrollSimplebar();
-  else MountScrollSimplebar();
+  if (spaceGravityMode) LyricsContainer.classList.add("SpaceGravityStage");
 
-  const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
-
-  const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(
-    ".LyricsContainer .LyricsContent .simplebar-content"
-  );
+  const LyricsStylingContainer = spaceGravityMode
+    ? LyricsContainer
+    : PageContainer?.querySelector<HTMLElement>(
+        ".LyricsContainer .LyricsContent .simplebar-content"
+      );
 
   // Check if LyricsStylingContainer exists
   if (LyricsStylingContainer) {
     removeAllStyles(LyricsStylingContainer);
 
-    if (data.classes) {
+    if (data.classes && !spaceGravityMode) {
       LyricsStylingContainer.className = data.classes;
+    } else if (data.classes) {
+      LyricsStylingContainer.classList.add(...data.classes.split(/\s+/).filter(Boolean));
     }
 
     if (data.styles) {
@@ -739,6 +754,22 @@ export function ApplySyllableLyrics(
     }
   } else {
     console.warn("LyricsStylingContainer not found");
+  }
+
+  if (spaceGravityMode) {
+    mountSpaceGravity(
+      virtualContainer,
+      LyricsObject.Types.Syllable.Lines,
+      LyricsContainer,
+      footer,
+      SpotifyPlayer.GetPosition()
+    );
+  } else {
+    if (ScrollSimplebar) RecalculateScrollSimplebar();
+    else MountScrollSimplebar();
+
+    const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
+    if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
   }
 
   EmitApply(data.Type, data.Content);

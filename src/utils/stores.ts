@@ -106,6 +106,8 @@ export const $alwaysShowInFullscreen = persistAtom<string>("alwaysShowInFullscre
 export const $showVolumeSliderFullscreen = persistAtom<string>("showVolumeSliderFullscreen", "Off");
 export const $releaseYearPosition = persistAtom<string>("releaseYearPosition", "Off");
 export const $coverArtAnimation = persistAtom<boolean>("coverArtAnimation", true);
+// Scatter word-synced lyrics into a floating physics field instead of line layout.
+export const $spaceGravityMode = persistAtom<boolean>("spaceGravityMode", false);
 export const $memeFormat = persistAtom<string>("memeFormat", "Off");
 export const $showScrollToActiveButton = persistAtom<boolean>("showScrollToActiveButton", true);
 export const $animateFullscreenClose = persistAtom<boolean>("animateFullscreenClose", false);

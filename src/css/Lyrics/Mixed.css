@@ -315,6 +315,13 @@
   --BlurAmount: 0px !important;
 }
 
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover,
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .word,
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .letter,
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .letterGroup {
+  text-shadow: var(--StrongerTextGlowDef) !important;
+}
+
 #SpicyLyricsPage.SpicyRenderer
   .LyricsContainer
   .LyricsContent
@@ -503,7 +510,7 @@
 } */
 
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo {
   /* Sized relative to the parent's (inherited) font-size — see .Credits note. */
   font-size: 0.35em !important;
   font-weight: 600;
@@ -515,7 +522,7 @@
   gap: 0.145cqw;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo {
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo {
   font-size: 0.5em !important;
 }
 
@@ -524,8 +531,8 @@
   scale: 1.02;
 } */
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader,
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker {
   --font-size: calc(var(--DefaultLyricsSize) * 0.33);
   font-size: var(--font-size) !important;
   display: flex;
@@ -533,8 +540,8 @@
   align-items: center;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader img,
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker img {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader img,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker img {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -543,14 +550,14 @@
   top: 6px;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader,
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker {
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader,
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker {
   --font-size: calc(var(--DefaultLyricsSize) * 0.45);
   margin-left: 0.45cqw;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader img,
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker img {
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader img,
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker img {
   width: 18px;
   height: 18px;
 }
@@ -833,7 +840,7 @@
 
 
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .Credits {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .Credits {
   /* `em` is, by definition, relative to the parent element's font-size. The
      parent (.SpicyLyricsScrollContainer) inherits font-size: var(--DefaultLyricsSize)
      from .LyricsContent, so this scales with the lyrics without needing a
@@ -847,7 +854,7 @@
 }
 
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .LyricsProvider {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .LyricsProvider {
   /* Sized relative to the parent's (inherited) font-size — see .Credits note. */
   font-size: 0.34em !important;
   font-weight: 600 !important;
@@ -857,7 +864,7 @@
   color: white;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .song-info-profile-section {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .song-info-profile-section {
   font-weight: 700;
   opacity: 0.55;
   transition: opacity 0.21s;
@@ -865,7 +872,7 @@
   cursor: pointer;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .song-info-profile-section:hover {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .song-info-profile-section:hover {
   opacity: 1;
 }
 

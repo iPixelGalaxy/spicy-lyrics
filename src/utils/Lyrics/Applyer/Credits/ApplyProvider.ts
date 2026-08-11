@@ -35,6 +35,12 @@ export function ApplyLyricsProvider(data: any, LyricsContainer: HTMLElement): vo
   } else {
     providerLabel = "Unknown";
   }
-  ProviderElement.textContent = `Lyrics provided by: ${providerLabel}`;
+  const experimentalWordSplittingHelp =
+    providerLabel === "Apple Music" && data.experimentalAppleWordSplitting;
+  ProviderElement.textContent = `Lyrics provided by: ${providerLabel}${
+    experimentalWordSplittingHelp
+      ? " (with some experimental word splitting help)"
+      : ""
+  }`;
   LyricsContainer.appendChild(ProviderElement);
 }

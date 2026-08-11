@@ -22,6 +22,7 @@ import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "./Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "./OnApply.ts";
 import { ApplyLyricsProvider } from "./Credits/ApplyProvider.ts";
+import { CreateLyricsFooter } from "./Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../components/Global/Defaults.ts";
 
 /**
@@ -131,10 +132,11 @@ export function ApplyStaticLyrics(
     lineElements.push(lineElem);
   });
 
-  ApplyLyricsCredits(data, LyricsContainer);
-  ApplyExperimentalWordSyncNotice(data, LyricsContainer);
-  ApplyLyricsProvider(data, LyricsContainer);
-  ApplyIsByCommunity(data, LyricsContainer);
+  const footer = CreateLyricsFooter(LyricsContainer, LyricsContainerParent);
+  ApplyLyricsCredits(data, footer);
+  ApplyExperimentalWordSyncNotice(data, footer);
+  ApplyLyricsProvider(data, footer);
+  ApplyIsByCommunity(data, footer);
   if (LyricsContainerParent) {
     LyricsContainerInstance.Append(LyricsContainerParent);
   }

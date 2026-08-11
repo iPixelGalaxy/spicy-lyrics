@@ -1,6 +1,7 @@
 import { QueueForceScroll } from "../../Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { destroyLyricsVirtualizer } from "../LyricsVirtualizer.ts";
+import { destroySpaceGravity } from "../SpaceGravity.ts";
 
 type LyricsContainerReturnObject = {
   Container: HTMLElement;
@@ -78,6 +79,7 @@ const GetCurrentLyricsContainerInstance = (): LyricsContainerReturnObject | unde
 
 const DestroyAllLyricsContainers = () => {
   destroyLyricsVirtualizer();
+  destroySpaceGravity();
   LyricsContainerInstances.forEach((Instance) => {
     Instance.Remove();
   });

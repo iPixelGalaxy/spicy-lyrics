@@ -47,6 +47,17 @@ type GeneratedLine = {
   Background?: GeneratedBackground[];
 };
 
+type SyllableLyricsEntry = {
+  Type?: "Vocal" | string;
+  Lead?: {
+    StartTime: number;
+    EndTime: number;
+    Syllables: GeneratedWord[];
+  };
+  Background?: GeneratedBackground[];
+  [key: string]: unknown;
+};
+
 type Segment = {
   kind: "lead" | "background";
   text: string;
@@ -64,6 +75,9 @@ type PreparedStaticLine = {
 
 const BRACKETED_SEGMENT_REGEX = /(\[[^[\]]+\]|\([^()]+\)|\{[^{}]+\})/g;
 const BRACKETED_SEGMENT_TEST = /^(\[[^[\]]+\]|\([^()]+\)|\{[^{}]+\})$/;
+const OPEN_BRACKET_REGEX = /[([\{\uFF08【]/g;
+const CLOSE_BRACKET_REGEX = /[)\]\}\uFF09】]/g;
+const BRACKET_CHARACTER_REGEX = /[\[\](){}\uFF08\uFF09【】]/g;
 const SUSPICIOUS_LINE_END_EPSILON = 0.05;
 
 function clamp(value: number, min: number, max: number): number {
@@ -72,6 +86,14 @@ function clamp(value: number, min: number, max: number): number {
 
 function normalizeText(text: string | undefined): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
+function countBracketCharacters(text: string, regex: RegExp): number {
+  return (text.match(regex) ?? []).length;
+}
+
+function stripBracketCharacters(text: string | undefined): string {
+  return normalizeText(text?.replace(BRACKET_CHARACTER_REGEX, " "));
 }
 
 function getTextWeight(text: string): number {
@@ -1254,4 +1276,178 @@ export function ConvertStaticLyricsToExperimentalWordSync(
     },
     analysis
   );
+}
+
+function splitAppleSyllables(syllables: GeneratedWord[]): {
+  syllables: GeneratedWord[];
+  didSplit: boolean;
+} {
+  let didSplit = false;
+  const splitSyllables: GeneratedWord[] = [];
+
+  syllables.forEach((syllable) => {
+    const words = splitWords(syllable.Text);
+    if (words.length <= 1) {
+      splitSyllables.push(syllable);
+      return;
+    }
+
+    const generatedWords = buildWords(
+      syllable.Text,
+      syllable.StartTime,
+      syllable.EndTime
+    );
+    assignWordText(generatedWords, "TransliteratedText", syllable.TransliteratedText);
+    assignWordText(generatedWords, "GibberishText", syllable.GibberishText);
+    splitSyllables.push(...generatedWords);
+    didSplit = true;
+  });
+
+  return { syllables: splitSyllables, didSplit };
+}
+
+function extractAppleBracketBackgrounds(lyrics: any): any {
+  if (lyrics?.Type !== "Syllable" || !Array.isArray(lyrics.Content)) {
+    return lyrics;
+  }
+
+  const content: SyllableLyricsEntry[] = [];
+  let pendingBackground: GeneratedBackground[] = [];
+
+  for (const line of lyrics.Content as SyllableLyricsEntry[]) {
+    if (line.Type !== undefined && line.Type !== "Vocal") {
+      content.push(line);
+      continue;
+    }
+
+    const originalSyllables = line.Lead?.Syllables ?? [];
+    const leadSyllables: GeneratedWord[] = [];
+    const backgroundGroups: GeneratedBackground[] = [];
+    let activeBackground: GeneratedWord[] = [];
+    let bracketDepth = 0;
+
+    for (const syllable of originalSyllables) {
+      const openCount = countBracketCharacters(syllable.Text, OPEN_BRACKET_REGEX);
+      const closeCount = countBracketCharacters(syllable.Text, CLOSE_BRACKET_REGEX);
+      const isBackground = bracketDepth > 0 || openCount > 0;
+      const text = stripBracketCharacters(syllable.Text);
+
+      if (text) {
+        const cleanedSyllable: GeneratedWord = {
+          ...syllable,
+          Text: text,
+          ...(syllable.TransliteratedText !== undefined
+            ? { TransliteratedText: stripBracketCharacters(syllable.TransliteratedText) }
+            : {}),
+          ...(syllable.GibberishText !== undefined
+            ? { GibberishText: stripBracketCharacters(syllable.GibberishText) }
+            : {}),
+        };
+        if (isBackground) activeBackground.push(cleanedSyllable);
+        else leadSyllables.push(cleanedSyllable);
+      }
+
+      bracketDepth = Math.max(0, bracketDepth + openCount - closeCount);
+      if (isBackground && bracketDepth === 0 && activeBackground.length > 0) {
+        capitalizeFirstGeneratedWord(activeBackground);
+        backgroundGroups.push({
+          StartTime: activeBackground[0].StartTime,
+          EndTime: activeBackground.at(-1)!.EndTime,
+          Syllables: activeBackground,
+        });
+        activeBackground = [];
+      }
+    }
+
+    if (activeBackground.length > 0) {
+      capitalizeFirstGeneratedWord(activeBackground);
+      backgroundGroups.push({
+        StartTime: activeBackground[0].StartTime,
+        EndTime: activeBackground.at(-1)!.EndTime,
+        Syllables: activeBackground,
+      });
+    }
+
+    if (backgroundGroups.length === 0) {
+      if (pendingBackground.length > 0 && line.Lead) {
+        content.push({
+          ...line,
+          Background: [...pendingBackground, ...(line.Background ?? [])],
+        });
+        pendingBackground = [];
+      } else {
+        content.push(line);
+      }
+      continue;
+    }
+
+    if (leadSyllables.length === 0) {
+      // A fully bracketed line is often a backing phrase placed in a long gap
+      // before the next lead. Attach it there without changing its timestamps.
+      pendingBackground.push(...backgroundGroups);
+      continue;
+    }
+
+    content.push({
+      ...line,
+      Lead: {
+        ...line.Lead,
+        Syllables: leadSyllables,
+      },
+      Background: [...pendingBackground, ...(line.Background ?? []), ...backgroundGroups],
+    });
+    pendingBackground = [];
+  }
+
+  if (pendingBackground.length > 0) {
+    const lastVocal = [...content].reverse().find((line) => line.Lead);
+    if (lastVocal) {
+      lastVocal.Background = [...(lastVocal.Background ?? []), ...pendingBackground];
+    }
+  }
+
+  return { ...lyrics, Content: content };
+}
+
+export function SplitAppleMusicSyllableWords(lyrics: any) {
+  if (lyrics?.Type !== "Syllable" || !Array.isArray(lyrics.Content)) {
+    return lyrics;
+  }
+
+  const bracketProcessedLyrics = extractAppleBracketBackgrounds(lyrics);
+  let didSplit = false;
+  const content = (bracketProcessedLyrics.Content as SyllableLyricsEntry[]).map((line) => {
+    if (line.Type !== undefined && line.Type !== "Vocal") return line;
+
+    const lead = line.Lead;
+    const splitLead = lead ? splitAppleSyllables(lead.Syllables ?? []) : null;
+    const background = line.Background?.map((entry) => {
+      const splitBackground = splitAppleSyllables(entry.Syllables ?? []);
+      didSplit ||= splitBackground.didSplit;
+      return splitBackground.didSplit
+        ? { ...entry, Syllables: splitBackground.syllables }
+        : entry;
+    });
+
+    if (splitLead) didSplit ||= splitLead.didSplit;
+    if (!splitLead?.didSplit && !background?.some((entry, index) => entry !== line.Background?.[index])) {
+      return line;
+    }
+
+    return {
+      ...line,
+      ...(splitLead?.didSplit
+        ? { Lead: { ...lead, Syllables: splitLead.syllables } }
+        : {}),
+      ...(background ? { Background: background } : {}),
+    };
+  });
+
+  return didSplit
+    ? {
+        ...bracketProcessedLyrics,
+        Content: content,
+        experimentalAppleWordSplitting: true,
+      }
+    : { ...bracketProcessedLyrics, Content: content };
 }

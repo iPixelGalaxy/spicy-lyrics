@@ -146,6 +146,7 @@ function isPartOfWord(nodes: ChildNode[], index: number): boolean {
   const nextText = getNodeText(next).trim();
 
   if (!currentText || !nextText) return false;
+  if (/\s$/.test(getNodeText(current))) return false;
   if (hasExplicitSpaceBeforeNextMeaningfulNode(nodes, index)) return false;
 
   return true;

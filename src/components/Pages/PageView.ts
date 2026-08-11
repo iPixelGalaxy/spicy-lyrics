@@ -38,6 +38,7 @@ import {
   $simpleLyricsMode,
   $lyricsCacheAction,
   $showLyricsCacheActionButton,
+  $spaceGravityMode,
   $ttmlMakerMode,
   $viewControlsPosition,
 } from "../../utils/stores.ts";
@@ -224,6 +225,7 @@ async function OpenPage(
                     <div id="DotLoader"></div>
                 </div>
                 <div class="LyricsContent ScrollbarScrollable"></div>
+                <div class="LyricsPinnedFooter"></div>
                 <button id="ScrollToActiveLyric" class="ScrollToActiveLyric" type="button" aria-label="Scroll to active lyric">
                     <svg class="NoFill" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
                 </button>
@@ -284,6 +286,8 @@ async function OpenPage(
   if (!$lineHoverBackground.get()) {
     elem.classList.add("NoLineHoverBackground");
   }
+
+  elem.classList.toggle("SpaceGravityMode", $spaceGravityMode.get());
 
   ApplyExperimentClasses(elem);
 
@@ -909,6 +913,24 @@ $lineHoverBackground.listen((v) => {
   PageContainer.classList.toggle("NoLineHoverBackground", !v);
 });
 
+$spaceGravityMode.listen((v) => {
+  if (!PageContainer) return;
+  PageContainer.classList.toggle("SpaceGravityMode", v);
+
+  const rawLyrics = $currentLyricsData.get();
+  if (rawLyrics && !rawLyrics.startsWith("NO_LYRICS:")) {
+    try {
+      void ApplyLyrics([JSON.parse(rawLyrics), 200]);
+      return;
+    } catch {
+      // Fall through to the normal fetch path for non-JSON notice states.
+    }
+  }
+
+  const uri = SpotifyPlayer.GetUri();
+  if (uri) void fetchLyrics(uri).then(ApplyLyrics);
+});
+
 $customFontEnabled.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("UseSpicyFont", !v);
@@ -921,9 +943,25 @@ $customFont.listen((v) => {
 
 // Experiments own their CSS hook here; NowBar.ts handles the rebuild for the ones
 // that need one. Adding an experiment requires no change to this file.
-onExperimentChange(() => {
+function ReapplyCurrentLyrics(): void {
+  const rawLyrics = $currentLyricsData.get();
+  if (rawLyrics && !rawLyrics.startsWith("NO_LYRICS:")) {
+    try {
+      void ApplyLyrics([JSON.parse(rawLyrics), 200]);
+      return;
+    } catch {
+      // Fall through to the normal fetch path for non-JSON notice states.
+    }
+  }
+
+  const uri = SpotifyPlayer.GetUri();
+  if (uri) void fetchLyrics(uri).then(ApplyLyrics);
+}
+
+onExperimentChange((experiment) => {
   if (!PageContainer) return;
   ApplyExperimentClasses(PageContainer);
+  if (experiment.rebuildsLyrics) ReapplyCurrentLyrics();
 });
 
 $viewControlsPosition.listen((v) => {

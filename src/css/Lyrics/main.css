@@ -29,6 +29,8 @@
   --amll-lyric-player-font-size: var(--DefaultLyricsSize);
   --Simplebar-Scrollbar-Color: rgba(255, 255, 255, 0.6);
   --vertical-gap: 0px;
+  --SL-LyricsContent_MaskBottomFadeStart: 64px;
+  --SL-LyricsContent_MaskBottomFadeEnd: 16px;
 
   overflow-x: clip !important;
   overflow-clip-margin: 200px;
@@ -46,8 +48,8 @@
     transparent 0,
     transparent 16px,
     var(--spice-sidebar) calc(64px + var(--SL-LyricsContent_MaskTopPadding)),
-    var(--spice-sidebar) calc(100% - 64px),
-    transparent calc(100% - 16px),
+    var(--spice-sidebar) calc(100% - var(--SL-LyricsContent_MaskBottomFadeStart)),
+    transparent calc(100% - var(--SL-LyricsContent_MaskBottomFadeEnd)),
     transparent
   );
 
@@ -116,6 +118,201 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
    Specificity (1,6,0) beats Mixed.css rules at (1,5,0) that are loaded after this file. */
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .VirtualLyricsContainer .line {
   margin: 0 !important;
+}
+
+#SpicyLyricsPage .LyricsContainer .LyricsPinnedFooter {
+  display: none;
+}
+
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsPinnedFooter {
+  --DefaultLyricsSize: clamp(1.85rem, calc(1cqw * 7), 3.5rem);
+  position: absolute;
+  z-index: 10;
+  right: var(--LyricsRightSidePadding);
+  bottom: 64px;
+  left: var(--LyricsLeftSidePadding);
+  padding: 0 0 1.25rem;
+  display: block;
+  font-size: var(--DefaultLyricsSize);
+  font-weight: 700;
+}
+
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent {
+  --SL-LyricsContent_MaskBottomFadeStart: 296px;
+  --SL-LyricsContent_MaskBottomFadeEnd: 216px;
+}
+
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+  margin-bottom: calc(8cqh + 98px);
+}
+
+#SpicyLyricsPage .ContentBox .NowBar.Active:is(.RightSide) + .LyricsContainer .LyricsPinnedFooter {
+  right: var(--LyricsLeftSidePadding);
+  left: calc(var(--LyricsRightSidePadding) * 1.45);
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsPinnedFooter {
+  --DefaultLyricsSize: clamp(1.7rem, calc(1cqw * 5.5), 2.6rem);
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer.SpaceGravityStage {
+  margin: 0;
+  padding: 0 !important;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .VirtualLyricsContainer {
+  overflow: hidden;
+  container-type: normal;
+  width: 100%;
+  height: 100%;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine {
+  position: absolute;
+  inset: 0;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityMeasure {
+  inset: auto;
+  top: 0;
+  right: var(--LyricsRightSidePadding);
+  left: var(--LyricsLeftSidePadding);
+  display: flex;
+  flex-wrap: wrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar.Active:is(.RightSide) + .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityMeasure {
+  right: var(--LyricsLeftSidePadding);
+  left: calc(var(--LyricsRightSidePadding) * 1.45);
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNext {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNearby {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNext .SpaceGravityWord {
+  opacity: 0.34;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNearby .SpaceGravityWord {
+  opacity: 0.22;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
+  pointer-events: auto;
+  transition: opacity 180ms ease;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord:hover {
+  opacity: 1 !important;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent:not(.SpaceGravityDot) .SpaceGravityWord:hover {
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent.OppositeAligned:not(.SpaceGravityDot) .SpaceGravityWord:hover {
+  filter: drop-shadow(0 0 10px rgba(255, 140, 168, 0.85));
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine::before {
+  display: none !important;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup, .word-group) {
+  background-image: linear-gradient(
+    var(--gradient-degrees),
+    rgba(255, 140, 168, var(--gradient-alpha)) var(--gradient-position),
+    rgba(255, 140, 168, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityHidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
+  position: absolute;
+  display: inline-block;
+  transform-origin: center;
+  will-change: translate, rotate;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityUnspawned {
+  visibility: hidden;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord > :is(.word, .word-group, .letterGroup, .dotGroup) {
+  display: inline-block;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityFooter {
+  position: absolute;
+  z-index: 2;
+  right: var(--LyricsRightSidePadding);
+  bottom: 64px;
+  left: var(--LyricsLeftSidePadding);
+  padding: 0 0 1.25rem;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage
+  .ContentBox
+  .NowBar.Active:is(.RightSide)
+  + .LyricsContainer
+  .LyricsContent
+  .SpaceGravityStage
+  .SpaceGravityFooter {
+  right: var(--LyricsLeftSidePadding);
+  left: calc(var(--LyricsRightSidePadding) * 1.45);
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityFooter:empty {
+  display: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityFooter .song-info-profile-section {
+  pointer-events: auto;
+}
+
+#SpicyLyricsPage.SpaceGravityMode #ScrollToActiveLyric {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine {
+    transition: opacity 120ms ease;
+  }
 }
 
 #SpicyLyricsPage.Fullscreen.MinimalLyricsMode

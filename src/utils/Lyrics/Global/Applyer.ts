@@ -11,6 +11,7 @@ import { ApplySyllableLyrics } from "../Applyer/Synced/Syllable.ts";
 import {
   ConvertLineLyricsToExperimentalWordSync,
   ConvertStaticLyricsToExperimentalWordSync,
+  SplitAppleMusicSyllableWords,
 } from "../ExperimentalWordSync.ts";
 import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
 import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
@@ -34,6 +35,16 @@ export type LyricsData = {
   Type: "Syllable" | "Line" | "Static" | string;
   [key: string]: any;
 };
+
+function isAppleMusicLyrics(lyrics: LyricsData): boolean {
+  return (
+    lyrics.sourceDisplayName?.trim().toLowerCase() === "apple music" ||
+    lyrics.source?.toLowerCase() === "aml" ||
+    lyrics.source?.toLowerCase() === "apple" ||
+    lyrics.fetchProvider?.toLowerCase() === "aml" ||
+    lyrics.fetchProvider?.toLowerCase() === "apple"
+  );
+}
 
 
 let currentAbortController: AbortController | null = null;
@@ -239,10 +250,7 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   let lyrics = descriptor as LyricsData;
 
-  if (
-    Defaults.EnableExperimentalWordSync &&
-    (lyrics.Type === "Line" || lyrics.Type === "Static")
-  ) {
+  if (Defaults.EnableExperimentalWordSync && (lyrics.Type === "Line" || lyrics.Type === "Static")) {
     const analysisTrackId =
       typeof lyrics.id === "string" && lyrics.id.length > 0
         ? lyrics.id
@@ -267,6 +275,16 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
     // Re-apply gibberish for the newly created syllables since the original
     // ApplyMemeFormat ran before the conversion (when it was still Line/Static)
     if (Defaults.MemeFormat !== "Off") {
+      ApplyMemeFormat(lyrics);
+    }
+  } else if (
+    Defaults.EnableExperimentalWordSync &&
+    lyrics.Type === "Syllable" &&
+    isAppleMusicLyrics(lyrics)
+  ) {
+    lyrics = SplitAppleMusicSyllableWords(lyrics) as LyricsData;
+
+    if (lyrics.experimentalAppleWordSplitting && Defaults.MemeFormat !== "Off") {
       ApplyMemeFormat(lyrics);
     }
   }

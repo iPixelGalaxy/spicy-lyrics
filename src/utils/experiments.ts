@@ -25,6 +25,7 @@ import { persistAtom } from "./stores.ts";
  * `rebuildsNowBar` is only for experiments whose *markup* differs between states
  * (CSS alone can't get you there). It makes NowBar tear down and rebuild the
  * fullscreen overlay when the flag flips.
+ * `rebuildsLyrics` reapplies the current lyric data when its DOM placement differs.
  */
 
 export type Experiment = {
@@ -37,16 +38,26 @@ export type Experiment = {
   pageClass?: string;
   /** Rebuild the fullscreen NowBar overlay when this flag changes. */
   rebuildsNowBar?: boolean;
+  /** Reapply the current lyrics when this flag changes their markup. */
+  rebuildsLyrics?: boolean;
 };
 
 export const EXPERIMENTS = [
   {
     id: "newProgressBarStyling",
-    label: "New ProgressBar Styling",
+    label: "New SliderBar Styling",
     description:
-      "Frosted glass progress and volume bars, where a solid fill replaces the handle. Turn off to go back to the previous look — an accent-coloured track with a handle. Only the styling changes; both bars keep their current size and position either way.",
+      "New glass-like style for the SliderBar. Disable to revert back to the original one.",
     default: true,
     pageClass: "Exp_NewProgressBar",
+  },
+  {
+    id: "pinLyricsFooter",
+    label: "Pin footer at all times",
+    description: "Keep lyric credits and source details visible while scrolling normal lyrics.",
+    default: false,
+    pageClass: "Exp_PinLyricsFooter",
+    rebuildsLyrics: true,
   },
 ] as const satisfies readonly Experiment[];
 

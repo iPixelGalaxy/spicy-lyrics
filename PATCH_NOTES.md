@@ -1,3 +1,31 @@
+## v100.10.35
+
+- **Space Gravity Mode**
+  An Appearance option lets synced lyric words drift freely from their normal line positions. It supports instrumental dots, background vocals, duet colouring, cover-art avoidance, and persistent credits.
+
+- **Experimental Apple Music word sync**
+  Apple Music lyrics can split combined words and hyphenated phrases into timed words. Bracketed backing vocals are recognised as background vocals, and credits note when word splitting helped.
+
+- **Pinned lyric credits**
+  Experiments can keep credits and source information visible while scrolling, with enough room to reach final lyrics.
+
+- **Lyric click lead-in**
+  Clicking a lyric now seeks 400ms before its timing point for a smoother handoff.
+
+- **Added Extra Glow On Active Line**
+Added Extra Glow if hovering over active line
+
+## v100.10.34
+
+- **Stable playback timeline**
+  Fullscreen playback progress stays on Spotify's live clock when Playback Offset changes.
+
+- **Local TTML spaces**
+  Locally uploaded TTML keeps word boundaries from spaces inside timed spans, including word-synced lyrics.
+
+- **Experimental SliderBar wording**
+  The experimental progress-bar setting now uses the upstream SliderBar name and description.
+
 ## v100.10.33
 
 - **Updated for 6.3.0**

@@ -142,6 +142,10 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   --SL-LyricsContent_MaskBottomFadeEnd: 216px;
 }
 
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+  margin-bottom: calc(8cqh + 296px);
+}
+
 #SpicyLyricsPage .ContentBox .NowBar.Active:is(.RightSide) + .LyricsContainer .LyricsPinnedFooter {
   right: var(--LyricsLeftSidePadding);
   left: calc(var(--LyricsRightSidePadding) * 1.45);

@@ -246,12 +246,14 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   display: none !important;
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup) {
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup, .word-group) {
   background-image: linear-gradient(
     var(--gradient-degrees),
     rgba(255, 140, 168, var(--gradient-alpha)) var(--gradient-position),
     rgba(255, 140, 168, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
   );
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityHidden {

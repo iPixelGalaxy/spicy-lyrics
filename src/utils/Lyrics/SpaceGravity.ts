@@ -1,5 +1,3 @@
-import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
-
 type GravityLine = {
   HTMLElement: HTMLElement;
   StartTime: number;
@@ -72,7 +70,6 @@ let preparedLines = new Set<GravityLine>();
 let visibleLines = new Map<GravityLine, VisibleLine>();
 let activeBodies: GravityBody[] = [];
 let activeTransientLines = new Set<GravityLine>();
-let heldPausedDotLines = new Set<GravityLine>();
 let transientCursor = 0;
 let lastPosition = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
@@ -314,28 +311,7 @@ function upperBoundByActivation(source: GravityLine[], position: number): number
 }
 
 function updateActiveTransientLines(position: number): void {
-  const isPaused = !SpotifyPlayer.IsPlaying;
-  const jumpedForwardWhilePaused =
-    isPaused &&
-    Number.isFinite(lastPosition) &&
-    position - lastPosition > 250;
-
-  if (!isPaused) {
-    heldPausedDotLines.clear();
-  } else if (jumpedForwardWhilePaused) {
-    for (const line of activeTransientLines) {
-      if (
-        line.DotLine &&
-        getActivationStart(line) <= lastPosition &&
-        getActivationEnd(line) > lastPosition
-      ) {
-        heldPausedDotLines.add(line);
-      }
-    }
-  }
-
   if (position < lastPosition) {
-    heldPausedDotLines.clear();
     transientCursor = upperBoundByActivation(transientLines, position);
     activeTransientLines = new Set(
       transientLines.slice(0, transientCursor).filter((line) => getActivationEnd(line) > position)
@@ -353,13 +329,7 @@ function updateActiveTransientLines(position: number): void {
   }
 
   for (const line of activeTransientLines) {
-    if (getActivationEnd(line) <= position && !heldPausedDotLines.has(line)) {
-      activeTransientLines.delete(line);
-    }
-  }
-
-  for (const line of heldPausedDotLines) {
-    activeTransientLines.add(line);
+    if (getActivationEnd(line) <= position) activeTransientLines.delete(line);
   }
 }
 
@@ -414,7 +384,6 @@ function getVisibleLines(
 
 function applyLineRole(line: GravityLine, state: VisibleLine | undefined): void {
   const element = line.HTMLElement;
-  const showPausedDotFrame = line.DotLine && heldPausedDotLines.has(line);
   element.classList.toggle(
     "SpaceGravityCurrent",
     state?.Role === "Current" || state?.Role === "Background" || state?.Role === "Instrumental"
@@ -423,13 +392,6 @@ function applyLineRole(line: GravityLine, state: VisibleLine | undefined): void 
   element.classList.toggle("SpaceGravityNearby", state?.Role === "Previous" || state?.Role === "Nearby");
   element.classList.toggle("SpaceGravityDot", state?.Role === "Instrumental");
   element.classList.toggle("SpaceGravityHidden", !state);
-  for (const dotGroup of element.querySelectorAll<HTMLElement>(".dotGroup")) {
-    if (showPausedDotFrame) {
-      dotGroup.style.setProperty("scale", "1", "important");
-    } else {
-      dotGroup.style.removeProperty("scale");
-    }
-  }
 }
 
 function prepareLines(nextLines: GravityLine[]): void {
@@ -795,7 +757,6 @@ export function destroySpaceGravity(): void {
   visibleLines = new Map();
   activeBodies = [];
   activeTransientLines = new Set();
-  heldPausedDotLines = new Set();
   transientCursor = 0;
   lastPosition = Number.NEGATIVE_INFINITY;
   stageBounds = null;

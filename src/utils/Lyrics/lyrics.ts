@@ -259,27 +259,11 @@ function shouldBlockSeekForCurrentTrack() {
   return true;
 }
 
-function clearPausedDotFrames(): void {
-  for (const line of LyricsObject.Types.Syllable.Lines) {
-    line.HTMLElement.classList.remove("PausedDotFrame");
-  }
+function seekToLyric(startTime: number): void {
+  const targetTime = Math.max(0, startTime - 100);
+  SpotifyPlayer.Seek(targetTime);
+  Global.Event.evoke("song:seek", targetTime);
 }
-
-function preservePausedDotFrame(): void {
-  if (SpotifyPlayer.IsPlaying) return;
-
-  const position = SpotifyPlayer.GetPosition();
-  for (const line of LyricsObject.Types.Syllable.Lines) {
-    if (line.DotLine && position >= line.StartTime && position <= line.EndTime) {
-      line.HTMLElement.classList.add("PausedDotFrame");
-    }
-  }
-}
-
-Global.Event.listen("playback:playpause", (event: { data?: { isPaused?: boolean } }) => {
-  if (event.data?.isPaused) preservePausedDotFrame();
-  else clearPausedDotFrames();
-});
 
 // Define proper type for event parameter
 function LinesEvListener(e: MouseEvent) {
@@ -290,10 +274,7 @@ function LinesEvListener(e: MouseEvent) {
     if (!gravityWord || !Number.isFinite(startTime) || gravityWord.closest(".musical-line")) return;
     if (shouldBlockSeekForCurrentTrack()) return;
 
-    if (gravityWord.closest(".bg-line")) preservePausedDotFrame();
-    else clearPausedDotFrames();
-    SpotifyPlayer.Seek(startTime);
-    Global.Event.evoke("song:seek", startTime);
+    seekToLyric(startTime);
     return;
   }
 
@@ -317,9 +298,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      clearPausedDotFrames();
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   } else if (target.classList.contains("word")) {
     if (target.closest(".musical-line")) {
@@ -331,13 +310,11 @@ function LinesEvListener(e: MouseEvent) {
 
     let startTime: number | undefined;
 
-    let isBackgroundVocal = false;
     LyricsObject.Types.Syllable.Lines.forEach((line) => {
       if (line.Syllables?.Lead) {
         line.Syllables.Lead.forEach((word, _, array) => {
           if (word.HTMLElement === target) {
             startTime = line.StartTime;
-            isBackgroundVocal = line.BGLine === true;
             if (array.length > 0) {
               startTime = array[0].StartTime;
             }
@@ -347,10 +324,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      if (isBackgroundVocal) preservePausedDotFrame();
-      else clearPausedDotFrames();
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   } else if (target.classList.contains("Emphasis")) {
     if (target.closest(".musical-line")) {
@@ -362,7 +336,6 @@ function LinesEvListener(e: MouseEvent) {
 
     let startTime: number | undefined;
 
-    let isBackgroundVocal = false;
     LyricsObject.Types.Syllable.Lines.forEach((line) => {
       if (line.Syllables?.Lead) {
         line.Syllables.Lead.forEach((word, _, array) => {
@@ -370,7 +343,6 @@ function LinesEvListener(e: MouseEvent) {
             word.Letters.forEach((letter) => {
               if (letter.HTMLElement === target) {
                 startTime = line.StartTime;
-                isBackgroundVocal = line.BGLine === true;
                 if (array.length > 0) {
                   startTime = array[0].StartTime;
                 }
@@ -382,10 +354,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      if (isBackgroundVocal) preservePausedDotFrame();
-      else clearPausedDotFrames();
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   }
 }

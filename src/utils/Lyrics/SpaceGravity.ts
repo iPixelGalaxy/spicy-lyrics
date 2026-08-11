@@ -35,6 +35,7 @@ type VisibleLine = {
 
 type Bounds = { Width: number; Height: number };
 type RectBounds = { Left: number; Top: number; Right: number; Bottom: number };
+type ObstacleExit = "Left" | "Right" | "Top" | "Bottom";
 
 const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
@@ -138,19 +139,36 @@ function updateBounds(refreshBodies = true): void {
     body.Height = body.Element.offsetHeight;
     body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
     if (!body.Spawned) continue;
-    clampBody(body, width, height);
-    resolveStaticObstacleCollisions(body);
+    resolveBodyConstraints(body, width, height);
     renderBody(body);
   }
 }
 
-function clampBody(body: GravityBody, width: number, height: number): void {
+function constrainToStage(body: GravityBody, width: number, height: number): boolean {
   const minX = EDGE_PADDING + body.Radius;
   const maxX = Math.max(minX, width - EDGE_PADDING - body.Radius);
   const minY = EDGE_PADDING + body.Radius;
   const maxY = Math.max(minY, height - EDGE_PADDING - body.Radius);
-  body.X = Math.min(maxX, Math.max(minX, body.X));
-  body.Y = Math.min(maxY, Math.max(minY, body.Y));
+  let changed = false;
+  if (body.X < minX) {
+    body.X = minX;
+    body.VX = Math.abs(body.VX);
+    changed = true;
+  } else if (body.X > maxX) {
+    body.X = maxX;
+    body.VX = -Math.abs(body.VX);
+    changed = true;
+  }
+  if (body.Y < minY) {
+    body.Y = minY;
+    body.VY = Math.abs(body.VY);
+    changed = true;
+  } else if (body.Y > maxY) {
+    body.Y = maxY;
+    body.VY = -Math.abs(body.VY);
+    changed = true;
+  }
+  return changed;
 }
 
 function renderBody(body: GravityBody): void {
@@ -158,37 +176,57 @@ function renderBody(body: GravityBody): void {
   body.Element.style.rotate = `${body.Angle}deg`;
 }
 
-function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null): void {
-  if (!obstacle) return;
+function resolveRectangleCollision(
+  body: GravityBody,
+  obstacle: RectBounds | null,
+  width: number,
+  height: number,
+  exits: ObstacleExit[]
+): boolean {
+  if (!obstacle) return false;
 
   const nearestX = Math.min(obstacle.Right, Math.max(obstacle.Left, body.X));
   const nearestY = Math.min(obstacle.Bottom, Math.max(obstacle.Top, body.Y));
-  if (Math.hypot(body.X - nearestX, body.Y - nearestY) >= body.Radius) return;
+  if (Math.hypot(body.X - nearestX, body.Y - nearestY) >= body.Radius) return false;
 
-  const distances = [
-    { Distance: Math.abs(body.X - obstacle.Left), Resolve: () => {
-      body.X = obstacle.Left - body.Radius;
-      body.VX = -Math.abs(body.VX);
-    } },
-    { Distance: Math.abs(obstacle.Right - body.X), Resolve: () => {
-      body.X = obstacle.Right + body.Radius;
-      body.VX = Math.abs(body.VX);
-    } },
-    { Distance: Math.abs(body.Y - obstacle.Top), Resolve: () => {
-      body.Y = obstacle.Top - body.Radius;
-      body.VY = -Math.abs(body.VY);
-    } },
-    { Distance: Math.abs(obstacle.Bottom - body.Y), Resolve: () => {
-      body.Y = obstacle.Bottom + body.Radius;
-      body.VY = Math.abs(body.VY);
-    } },
-  ];
-  distances.reduce((nearest, candidate) => (candidate.Distance < nearest.Distance ? candidate : nearest)).Resolve();
+  const minX = EDGE_PADDING + body.Radius;
+  const maxX = Math.max(minX, width - EDGE_PADDING - body.Radius);
+  const minY = EDGE_PADDING + body.Radius;
+  const maxY = Math.max(minY, height - EDGE_PADDING - body.Radius);
+  const candidates = [
+    { Exit: "Left" as const, X: obstacle.Left - body.Radius, Y: body.Y },
+    { Exit: "Right" as const, X: obstacle.Right + body.Radius, Y: body.Y },
+    { Exit: "Top" as const, X: body.X, Y: obstacle.Top - body.Radius },
+    { Exit: "Bottom" as const, X: body.X, Y: obstacle.Bottom + body.Radius },
+  ].filter((candidate) =>
+    exits.includes(candidate.Exit) &&
+    candidate.X >= minX && candidate.X <= maxX && candidate.Y >= minY && candidate.Y <= maxY
+  );
+  if (candidates.length === 0) return false;
+
+  const candidate = candidates.reduce((nearestCandidate, nextCandidate) =>
+    Math.hypot(nextCandidate.X - body.X, nextCandidate.Y - body.Y) <
+      Math.hypot(nearestCandidate.X - body.X, nearestCandidate.Y - body.Y)
+      ? nextCandidate
+      : nearestCandidate
+  );
+  body.X = candidate.X;
+  body.Y = candidate.Y;
+  if (candidate.Exit === "Left") body.VX = -Math.abs(body.VX);
+  else if (candidate.Exit === "Right") body.VX = Math.abs(body.VX);
+  else if (candidate.Exit === "Top") body.VY = -Math.abs(body.VY);
+  else body.VY = Math.abs(body.VY);
+  return true;
 }
 
-function resolveStaticObstacleCollisions(body: GravityBody): void {
-  resolveRectangleCollision(body, coverBounds);
-  resolveRectangleCollision(body, footerBounds);
+function resolveBodyConstraints(body: GravityBody, width: number, height: number): void {
+  for (let pass = 0; pass < 4; pass += 1) {
+    const clamped = constrainToStage(body, width, height);
+    const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"]);
+    const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"]);
+    if (!clamped && !coverResolved && !footerResolved) return;
+  }
+  constrainToStage(body, width, height);
 }
 
 function trackCoverTransition(): void {
@@ -197,11 +235,15 @@ function trackCoverTransition(): void {
 
   const updateCoverBounds = (): void => {
     updateBounds(false);
+    if (!stageBounds) {
+      coverTrackingFrame = null;
+      return;
+    }
     for (const body of activeBodies) {
       if (!body.Spawned) continue;
       const x = body.X;
       const y = body.Y;
-      resolveRectangleCollision(body, coverBounds);
+      resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
       if (body.X !== x || body.Y !== y) renderBody(body);
     }
     if (performance.now() < coverTrackingUntil) {
@@ -287,7 +329,7 @@ function getVisibleLines(position: number): Map<GravityLine, VisibleLine> {
     if (line.DotLine) {
       const previous = getPreviousLead(line);
       if (previous && !nextVisible.has(previous)) {
-        nextVisible.set(previous, { Role: "Previous", Slot: 0 });
+        nextVisible.set(previous, { Role: "Previous" });
       }
     }
   }
@@ -387,25 +429,27 @@ function getLineGap(width: number, background = false): number {
 
 function getSpawnTops(anchor: number, width: number, height: number): Map<GravityLine, number> {
   const tops = new Map<GravityLine, number>();
-  const anchorLine = leadLines[anchor];
-  if (!anchorLine) return tops;
+  const firstIndex = Math.max(0, anchor - PREVIOUS_LINE_COUNT);
+  const lastIndex = Math.min(leadLines.length - 1, anchor + NEXT_LINE_COUNT);
+  if (anchor < 0 || firstIndex > lastIndex) return tops;
 
-  const anchorHeight = lineLayouts.get(anchorLine)?.Height ?? 0;
-  tops.set(anchorLine, (height - anchorHeight) / 2);
-
-  let top = tops.get(anchorLine)!;
-  for (let index = anchor - 1; index >= Math.max(0, anchor - PREVIOUS_LINE_COUNT); index -= 1) {
-    const line = leadLines[index];
-    const lineHeight = lineLayouts.get(line)?.Height ?? 0;
-    top -= lineHeight + getLineGap(width);
-    tops.set(line, top);
+  const linesToSpawn = leadLines.slice(firstIndex, lastIndex + 1);
+  const naturalTops = new Map<GravityLine, number>();
+  let naturalTop = 0;
+  for (const [index, line] of linesToSpawn.entries()) {
+    naturalTops.set(line, naturalTop);
+    naturalTop += lineLayouts.get(line)?.Height ?? 0;
+    if (index < linesToSpawn.length - 1) naturalTop += getLineGap(width);
   }
 
-  top = tops.get(anchorLine)! + anchorHeight;
-  for (let index = anchor + 1; index <= Math.min(leadLines.length - 1, anchor + NEXT_LINE_COUNT); index += 1) {
-    top += getLineGap(width);
-    tops.set(leadLines[index], top);
-    top += lineLayouts.get(leadLines[index])?.Height ?? 0;
+  const top = EDGE_PADDING;
+  const bottom = Math.max(top, Math.min(height - EDGE_PADDING, (footerBounds?.Top ?? height) - EDGE_PADDING));
+  const lastLine = linesToSpawn.at(-1)!;
+  const lastTop = naturalTops.get(lastLine) ?? 0;
+  const lastHeight = lineLayouts.get(lastLine)?.Height ?? 0;
+  const scale = lastTop > 0 ? Math.min(1, Math.max(0, bottom - top - lastHeight) / lastTop) : 1;
+  for (const line of linesToSpawn) {
+    tops.set(line, top + (naturalTops.get(line) ?? 0) * scale);
   }
   return tops;
 }
@@ -474,12 +518,11 @@ function spawnBody(
     : spawnTops.get(body.Line);
   const instrumentalSpawn =
     visibleLine.Role === "Instrumental" ? getInstrumentalSpawn(body, width, height) : undefined;
-  if (!instrumentalSpawn && (lineY === undefined || lineY + (lineLayouts.get(body.Line)?.Height ?? 0) < 0 || lineY > height)) return;
+  if (!instrumentalSpawn && lineY === undefined) return;
   body.X = instrumentalSpawn?.X ?? body.StartX + body.Width / 2;
   body.Y = instrumentalSpawn?.Y ?? lineY! + body.StartY + body.Height / 2;
   body.Angle = 0;
-  clampBody(body, width, height);
-  resolveStaticObstacleCollisions(body);
+  resolveBodyConstraints(body, width, height);
   body.Spawned = true;
   body.Element.classList.remove("SpaceGravityUnspawned");
   renderBody(body);
@@ -591,14 +634,7 @@ export function tickSpaceGravity(position: number): void {
     body.Y += body.VY * delta;
     body.Angle += body.AngularVelocity * delta;
 
-    const minX = EDGE_PADDING + body.Radius;
-    const maxX = Math.max(minX, stageBounds.Width - EDGE_PADDING - body.Radius);
-    const minY = EDGE_PADDING + body.Radius;
-    const maxY = Math.max(minY, stageBounds.Height - EDGE_PADDING - body.Radius);
-    if (body.X <= minX || body.X >= maxX) body.VX *= -1;
-    if (body.Y <= minY || body.Y >= maxY) body.VY *= -1;
-    clampBody(body, stageBounds.Width, stageBounds.Height);
-    resolveStaticObstacleCollisions(body);
+    resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
     renderBody(body);
   }
 }

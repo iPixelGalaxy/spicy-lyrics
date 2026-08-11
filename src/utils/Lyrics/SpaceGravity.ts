@@ -4,6 +4,8 @@ type GravityLine = {
   EndTime: number;
   DotLine?: boolean;
   BGLine?: boolean;
+  ActivationStartTime?: number;
+  ActivationEndTime?: number;
 };
 
 type LineLayout = {
@@ -282,26 +284,45 @@ function getPreviousLead(line: GravityLine): GravityLine | undefined {
   return undefined;
 }
 
+function getActivationStart(line: GravityLine): number {
+  return line.ActivationStartTime ?? line.StartTime;
+}
+
+function getActivationEnd(line: GravityLine): number {
+  return line.ActivationEndTime ?? line.EndTime;
+}
+
+function upperBoundByActivation(source: GravityLine[], position: number): number {
+  let low = 0;
+  let high = source.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (getActivationStart(source[middle]) <= position) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
 function updateActiveTransientLines(position: number): void {
   if (position < lastPosition) {
-    transientCursor = upperBoundByStart(transientLines, position);
+    transientCursor = upperBoundByActivation(transientLines, position);
     activeTransientLines = new Set(
-      transientLines.slice(0, transientCursor).filter((line) => line.EndTime > position)
+      transientLines.slice(0, transientCursor).filter((line) => getActivationEnd(line) > position)
     );
     return;
   }
 
   while (
     transientCursor < transientLines.length &&
-    transientLines[transientCursor].StartTime <= position
+    getActivationStart(transientLines[transientCursor]) <= position
   ) {
     const line = transientLines[transientCursor];
-    if (line.EndTime > position) activeTransientLines.add(line);
+    if (getActivationEnd(line) > position) activeTransientLines.add(line);
     transientCursor += 1;
   }
 
   for (const line of activeTransientLines) {
-    if (line.EndTime <= position) activeTransientLines.delete(line);
+    if (getActivationEnd(line) <= position) activeTransientLines.delete(line);
   }
 }
 
@@ -571,7 +592,9 @@ export function mountSpaceGravity(
   footer = nextFooter;
   lines = nextLines;
   leadLines = lines.filter((line) => !line.DotLine && !line.BGLine).sort((a, b) => a.StartTime - b.StartTime);
-  transientLines = lines.filter((line) => line.DotLine || line.BGLine).sort((a, b) => a.StartTime - b.StartTime);
+  transientLines = lines.filter((line) => line.DotLine || line.BGLine).sort(
+    (a, b) => getActivationStart(a) - getActivationStart(b)
+  );
   updateReducedMotion();
 
   resizeObserver = new ResizeObserver(() => updateBounds());

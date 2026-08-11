@@ -510,6 +510,8 @@ export function ApplySyllableLyrics(
           EndTime: ConvertTime(bg.EndTime),
           TotalTime: ConvertTime(bg.EndTime) - ConvertTime(bg.StartTime),
           BGLine: true,
+          ActivationStartTime: ConvertTime(line.Lead.StartTime),
+          ActivationEndTime: ConvertTime(line.Lead.EndTime),
         });
         SetWordArrayInCurentLine();
 

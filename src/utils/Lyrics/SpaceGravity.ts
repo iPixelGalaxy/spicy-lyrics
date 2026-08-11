@@ -16,12 +16,13 @@ type GravityBody = {
   Angle: number;
   AngularVelocity: number;
   Radius: number;
+  StartX: number;
+  StartY: number;
+  Spawned: boolean;
 };
 
 const EDGE_PADDING = 18;
-const MAX_SPEED = 80;
-const REPEL_RADIUS = 180;
-const REPEL_STRENGTH = 9200;
+const MAX_SPEED = 16;
 
 let stage: HTMLElement | null = null;
 let lines: GravityLine[] = [];
@@ -79,6 +80,7 @@ function refreshBounds(): void {
   for (const body of bodies) {
     const rect = body.Element.getBoundingClientRect();
     body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
+    if (!body.Spawned) continue;
     clampBody(body, size.Width, size.Height);
     renderBody(body);
   }
@@ -114,6 +116,17 @@ function setVisibleLines(position: number): Set<GravityLine> {
   return visible;
 }
 
+function spawnBody(body: GravityBody, role: "Current" | "Next" | "Background", width: number, height: number): void {
+  if (body.Spawned) return;
+  const lineY = role === "Current" ? height * 0.43 : role === "Next" ? height * 0.61 : height * 0.56;
+  body.X = body.StartX;
+  body.Y = lineY + body.StartY;
+  body.Angle = 0;
+  clampBody(body, width, height);
+  body.Spawned = true;
+  renderBody(body);
+}
+
 export function mountSpaceGravity(
   nextStage: HTMLElement,
   nextLines: GravityLine[],
@@ -137,19 +150,21 @@ export function mountSpaceGravity(
     );
     for (const element of elements) {
       const seed = hash(`${line.StartTime}:${line.EndTime}:${element.textContent ?? ""}:${index}`);
-      const angle = random(seed + 5) * 360;
-      const speed = 22 + random(seed + 3) * 28;
+      const speed = 4.4 + random(seed + 3) * 5.6;
       const direction = random(seed + 4) * Math.PI * 2;
       const body: GravityBody = {
         Element: element,
         Line: line,
-        X: EDGE_PADDING + random(seed) * Math.max(1, size.Width - EDGE_PADDING * 2),
-        Y: EDGE_PADDING + random(seed + 1) * Math.max(1, size.Height - EDGE_PADDING * 2),
+        X: 0,
+        Y: 0,
         VX: Math.cos(direction) * speed,
         VY: Math.sin(direction) * speed,
-        Angle: angle,
-        AngularVelocity: (random(seed + 2) * 2 - 1) * 95,
+        Angle: 0,
+        AngularVelocity: (random(seed + 2) * 2 - 1) * 19,
         Radius: 24,
+        StartX: Number(element.dataset.spaceGravityX ?? 0),
+        StartY: Number(element.dataset.spaceGravityY ?? 0),
+        Spawned: false,
       };
       bodies.push(body);
       index += 1;
@@ -176,25 +191,16 @@ export function tickSpaceGravity(position: number): void {
   const visibleLines = setVisibleLines(position);
   const activeBodies = bodies.filter((body) => visibleLines.has(body.Line));
 
-  if (reducedMotion) return;
-
-  for (let left = 0; left < activeBodies.length; left += 1) {
-    const a = activeBodies[left];
-    for (let right = left + 1; right < activeBodies.length; right += 1) {
-      const b = activeBodies[right];
-      const dx = b.X - a.X;
-      const dy = b.Y - a.Y;
-      const distance = Math.hypot(dx, dy) || 0.001;
-      if (distance >= REPEL_RADIUS) continue;
-      const force = ((REPEL_RADIUS - distance) / REPEL_RADIUS) * REPEL_STRENGTH * delta;
-      const nx = dx / distance;
-      const ny = dy / distance;
-      a.VX -= nx * force;
-      a.VY -= ny * force;
-      b.VX += nx * force;
-      b.VY += ny * force;
-    }
+  for (const body of activeBodies) {
+    const role = body.Line.BGLine
+      ? "Background"
+      : body.Line.HTMLElement.classList.contains("SpaceGravityCurrent")
+        ? "Current"
+        : "Next";
+    spawnBody(body, role, size.Width, size.Height);
   }
+
+  if (reducedMotion) return;
 
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);

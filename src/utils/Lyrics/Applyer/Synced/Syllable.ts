@@ -245,6 +245,8 @@ function wrapLineForSpaceGravity(line: HTMLElement): void {
     if (child.nodeType !== 1) continue;
     const body = document.createElement("span");
     body.classList.add("SpaceGravityWord");
+    body.dataset.spaceGravityX = String(child.offsetLeft);
+    body.dataset.spaceGravityY = String(child.offsetTop);
     line.replaceChild(body, child);
     body.appendChild(child);
   }
@@ -728,9 +730,7 @@ export function ApplySyllableLyrics(
   ApplyIsByCommunity(data, LyricsContainer);
 
   if (spaceGravityMode) {
-    LyricsContainer.classList.add("SpaceGravityStage");
     for (const lineElement of lineElements) {
-      wrapLineForSpaceGravity(lineElement);
       virtualContainer.appendChild(lineElement);
     }
   }
@@ -745,6 +745,9 @@ export function ApplySyllableLyrics(
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
   if (scrollEl) {
     if (spaceGravityMode) {
+      // Capture each word's normal flex-layout position after the container is mounted.
+      for (const lineElement of lineElements) wrapLineForSpaceGravity(lineElement);
+      LyricsContainer.classList.add("SpaceGravityStage");
       mountSpaceGravity(virtualContainer, LyricsObject.Types.Syllable.Lines, scrollEl);
     } else {
       initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);

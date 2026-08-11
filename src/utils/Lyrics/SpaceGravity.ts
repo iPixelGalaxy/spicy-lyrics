@@ -2,6 +2,13 @@ type GravityLine = {
   HTMLElement: HTMLElement;
   StartTime: number;
   EndTime: number;
+  Syllables?: {
+    Lead: Array<{
+      HTMLElement: HTMLElement;
+      StartTime: number;
+      Dot?: boolean;
+    }>;
+  };
   DotLine?: boolean;
   BGLine?: boolean;
   ActivationStartTime?: number;
@@ -407,6 +414,13 @@ function prepareLines(nextLines: GravityLine[]): void {
     body.classList.add("SpaceGravityWord", "SpaceGravityUnspawned");
     body.style.left = "0px";
     body.style.top = "0px";
+    const seekTimes = record.Line.Syllables?.Lead.filter(
+      (syllable) =>
+        !syllable.Dot &&
+        (syllable.HTMLElement === record.Child || record.Child.contains(syllable.HTMLElement))
+    ).map((syllable) => syllable.StartTime);
+    const seekTime = seekTimes?.length ? Math.min(...seekTimes) : undefined;
+    if (seekTime !== undefined) body.dataset.spaceGravitySeekTime = `${seekTime}`;
     record.Line.HTMLElement.replaceChild(body, record.Child);
     body.appendChild(record.Child);
 

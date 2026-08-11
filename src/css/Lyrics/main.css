@@ -199,18 +199,39 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent {
-  opacity: 1;
-  pointer-events: auto;
+  opacity: 1 !important;
+  pointer-events: none;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNext {
-  opacity: 0.34;
-  pointer-events: auto;
+  opacity: 1 !important;
+  pointer-events: none;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNearby {
+  opacity: 1 !important;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNext .SpaceGravityWord {
+  opacity: 0.34;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNearby .SpaceGravityWord {
   opacity: 0.22;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
   pointer-events: auto;
+  transition: opacity 180ms ease;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord:hover {
+  opacity: 1 !important;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine::before {
+  display: none !important;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup) {

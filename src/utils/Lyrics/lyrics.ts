@@ -262,6 +262,17 @@ function shouldBlockSeekForCurrentTrack() {
 // Define proper type for event parameter
 function LinesEvListener(e: MouseEvent) {
   const target = e.target as HTMLElement;
+  const gravityWord = target.closest<HTMLElement>(".SpaceGravityWord");
+  if (PageContainer?.classList.contains("SpaceGravityMode")) {
+    const startTime = Number(gravityWord?.dataset.spaceGravitySeekTime);
+    if (!gravityWord || !Number.isFinite(startTime) || gravityWord.closest(".musical-line")) return;
+    if (shouldBlockSeekForCurrentTrack()) return;
+
+    SpotifyPlayer.Seek(startTime);
+    Global.Event.evoke("song:seek", startTime);
+    return;
+  }
+
   if (target.classList.contains("line")) {
     if (target.classList.contains("musical-line")) {
       return;

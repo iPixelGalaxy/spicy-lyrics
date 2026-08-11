@@ -230,6 +230,14 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   opacity: 1 !important;
 }
 
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent:not(.SpaceGravityDot) .SpaceGravityWord:hover {
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent.OppositeAligned:not(.SpaceGravityDot) .SpaceGravityWord:hover {
+  filter: drop-shadow(0 0 10px rgba(255, 140, 168, 0.85));
+}
+
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine::before {
   display: none !important;
 }

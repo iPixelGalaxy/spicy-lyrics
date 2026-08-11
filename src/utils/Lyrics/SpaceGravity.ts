@@ -16,6 +16,8 @@ type GravityBody = {
   Angle: number;
   AngularVelocity: number;
   Radius: number;
+  Width: number;
+  Height: number;
   StartX: number;
   StartY: number;
   Spawned: boolean;
@@ -127,6 +129,8 @@ function updateBounds(refreshBodies = true): void {
 
   for (const body of activeBodies) {
     const rect = body.Element.getBoundingClientRect();
+    body.Width = rect.width;
+    body.Height = rect.height;
     body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
     if (!body.Spawned) continue;
     clampBody(body, width, height);
@@ -145,7 +149,7 @@ function clampBody(body: GravityBody, width: number, height: number): void {
 }
 
 function renderBody(body: GravityBody): void {
-  body.Element.style.translate = `${body.X}px ${body.Y}px`;
+  body.Element.style.translate = `${body.X - body.Width / 2}px ${body.Y - body.Height / 2}px`;
   body.Element.style.rotate = `${body.Angle}deg`;
 }
 
@@ -336,6 +340,8 @@ function prepareLines(nextLines: GravityLine[]): void {
       Angle: 0,
       AngularVelocity: (random(seed + 2) * 2 - 1) * 19,
       Radius: 24,
+      Width: 48,
+      Height: 48,
       StartX: record.X,
       StartY: record.Y,
       Spawned: false,
@@ -348,6 +354,8 @@ function prepareLines(nextLines: GravityLine[]): void {
 
   for (const body of newBodies) {
     const rect = body.Element.getBoundingClientRect();
+    body.Width = rect.width;
+    body.Height = rect.height;
     body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
   }
 
@@ -407,8 +415,8 @@ function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, h
         : height * (0.18 + visibleLine.Slot * 0.13);
   const instrumentalSpawn =
     visibleLine.Role === "Instrumental" ? getInstrumentalSpawn(body, width, height) : undefined;
-  body.X = instrumentalSpawn?.X ?? body.StartX;
-  body.Y = instrumentalSpawn?.Y ?? lineY + body.StartY;
+  body.X = instrumentalSpawn?.X ?? body.StartX + body.Width / 2;
+  body.Y = instrumentalSpawn?.Y ?? lineY + body.StartY + body.Height / 2;
   body.Angle = 0;
   clampBody(body, width, height);
   resolveStaticObstacleCollisions(body);

@@ -150,8 +150,19 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityMeasure {
+  inset: auto;
+  top: 0;
+  right: var(--LyricsRightSidePadding);
+  left: var(--LyricsLeftSidePadding);
+  display: flex;
+  flex-wrap: wrap;
   opacity: 0;
   pointer-events: none;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar.Active:is(.RightSide) + .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityMeasure {
+  right: var(--LyricsLeftSidePadding);
+  left: calc(var(--LyricsRightSidePadding) * 1.45);
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent {
@@ -179,6 +190,10 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   display: inline-block;
   transform-origin: center;
   will-change: translate, rotate;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityUnspawned {
+  visibility: hidden;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord > :is(.word, .word-group, .letterGroup, .dotGroup) {

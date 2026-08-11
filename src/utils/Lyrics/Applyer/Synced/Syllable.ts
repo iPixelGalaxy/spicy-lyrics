@@ -725,22 +725,7 @@ export function ApplySyllableLyrics(
     LyricsContainerInstance.Append(LyricsContainerParent);
   }
 
-  if (spaceGravityMode) {
-    LyricsContainer.classList.add("SpaceGravityStage");
-    mountSpaceGravity(
-      virtualContainer,
-      LyricsObject.Types.Syllable.Lines,
-      LyricsContainer,
-      footer,
-      SpotifyPlayer.GetPosition()
-    );
-  } else {
-    if (ScrollSimplebar) RecalculateScrollSimplebar();
-    else MountScrollSimplebar();
-
-    const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-    if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
-  }
+  if (spaceGravityMode) LyricsContainer.classList.add("SpaceGravityStage");
 
   const LyricsStylingContainer = spaceGravityMode
     ? LyricsContainer
@@ -763,6 +748,22 @@ export function ApplySyllableLyrics(
     }
   } else {
     console.warn("LyricsStylingContainer not found");
+  }
+
+  if (spaceGravityMode) {
+    mountSpaceGravity(
+      virtualContainer,
+      LyricsObject.Types.Syllable.Lines,
+      LyricsContainer,
+      footer,
+      SpotifyPlayer.GetPosition()
+    );
+  } else {
+    if (ScrollSimplebar) RecalculateScrollSimplebar();
+    else MountScrollSimplebar();
+
+    const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
+    if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
   }
 
   EmitApply(data.Type, data.Content);

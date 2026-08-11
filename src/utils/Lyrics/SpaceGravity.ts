@@ -6,6 +6,10 @@ type GravityLine = {
   BGLine?: boolean;
 };
 
+type LineLayout = {
+  Height: number;
+};
+
 type GravityBody = {
   Element: HTMLElement;
   Line: GravityLine;
@@ -27,7 +31,6 @@ type GravityRole = "Previous" | "Current" | "Next" | "Nearby" | "Background" | "
 
 type VisibleLine = {
   Role: GravityRole;
-  Slot: number;
 };
 
 type Bounds = { Width: number; Height: number };
@@ -35,6 +38,8 @@ type RectBounds = { Left: number; Top: number; Right: number; Bottom: number };
 
 const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
+const LINE_GAP_CQW = 1;
+const BACKGROUND_LINE_GAP_CQW = 0.2;
 const MAX_SPEED = 16;
 const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
@@ -50,6 +55,7 @@ let lines: GravityLine[] = [];
 let leadLines: GravityLine[] = [];
 let transientLines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
+let lineLayouts = new Map<GravityLine, LineLayout>();
 let preparedLines = new Set<GravityLine>();
 let visibleLines = new Map<GravityLine, VisibleLine>();
 let activeBodies: GravityBody[] = [];
@@ -97,7 +103,7 @@ function updateBounds(refreshBodies = true): void {
   stageBounds = { Width: width, Height: height };
   const stageRect = stage.getBoundingClientRect();
   const contentBox = viewport.closest(".ContentBox");
-  const nextCover = contentBox?.querySelector<HTMLElement>(".NowBar.Active .MediaBox") ?? null;
+  const nextCover = contentBox?.querySelector<HTMLElement>(".NowBar .MediaImageContainer") ?? null;
   if (cover !== nextCover) {
     if (cover) resizeObserver?.unobserve(cover);
     cover = nextCover;
@@ -128,10 +134,9 @@ function updateBounds(refreshBodies = true): void {
   if (!refreshBodies) return;
 
   for (const body of activeBodies) {
-    const rect = body.Element.getBoundingClientRect();
-    body.Width = rect.width;
-    body.Height = rect.height;
-    body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
+    body.Width = body.Element.offsetWidth;
+    body.Height = body.Element.offsetHeight;
+    body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
     if (!body.Spawned) continue;
     clampBody(body, width, height);
     resolveStaticObstacleCollisions(body);
@@ -192,6 +197,13 @@ function trackCoverTransition(): void {
 
   const updateCoverBounds = (): void => {
     updateBounds(false);
+    for (const body of activeBodies) {
+      if (!body.Spawned) continue;
+      const x = body.X;
+      const y = body.Y;
+      resolveRectangleCollision(body, coverBounds);
+      if (body.X !== x || body.Y !== y) renderBody(body);
+    }
     if (performance.now() < coverTrackingUntil) {
       coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
       return;
@@ -263,7 +275,6 @@ function getVisibleLines(position: number): Map<GravityLine, VisibleLine> {
       const active = position >= line.StartTime && position < line.EndTime;
       nextVisible.set(line, {
         Role: active ? "Current" : offset === (active ? 1 : 0) ? "Next" : offset < 0 ? "Previous" : "Nearby",
-        Slot: offset + PREVIOUS_LINE_COUNT,
       });
     }
   }
@@ -271,7 +282,6 @@ function getVisibleLines(position: number): Map<GravityLine, VisibleLine> {
   for (const line of activeTransientLines) {
     nextVisible.set(line, {
       Role: line.DotLine ? "Instrumental" : "Background",
-      Slot: PREVIOUS_LINE_COUNT + 1,
     });
 
     if (line.DotLine) {
@@ -309,17 +319,24 @@ function prepareLines(nextLines: GravityLine[]): void {
   // Keep writes and layout reads separate. This turns one forced layout per word
   // into one layout for the entering gravity window.
   for (const line of nextLines) {
+    lineLayouts.set(line, { Height: line.HTMLElement.offsetHeight });
     for (const [index, child] of Array.from(line.HTMLElement.children).entries()) {
       if (child.nodeType !== 1) continue;
       const element = child as HTMLElement;
-      records.push({ Line: line, Child: element, X: element.offsetLeft, Y: element.offsetTop, Index: index });
+      records.push({
+        Line: line,
+        Child: element,
+        X: line.HTMLElement.offsetLeft + element.offsetLeft,
+        Y: element.offsetTop,
+        Index: index,
+      });
     }
   }
 
   const newBodies: GravityBody[] = [];
   for (const record of records) {
     const body = document.createElement("span");
-    body.classList.add("SpaceGravityWord");
+    body.classList.add("SpaceGravityWord", "SpaceGravityUnspawned");
     body.style.left = "0px";
     body.style.top = "0px";
     record.Line.HTMLElement.replaceChild(body, record.Child);
@@ -353,16 +370,55 @@ function prepareLines(nextLines: GravityLine[]): void {
   }
 
   for (const body of newBodies) {
-    const rect = body.Element.getBoundingClientRect();
-    body.Width = rect.width;
-    body.Height = rect.height;
-    body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
+    body.Width = body.Element.offsetWidth;
+    body.Height = body.Element.offsetHeight;
+    body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
   }
 
   for (const line of nextLines) {
     line.HTMLElement.classList.remove("SpaceGravityMeasure");
     preparedLines.add(line);
   }
+}
+
+function getLineGap(width: number, background = false): number {
+  return width * (background ? BACKGROUND_LINE_GAP_CQW : LINE_GAP_CQW) / 100;
+}
+
+function getSpawnTops(anchor: number, width: number, height: number): Map<GravityLine, number> {
+  const tops = new Map<GravityLine, number>();
+  const anchorLine = leadLines[anchor];
+  if (!anchorLine) return tops;
+
+  const anchorHeight = lineLayouts.get(anchorLine)?.Height ?? 0;
+  tops.set(anchorLine, (height - anchorHeight) / 2);
+
+  let top = tops.get(anchorLine)!;
+  for (let index = anchor - 1; index >= Math.max(0, anchor - PREVIOUS_LINE_COUNT); index -= 1) {
+    const line = leadLines[index];
+    const lineHeight = lineLayouts.get(line)?.Height ?? 0;
+    top -= lineHeight + getLineGap(width);
+    tops.set(line, top);
+  }
+
+  top = tops.get(anchorLine)! + anchorHeight;
+  for (let index = anchor + 1; index <= Math.min(leadLines.length - 1, anchor + NEXT_LINE_COUNT); index += 1) {
+    top += getLineGap(width);
+    tops.set(leadLines[index], top);
+    top += lineLayouts.get(leadLines[index])?.Height ?? 0;
+  }
+  return tops;
+}
+
+function getBackgroundSpawnTop(line: GravityLine, width: number, tops: Map<GravityLine, number>): number | undefined {
+  const documentIndex = lines.indexOf(line);
+  for (let index = documentIndex - 1; index >= 0; index -= 1) {
+    const previous = lines[index];
+    const top = tops.get(previous);
+    if (top === undefined) continue;
+    return top + (lineLayouts.get(previous)?.Height ?? 0) + getLineGap(width, true);
+  }
+  return undefined;
 }
 
 function updateVisibleWindow(nextVisible: Map<GravityLine, VisibleLine>): void {
@@ -405,22 +461,27 @@ function getInstrumentalSpawn(body: GravityBody, width: number, height: number):
   return { X: width * 0.5, Y: height * 0.48 };
 }
 
-function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, height: number): void {
+function spawnBody(
+  body: GravityBody,
+  visibleLine: VisibleLine,
+  width: number,
+  height: number,
+  spawnTops: Map<GravityLine, number>
+): void {
   if (body.Spawned) return;
-  const lineY =
-    visibleLine.Role === "Current"
-      ? height * 0.44
-      : visibleLine.Role === "Background"
-        ? height * 0.52
-        : height * (0.18 + visibleLine.Slot * 0.13);
+  const lineY = visibleLine.Role === "Background"
+    ? getBackgroundSpawnTop(body.Line, width, spawnTops)
+    : spawnTops.get(body.Line);
   const instrumentalSpawn =
     visibleLine.Role === "Instrumental" ? getInstrumentalSpawn(body, width, height) : undefined;
+  if (!instrumentalSpawn && (lineY === undefined || lineY + (lineLayouts.get(body.Line)?.Height ?? 0) < 0 || lineY > height)) return;
   body.X = instrumentalSpawn?.X ?? body.StartX + body.Width / 2;
-  body.Y = instrumentalSpawn?.Y ?? lineY + body.StartY + body.Height / 2;
+  body.Y = instrumentalSpawn?.Y ?? lineY! + body.StartY + body.Height / 2;
   body.Angle = 0;
   clampBody(body, width, height);
   resolveStaticObstacleCollisions(body);
   body.Spawned = true;
+  body.Element.classList.remove("SpaceGravityUnspawned");
   renderBody(body);
 }
 
@@ -497,16 +558,17 @@ export function tickSpaceGravity(position: number): void {
   if (!stage || !stageBounds) return;
   const nextVisible = getVisibleLines(position);
   updateVisibleWindow(nextVisible);
+  const spawnTops = getSpawnTops(getLeadAnchor(position), stageBounds.Width, stageBounds.Height);
 
   for (const body of activeBodies) {
     const visibleLine = visibleLines.get(body.Line);
     if (visibleLine?.Role === "Instrumental") continue;
-    if (visibleLine) spawnBody(body, visibleLine, stageBounds.Width, stageBounds.Height);
+    if (visibleLine) spawnBody(body, visibleLine, stageBounds.Width, stageBounds.Height, spawnTops);
   }
   for (const body of activeBodies) {
     const visibleLine = visibleLines.get(body.Line);
     if (visibleLine?.Role !== "Instrumental") continue;
-    spawnBody(body, visibleLine, stageBounds.Width, stageBounds.Height);
+    spawnBody(body, visibleLine, stageBounds.Width, stageBounds.Height, spawnTops);
   }
 
   const now = performance.now();
@@ -557,6 +619,7 @@ export function destroySpaceGravity(): void {
   leadLines = [];
   transientLines = [];
   bodiesByLine = new Map();
+  lineLayouts = new Map();
   preparedLines = new Set();
   visibleLines = new Map();
   activeBodies = [];

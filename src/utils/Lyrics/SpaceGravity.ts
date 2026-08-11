@@ -28,16 +28,31 @@ type VisibleLine = {
   Slot: number;
 };
 
+type Bounds = { Width: number; Height: number };
+
 const EDGE_PADDING = 18;
 const MAX_SPEED = 16;
 const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
+const UPWARD_ACCELERATION = 0.4;
+const PREVIOUS_LINE_COUNT = 2;
+const NEXT_LINE_COUNT = 4;
 
 let stage: HTMLElement | null = null;
-let lines: GravityLine[] = [];
-let bodies: GravityBody[] = [];
-let resizeObserver: ResizeObserver | null = null;
 let viewport: HTMLElement | null = null;
+let footer: HTMLElement | null = null;
+let lines: GravityLine[] = [];
+let leadLines: GravityLine[] = [];
+let transientLines: GravityLine[] = [];
+let bodiesByLine = new Map<GravityLine, GravityBody[]>();
+let preparedLines = new Set<GravityLine>();
+let visibleLines = new Map<GravityLine, VisibleLine>();
+let activeBodies: GravityBody[] = [];
+let activeTransientLines = new Set<GravityLine>();
+let transientCursor = 0;
+let lastPosition = Number.NEGATIVE_INFINITY;
+let resizeObserver: ResizeObserver | null = null;
+let stageBounds: Bounds | null = null;
 let lastTick = performance.now();
 let reducedMotion = false;
 
@@ -62,11 +77,22 @@ function updateReducedMotion(): void {
     .matches ?? false;
 }
 
-function bounds(): { Width: number; Height: number } | null {
-  if (!stage) return null;
-  const rect = stage.getBoundingClientRect();
-  if (rect.width < 1 || rect.height < 1) return null;
-  return { Width: rect.width, Height: rect.height };
+function updateBounds(): void {
+  if (!stage || !viewport) return;
+  const width = stage.clientWidth;
+  const height = viewport.clientHeight - (footer?.offsetHeight ?? 0);
+  if (width < 1 || height < 1) return;
+
+  stage.style.height = `${height}px`;
+  stageBounds = { Width: width, Height: height };
+
+  for (const body of activeBodies) {
+    const rect = body.Element.getBoundingClientRect();
+    body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
+    if (!body.Spawned) continue;
+    clampBody(body, width, height);
+    renderBody(body);
+  }
 }
 
 function clampBody(body: GravityBody, width: number, height: number): void {
@@ -83,66 +109,204 @@ function renderBody(body: GravityBody): void {
   body.Element.style.rotate = `${body.Angle}deg`;
 }
 
-function refreshBounds(): void {
-  const size = bounds();
-  if (!size) return;
-  for (const body of bodies) {
-    const rect = body.Element.getBoundingClientRect();
-    body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
-    if (!body.Spawned) continue;
-    clampBody(body, size.Width, size.Height);
-    renderBody(body);
+function upperBoundByStart(source: GravityLine[], position: number): number {
+  let low = 0;
+  let high = source.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (source[middle].StartTime <= position) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+function getLeadAnchor(position: number): number {
+  const before = upperBoundByStart(leadLines, position) - 1;
+  if (before >= 0 && position < leadLines[before].EndTime) return before;
+  return before + 1 < leadLines.length ? before + 1 : -1;
+}
+
+function getPreviousLead(line: GravityLine): GravityLine | undefined {
+  let index = upperBoundByStart(leadLines, line.StartTime) - 1;
+  while (index >= 0) {
+    const candidate = leadLines[index];
+    if (candidate.EndTime <= line.StartTime) return candidate;
+    index -= 1;
+  }
+  return undefined;
+}
+
+function updateActiveTransientLines(position: number): void {
+  if (position < lastPosition) {
+    transientCursor = upperBoundByStart(transientLines, position);
+    activeTransientLines = new Set(
+      transientLines.slice(0, transientCursor).filter((line) => line.EndTime > position)
+    );
+    return;
+  }
+
+  while (
+    transientCursor < transientLines.length &&
+    transientLines[transientCursor].StartTime <= position
+  ) {
+    const line = transientLines[transientCursor];
+    if (line.EndTime > position) activeTransientLines.add(line);
+    transientCursor += 1;
+  }
+
+  for (const line of activeTransientLines) {
+    if (line.EndTime <= position) activeTransientLines.delete(line);
   }
 }
 
-function syncStageHeight(): void {
-  if (!stage || !viewport) return;
-  const height = viewport.clientHeight;
-  if (height > 0) stage.style.height = `${height}px`;
-}
+function getVisibleLines(position: number): Map<GravityLine, VisibleLine> {
+  updateActiveTransientLines(position);
+  const nextVisible = new Map<GravityLine, VisibleLine>();
+  const anchor = getLeadAnchor(position);
 
-function setVisibleLines(position: number): Map<GravityLine, VisibleLine> {
-  const visible = new Map<GravityLine, VisibleLine>();
-  const leadLines = lines.filter((line) => !line.DotLine && !line.BGLine);
-  const activeIndex = leadLines.findIndex((line) => position >= line.StartTime && position < line.EndTime);
-  const nextIndex = leadLines.findIndex((line) => line.StartTime > position);
-  const anchorIndex = activeIndex >= 0 ? activeIndex : nextIndex;
-
-  if (anchorIndex >= 0) {
-    for (let offset = -2; offset <= 4; offset += 1) {
-      const line = leadLines[anchorIndex + offset];
+  if (anchor >= 0) {
+    for (let offset = -PREVIOUS_LINE_COUNT; offset <= NEXT_LINE_COUNT; offset += 1) {
+      const line = leadLines[anchor + offset];
       if (!line) continue;
-      const role: GravityRole =
-        offset === 0 && activeIndex >= 0
-          ? "Current"
-          : offset === (activeIndex >= 0 ? 1 : 0)
-            ? "Next"
-            : offset < 0
-              ? "Previous"
-              : "Nearby";
-      visible.set(line, { Role: role, Slot: offset + 2 });
+      const active = position >= line.StartTime && position < line.EndTime;
+      nextVisible.set(line, {
+        Role: active ? "Current" : offset === (active ? 1 : 0) ? "Next" : offset < 0 ? "Previous" : "Nearby",
+        Slot: offset + PREVIOUS_LINE_COUNT,
+      });
     }
   }
 
-  for (const line of lines) {
-    const active = position >= line.StartTime && position < line.EndTime;
-    if (active && line.BGLine) visible.set(line, { Role: "Background", Slot: 3 });
-    if (active && line.DotLine) visible.set(line, { Role: "Instrumental", Slot: 3 });
-    const state = visible.get(line);
-    line.HTMLElement.classList.toggle(
-      "SpaceGravityCurrent",
-      state?.Role === "Current" || state?.Role === "Background" || state?.Role === "Instrumental"
-    );
-    line.HTMLElement.classList.toggle("SpaceGravityNext", state?.Role === "Next");
-    line.HTMLElement.classList.toggle("SpaceGravityNearby", state?.Role === "Previous" || state?.Role === "Nearby");
-    line.HTMLElement.classList.toggle("SpaceGravityDot", active && Boolean(line.DotLine));
-    line.HTMLElement.classList.toggle(
-      "SpaceGravityHidden",
-      !state && !(active && Boolean(line.DotLine))
-    );
+  for (const line of activeTransientLines) {
+    nextVisible.set(line, {
+      Role: line.DotLine ? "Instrumental" : "Background",
+      Slot: PREVIOUS_LINE_COUNT + 1,
+    });
+
+    if (line.DotLine) {
+      const previous = getPreviousLead(line);
+      if (previous && !nextVisible.has(previous)) {
+        nextVisible.set(previous, { Role: "Previous", Slot: 0 });
+      }
+    }
   }
 
-  return visible;
+  return nextVisible;
+}
+
+function applyLineRole(line: GravityLine, state: VisibleLine | undefined): void {
+  const element = line.HTMLElement;
+  element.classList.toggle(
+    "SpaceGravityCurrent",
+    state?.Role === "Current" || state?.Role === "Background" || state?.Role === "Instrumental"
+  );
+  element.classList.toggle("SpaceGravityNext", state?.Role === "Next");
+  element.classList.toggle("SpaceGravityNearby", state?.Role === "Previous" || state?.Role === "Nearby");
+  element.classList.toggle("SpaceGravityDot", state?.Role === "Instrumental");
+  element.classList.toggle("SpaceGravityHidden", !state);
+}
+
+function prepareLines(nextLines: GravityLine[]): void {
+  if (!stage || nextLines.length === 0) return;
+
+  const records: Array<{ Line: GravityLine; Child: HTMLElement; X: number; Y: number; Index: number }> = [];
+  for (const line of nextLines) {
+    line.HTMLElement.classList.add("SpaceGravityLine", "SpaceGravityMeasure");
+    stage.appendChild(line.HTMLElement);
+  }
+
+  // Keep writes and layout reads separate. This turns one forced layout per word
+  // into one layout for the entering gravity window.
+  for (const line of nextLines) {
+    for (const [index, child] of Array.from(line.HTMLElement.children).entries()) {
+      if (child.nodeType !== 1) continue;
+      const element = child as HTMLElement;
+      records.push({ Line: line, Child: element, X: element.offsetLeft, Y: element.offsetTop, Index: index });
+    }
+  }
+
+  const newBodies: GravityBody[] = [];
+  for (const record of records) {
+    const body = document.createElement("span");
+    body.classList.add("SpaceGravityWord");
+    body.style.left = "0px";
+    body.style.top = "0px";
+    record.Line.HTMLElement.replaceChild(body, record.Child);
+    body.appendChild(record.Child);
+
+    const seed = hash(
+      `${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`
+    );
+    const speed = 4.4 + random(seed + 3) * 5.6;
+    const direction = random(seed + 4) * Math.PI * 2;
+    const gravityBody: GravityBody = {
+      Element: body,
+      Line: record.Line,
+      X: 0,
+      Y: 0,
+      VX: Math.cos(direction) * speed,
+      VY: Math.sin(direction) * speed,
+      Angle: 0,
+      AngularVelocity: (random(seed + 2) * 2 - 1) * 19,
+      Radius: 24,
+      StartX: record.X,
+      StartY: record.Y,
+      Spawned: false,
+    };
+    const lineBodies = bodiesByLine.get(record.Line) ?? [];
+    lineBodies.push(gravityBody);
+    bodiesByLine.set(record.Line, lineBodies);
+    newBodies.push(gravityBody);
+  }
+
+  for (const body of newBodies) {
+    const rect = body.Element.getBoundingClientRect();
+    body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
+  }
+
+  for (const line of nextLines) {
+    line.HTMLElement.classList.remove("SpaceGravityMeasure");
+    preparedLines.add(line);
+  }
+}
+
+function updateVisibleWindow(nextVisible: Map<GravityLine, VisibleLine>): void {
+  if (!stage) return;
+  const entering: GravityLine[] = [];
+
+  for (const line of visibleLines.keys()) {
+    if (nextVisible.has(line)) continue;
+    applyLineRole(line, undefined);
+    line.HTMLElement.remove();
+  }
+
+  for (const line of nextVisible.keys()) {
+    if (!visibleLines.has(line) && !preparedLines.has(line)) entering.push(line);
+  }
+  prepareLines(entering);
+
+  for (const [line, state] of nextVisible) {
+    if (!line.HTMLElement.isConnected) stage.appendChild(line.HTMLElement);
+    applyLineRole(line, state);
+  }
+
+  visibleLines = nextVisible;
+  activeBodies = [];
+  for (const line of visibleLines.keys()) {
+    activeBodies.push(...(bodiesByLine.get(line) ?? []));
+  }
+}
+
+function getInstrumentalSpawn(body: GravityBody, width: number, height: number): { X: number; Y: number } {
+  const previous = getPreviousLead(body.Line);
+  const previousBodies = previous ? bodiesByLine.get(previous) : undefined;
+  const spawned = previousBodies?.filter((candidate) => candidate.Spawned) ?? [];
+  if (spawned.length > 0) {
+    return {
+      X: spawned.reduce((sum, candidate) => sum + candidate.X, 0) / spawned.length,
+      Y: spawned.reduce((sum, candidate) => sum + candidate.Y, 0) / spawned.length,
+    };
+  }
+  return { X: width * 0.5, Y: height * 0.48 };
 }
 
 function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, height: number): void {
@@ -152,106 +316,94 @@ function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, h
       ? height * 0.44
       : visibleLine.Role === "Background"
         ? height * 0.52
-        : visibleLine.Role === "Instrumental"
-          ? height * 0.48
         : height * (0.18 + visibleLine.Slot * 0.13);
-  body.X = body.StartX;
-  body.Y = lineY + body.StartY;
+  const instrumentalSpawn =
+    visibleLine.Role === "Instrumental" ? getInstrumentalSpawn(body, width, height) : undefined;
+  body.X = instrumentalSpawn?.X ?? body.StartX;
+  body.Y = instrumentalSpawn?.Y ?? lineY + body.StartY;
   body.Angle = 0;
   clampBody(body, width, height);
   body.Spawned = true;
   renderBody(body);
 }
 
+function applySoftAvoidance(delta: number): void {
+  const buckets = new Map<string, GravityBody[]>();
+  for (const body of activeBodies) {
+    const cellX = Math.floor(body.X / SOFT_AVOID_RADIUS);
+    const cellY = Math.floor(body.Y / SOFT_AVOID_RADIUS);
+    for (let x = cellX - 1; x <= cellX + 1; x += 1) {
+      for (let y = cellY - 1; y <= cellY + 1; y += 1) {
+        for (const other of buckets.get(`${x}:${y}`) ?? []) {
+          const dx = body.X - other.X;
+          const dy = body.Y - other.Y;
+          const distance = Math.hypot(dx, dy) || 0.001;
+          if (distance >= SOFT_AVOID_RADIUS) continue;
+          const nudge =
+            ((SOFT_AVOID_RADIUS - distance) / SOFT_AVOID_RADIUS) * SOFT_AVOID_ACCELERATION * delta;
+          const nx = dx / distance;
+          const ny = dy / distance;
+          body.VX += nx * nudge;
+          body.VY += ny * nudge;
+          other.VX -= nx * nudge;
+          other.VY -= ny * nudge;
+        }
+      }
+    }
+    const key = `${cellX}:${cellY}`;
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(body);
+    buckets.set(key, bucket);
+  }
+}
+
 export function mountSpaceGravity(
   nextStage: HTMLElement,
   nextLines: GravityLine[],
-  nextViewport: HTMLElement
+  nextViewport: HTMLElement,
+  nextFooter: HTMLElement,
+  initialPosition: number
 ): void {
   destroySpaceGravity();
   stage = nextStage;
   viewport = nextViewport;
+  footer = nextFooter;
   lines = nextLines;
+  leadLines = lines.filter((line) => !line.DotLine && !line.BGLine).sort((a, b) => a.StartTime - b.StartTime);
+  transientLines = lines.filter((line) => line.DotLine || line.BGLine).sort((a, b) => a.StartTime - b.StartTime);
   updateReducedMotion();
-  syncStageHeight();
+  updateBounds();
 
-  const size = bounds();
-  if (!size) return;
-
-  let index = 0;
-  for (const line of lines) {
-    const elements = Array.from(line.HTMLElement.children).filter(
-      (element): element is HTMLElement => element.nodeType === 1 && element.classList.contains("SpaceGravityWord")
-    );
-    for (const element of elements) {
-      const seed = hash(`${line.StartTime}:${line.EndTime}:${element.textContent ?? ""}:${index}`);
-      const speed = 4.4 + random(seed + 3) * 5.6;
-      const direction = random(seed + 4) * Math.PI * 2;
-      const body: GravityBody = {
-        Element: element,
-        Line: line,
-        X: 0,
-        Y: 0,
-        VX: Math.cos(direction) * speed,
-        VY: Math.sin(direction) * speed,
-        Angle: 0,
-        AngularVelocity: (random(seed + 2) * 2 - 1) * 19,
-        Radius: 24,
-        StartX: Number(element.dataset.spaceGravityX ?? 0),
-        StartY: Number(element.dataset.spaceGravityY ?? 0),
-        Spawned: false,
-      };
-      bodies.push(body);
-      index += 1;
-    }
-  }
-
-  requestAnimationFrame(() => refreshBounds());
-  resizeObserver = new ResizeObserver(() => {
-    syncStageHeight();
-    refreshBounds();
-  });
+  resizeObserver = new ResizeObserver(() => updateBounds());
   resizeObserver.observe(nextStage);
   resizeObserver.observe(nextViewport);
+  resizeObserver.observe(nextFooter);
+  tickSpaceGravity(initialPosition);
 }
 
 export function tickSpaceGravity(position: number): void {
-  if (!stage || !bodies.length) return;
-  const size = bounds();
-  if (!size) return;
+  if (!stage || !stageBounds) return;
+  const nextVisible = getVisibleLines(position);
+  updateVisibleWindow(nextVisible);
+
+  for (const body of activeBodies) {
+    const visibleLine = visibleLines.get(body.Line);
+    if (visibleLine?.Role === "Instrumental") continue;
+    if (visibleLine) spawnBody(body, visibleLine, stageBounds.Width, stageBounds.Height);
+  }
+  for (const body of activeBodies) {
+    const visibleLine = visibleLines.get(body.Line);
+    if (visibleLine?.Role !== "Instrumental") continue;
+    spawnBody(body, visibleLine, stageBounds.Width, stageBounds.Height);
+  }
 
   const now = performance.now();
   const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
-  const visibleLines = setVisibleLines(position);
-  const activeBodies = bodies.filter((body) => visibleLines.has(body.Line));
-
-  for (const body of activeBodies) {
-    const visibleLine = visibleLines.get(body.Line);
-    if (visibleLine) spawnBody(body, visibleLine, size.Width, size.Height);
-  }
-
+  lastPosition = position;
   if (reducedMotion) return;
 
-  // Steering alters only velocity. Bodies still overlap when their paths cross.
-  for (let left = 0; left < activeBodies.length; left += 1) {
-    const a = activeBodies[left];
-    for (let right = left + 1; right < activeBodies.length; right += 1) {
-      const b = activeBodies[right];
-      const dx = b.X - a.X;
-      const dy = b.Y - a.Y;
-      const distance = Math.hypot(dx, dy) || 0.001;
-      if (distance >= SOFT_AVOID_RADIUS) continue;
-      const nudge = ((SOFT_AVOID_RADIUS - distance) / SOFT_AVOID_RADIUS) * SOFT_AVOID_ACCELERATION * delta;
-      const nx = dx / distance;
-      const ny = dy / distance;
-      a.VX -= nx * nudge;
-      a.VY -= ny * nudge;
-      b.VX += nx * nudge;
-      b.VY += ny * nudge;
-    }
-  }
-
+  applySoftAvoidance(delta);
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);
     if (speed > MAX_SPEED) {
@@ -259,17 +411,19 @@ export function tickSpaceGravity(position: number): void {
       body.VY = (body.VY / speed) * MAX_SPEED;
     }
 
+    const lowerHalf = Math.max(0, (body.Y / stageBounds.Height - 0.45) / 0.55);
+    body.VY -= UPWARD_ACCELERATION * lowerHalf * delta;
     body.X += body.VX * delta;
     body.Y += body.VY * delta;
     body.Angle += body.AngularVelocity * delta;
 
     const minX = EDGE_PADDING + body.Radius;
-    const maxX = Math.max(minX, size.Width - EDGE_PADDING - body.Radius);
+    const maxX = Math.max(minX, stageBounds.Width - EDGE_PADDING - body.Radius);
     const minY = EDGE_PADDING + body.Radius;
-    const maxY = Math.max(minY, size.Height - EDGE_PADDING - body.Radius);
+    const maxY = Math.max(minY, stageBounds.Height - EDGE_PADDING - body.Radius);
     if (body.X <= minX || body.X >= maxX) body.VX *= -1;
     if (body.Y <= minY || body.Y >= maxY) body.VY *= -1;
-    clampBody(body, size.Width, size.Height);
+    clampBody(body, stageBounds.Width, stageBounds.Height);
     renderBody(body);
   }
 }
@@ -279,7 +433,17 @@ export function destroySpaceGravity(): void {
   resizeObserver = null;
   stage = null;
   viewport = null;
+  footer = null;
   lines = [];
-  bodies = [];
+  leadLines = [];
+  transientLines = [];
+  bodiesByLine = new Map();
+  preparedLines = new Set();
+  visibleLines = new Map();
+  activeBodies = [];
+  activeTransientLines = new Set();
+  transientCursor = 0;
+  lastPosition = Number.NEGATIVE_INFINITY;
+  stageBounds = null;
   lastTick = performance.now();
 }

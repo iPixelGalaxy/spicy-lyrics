@@ -21,6 +21,13 @@ type GravityBody = {
   Spawned: boolean;
 };
 
+type GravityRole = "Previous" | "Current" | "Next" | "Nearby" | "Background";
+
+type VisibleLine = {
+  Role: GravityRole;
+  Slot: number;
+};
+
 const EDGE_PADDING = 18;
 const MAX_SPEED = 16;
 
@@ -92,33 +99,54 @@ function syncStageHeight(): void {
   if (height > 0) stage.style.height = `${height}px`;
 }
 
-function setVisibleLines(position: number): Set<GravityLine> {
-  const visible = new Set<GravityLine>();
+function setVisibleLines(position: number): Map<GravityLine, VisibleLine> {
+  const visible = new Map<GravityLine, VisibleLine>();
   const leadLines = lines.filter((line) => !line.DotLine && !line.BGLine);
-  const activeLead = leadLines.find((line) => position >= line.StartTime && position < line.EndTime);
-  const nextLead = leadLines.find((line) => line.StartTime > position);
+  const activeIndex = leadLines.findIndex((line) => position >= line.StartTime && position < line.EndTime);
+  const nextIndex = leadLines.findIndex((line) => line.StartTime > position);
+  const anchorIndex = activeIndex >= 0 ? activeIndex : nextIndex;
 
-  if (activeLead) visible.add(activeLead);
-  if (nextLead) visible.add(nextLead);
+  if (anchorIndex >= 0) {
+    for (let offset = -2; offset <= 4; offset += 1) {
+      const line = leadLines[anchorIndex + offset];
+      if (!line) continue;
+      const role: GravityRole =
+        offset === 0 && activeIndex >= 0
+          ? "Current"
+          : offset === (activeIndex >= 0 ? 1 : 0)
+            ? "Next"
+            : offset < 0
+              ? "Previous"
+              : "Nearby";
+      visible.set(line, { Role: role, Slot: offset + 2 });
+    }
+  }
 
   for (const line of lines) {
     const active = position >= line.StartTime && position < line.EndTime;
-    if (active && line.BGLine) visible.add(line);
-    line.HTMLElement.classList.toggle("SpaceGravityCurrent", active && !line.DotLine);
-    line.HTMLElement.classList.toggle("SpaceGravityNext", line === nextLead && line !== activeLead);
+    if (active && line.BGLine) visible.set(line, { Role: "Background", Slot: 3 });
+    const state = visible.get(line);
+    line.HTMLElement.classList.toggle("SpaceGravityCurrent", state?.Role === "Current" || state?.Role === "Background");
+    line.HTMLElement.classList.toggle("SpaceGravityNext", state?.Role === "Next");
+    line.HTMLElement.classList.toggle("SpaceGravityNearby", state?.Role === "Previous" || state?.Role === "Nearby");
     line.HTMLElement.classList.toggle("SpaceGravityDot", active && Boolean(line.DotLine));
     line.HTMLElement.classList.toggle(
       "SpaceGravityHidden",
-      !visible.has(line) && !(active && Boolean(line.DotLine))
+      !state && !(active && Boolean(line.DotLine))
     );
   }
 
   return visible;
 }
 
-function spawnBody(body: GravityBody, role: "Current" | "Next" | "Background", width: number, height: number): void {
+function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, height: number): void {
   if (body.Spawned) return;
-  const lineY = role === "Current" ? height * 0.43 : role === "Next" ? height * 0.61 : height * 0.56;
+  const lineY =
+    visibleLine.Role === "Current"
+      ? height * 0.44
+      : visibleLine.Role === "Background"
+        ? height * 0.52
+        : height * (0.18 + visibleLine.Slot * 0.13);
   body.X = body.StartX;
   body.Y = lineY + body.StartY;
   body.Angle = 0;
@@ -192,12 +220,8 @@ export function tickSpaceGravity(position: number): void {
   const activeBodies = bodies.filter((body) => visibleLines.has(body.Line));
 
   for (const body of activeBodies) {
-    const role = body.Line.BGLine
-      ? "Background"
-      : body.Line.HTMLElement.classList.contains("SpaceGravityCurrent")
-        ? "Current"
-        : "Next";
-    spawnBody(body, role, size.Width, size.Height);
+    const visibleLine = visibleLines.get(body.Line);
+    if (visibleLine) spawnBody(body, visibleLine, size.Width, size.Height);
   }
 
   if (reducedMotion) return;

@@ -721,6 +721,17 @@
   line-height: var(--lyrics-line-height) !important;
 }
 
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.musical-line.PausedDotFrame {
+  opacity: 1;
+  overflow: visible !important;
+  height: auto !important;
+  line-height: var(--lyrics-line-height) !important;
+}
+
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.musical-line.PausedDotFrame .dotGroup {
+  scale: 1 !important;
+}
+
 /* #SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode .LyricsContainer .LyricsContent .line,
 #SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode .LyricsContainer .LyricsContent .line .word,
 #SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode .LyricsContainer .LyricsContent .line .letterGroup,

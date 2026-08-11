@@ -259,6 +259,27 @@ function shouldBlockSeekForCurrentTrack() {
   return true;
 }
 
+function preservePausedDotFrame(seekTime: number): void {
+  if (SpotifyPlayer.IsPlaying) return;
+
+  const dotLine = [...LyricsObject.Types.Syllable.Lines]
+    .reverse()
+    .find(
+      (line) =>
+        line.DotLine &&
+        seekTime >= line.EndTime &&
+        seekTime - line.EndTime <= 750
+    );
+  dotLine?.HTMLElement.classList.add("PausedDotFrame");
+}
+
+Global.Event.listen("playback:playpause", (event: { data?: { isPaused?: boolean } }) => {
+  if (event.data?.isPaused) return;
+  for (const line of LyricsObject.Types.Syllable.Lines) {
+    line.HTMLElement.classList.remove("PausedDotFrame");
+  }
+});
+
 // Define proper type for event parameter
 function LinesEvListener(e: MouseEvent) {
   const target = e.target as HTMLElement;
@@ -268,6 +289,7 @@ function LinesEvListener(e: MouseEvent) {
     if (!gravityWord || !Number.isFinite(startTime) || gravityWord.closest(".musical-line")) return;
     if (shouldBlockSeekForCurrentTrack()) return;
 
+    preservePausedDotFrame(startTime);
     SpotifyPlayer.Seek(startTime);
     Global.Event.evoke("song:seek", startTime);
     return;
@@ -293,6 +315,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
+      preservePausedDotFrame(startTime);
       SpotifyPlayer.Seek(startTime);
       Global.Event.evoke("song:seek", startTime);
     }
@@ -320,6 +343,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
+      preservePausedDotFrame(startTime);
       SpotifyPlayer.Seek(startTime);
       Global.Event.evoke("song:seek", startTime);
     }
@@ -351,6 +375,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
+      preservePausedDotFrame(startTime);
       SpotifyPlayer.Seek(startTime);
       Global.Event.evoke("song:seek", startTime);
     }

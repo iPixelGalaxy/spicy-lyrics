@@ -351,6 +351,15 @@ function getVisibleLines(
     }
   }
 
+  // Initial fill can put more upcoming lines on screen than the regular
+  // seven-line window. Keep those bodies alive until their own line starts;
+  // otherwise the field abruptly sheds words as playback leaves the intro.
+  for (const [line, state] of visibleLines) {
+    if (!line.DotLine && !line.BGLine && line.StartTime > position) {
+      nextVisible.set(line, state);
+    }
+  }
+
   // Once the final lead has completed, keep the words that are already on the
   // stage drifting instead of clearing the whole field at once.
   if (anchor < 0 && position >= (leadLines.at(-1)?.EndTime ?? Number.POSITIVE_INFINITY)) {
@@ -471,9 +480,13 @@ function getLineGap(width: number): number {
 }
 
 function getLeadWindow(anchor: number, width: number, height: number): GravityLine[] {
-  const firstIndex = Math.max(0, anchor - PREVIOUS_LINE_COUNT);
+  let firstIndex = Math.max(0, anchor - PREVIOUS_LINE_COUNT);
   const lastIndex = Math.min(leadLines.length - 1, anchor + NEXT_LINE_COUNT);
   if (anchor < 0 || firstIndex > lastIndex) return [];
+
+  // Near the end there are fewer upcoming lines. Backfill with earlier lines
+  // so the stage keeps its normal seven-line field through the final lyric.
+  firstIndex = Math.max(0, Math.min(firstIndex, lastIndex - (PREVIOUS_LINE_COUNT + NEXT_LINE_COUNT)));
 
   const defaultWindow = leadLines.slice(firstIndex, lastIndex + 1);
   if (anchor >= PREVIOUS_LINE_COUNT) return defaultWindow;

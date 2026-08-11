@@ -55,6 +55,7 @@ const SOFT_AVOID_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
 const PREVIOUS_LINE_COUNT = 2;
 const NEXT_LINE_COUNT = 4;
+const INITIAL_FILL_LINE_CAP = 12;
 
 let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
@@ -332,15 +333,17 @@ function updateActiveTransientLines(position: number): void {
   }
 }
 
-function getVisibleLines(position: number): Map<GravityLine, VisibleLine> {
+function getVisibleLines(
+  position: number,
+  anchor: number,
+  leadWindow: GravityLine[]
+): Map<GravityLine, VisibleLine> {
   updateActiveTransientLines(position);
   const nextVisible = new Map<GravityLine, VisibleLine>();
-  const anchor = getLeadAnchor(position);
 
   if (anchor >= 0) {
-    for (let offset = -PREVIOUS_LINE_COUNT; offset <= NEXT_LINE_COUNT; offset += 1) {
-      const line = leadLines[anchor + offset];
-      if (!line) continue;
+    for (const line of leadWindow) {
+      const offset = leadLines.indexOf(line) - anchor;
       const active = position >= line.StartTime && position < line.EndTime;
       nextVisible.set(line, {
         Role: active ? "Current" : offset === (active ? 1 : 0) ? "Next" : offset < 0 ? "Previous" : "Nearby",
@@ -467,13 +470,43 @@ function getLineGap(width: number): number {
   return width * LINE_GAP_CQW / 100;
 }
 
-function getSpawnTops(anchor: number, width: number, height: number): Map<GravityLine, number> {
-  const tops = new Map<GravityLine, number>();
+function getLeadWindow(anchor: number, width: number, height: number): GravityLine[] {
   const firstIndex = Math.max(0, anchor - PREVIOUS_LINE_COUNT);
   const lastIndex = Math.min(leadLines.length - 1, anchor + NEXT_LINE_COUNT);
-  if (anchor < 0 || firstIndex > lastIndex) return tops;
+  if (anchor < 0 || firstIndex > lastIndex) return [];
 
-  const linesToSpawn = leadLines.slice(firstIndex, lastIndex + 1);
+  const defaultWindow = leadLines.slice(firstIndex, lastIndex + 1);
+  if (anchor >= PREVIOUS_LINE_COUNT) return defaultWindow;
+
+  const candidates = leadLines.slice(0, Math.min(INITIAL_FILL_LINE_CAP, leadLines.length));
+  prepareLines(candidates.filter((line) => !preparedLines.has(line)));
+
+  const top = EDGE_PADDING;
+  const bottom = Math.max(top, Math.min(height - EDGE_PADDING, (footerBounds?.Top ?? height) - EDGE_PADDING));
+  const requiredLastIndex = Math.min(lastIndex, candidates.length - 1);
+  let occupiedHeight = 0;
+  let selectedLastIndex = requiredLastIndex;
+  for (const [index, line] of candidates.entries()) {
+    occupiedHeight += lineLayouts.get(line)?.Height ?? 0;
+    if (index >= requiredLastIndex && occupiedHeight >= bottom - top) {
+      selectedLastIndex = index;
+      break;
+    }
+    if (index < candidates.length - 1) occupiedHeight += getLineGap(width);
+    selectedLastIndex = index;
+  }
+
+  const selected = candidates.slice(0, selectedLastIndex + 1);
+  for (const line of candidates) {
+    if (!selected.includes(line) && !visibleLines.has(line)) line.HTMLElement.remove();
+  }
+  return selected;
+}
+
+function getSpawnTops(linesToSpawn: GravityLine[], width: number, height: number): Map<GravityLine, number> {
+  const tops = new Map<GravityLine, number>();
+  if (linesToSpawn.length === 0) return tops;
+
   const naturalTops = new Map<GravityLine, number>();
   let naturalTop = 0;
   for (const [index, line] of linesToSpawn.entries()) {
@@ -644,9 +677,15 @@ export function mountSpaceGravity(
 
 export function tickSpaceGravity(position: number): void {
   if (!stage || !stageBounds) return;
-  const nextVisible = getVisibleLines(position);
+  const anchor = getLeadAnchor(position);
+  const leadWindow = getLeadWindow(anchor, stageBounds.Width, stageBounds.Height);
+  const nextVisible = getVisibleLines(position, anchor, leadWindow);
   updateVisibleWindow(nextVisible);
-  const spawnTops = getSpawnTops(getLeadAnchor(position), stageBounds.Width, stageBounds.Height);
+  const spawnTops = getSpawnTops(
+    leadWindow.filter((line) => visibleLines.has(line)),
+    stageBounds.Width,
+    stageBounds.Height
+  );
 
   for (const body of activeBodies) {
     const visibleLine = visibleLines.get(body.Line);

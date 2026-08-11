@@ -27,6 +27,7 @@ import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
+import { CreateLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../../components/Global/Defaults.ts";
 
 // Define the data structure for lyrics
@@ -327,9 +328,7 @@ export function ApplyLineLyrics(
     }
   });
 
-  const footer = document.createElement("div");
-  footer.classList.add("LyricsFooter");
-  LyricsContainer.appendChild(footer);
+  const footer = CreateLyricsFooter(LyricsContainer, LyricsContainerParent);
   ApplyLyricsCredits(data, footer);
   ApplyExperimentalWordSyncNotice(data, footer);
   ApplyLyricsProvider(data, footer);

@@ -25,6 +25,7 @@ import { persistAtom } from "./stores.ts";
  * `rebuildsNowBar` is only for experiments whose *markup* differs between states
  * (CSS alone can't get you there). It makes NowBar tear down and rebuild the
  * fullscreen overlay when the flag flips.
+ * `rebuildsLyrics` reapplies the current lyric data when its DOM placement differs.
  */
 
 export type Experiment = {
@@ -37,6 +38,8 @@ export type Experiment = {
   pageClass?: string;
   /** Rebuild the fullscreen NowBar overlay when this flag changes. */
   rebuildsNowBar?: boolean;
+  /** Reapply the current lyrics when this flag changes their markup. */
+  rebuildsLyrics?: boolean;
 };
 
 export const EXPERIMENTS = [
@@ -54,6 +57,7 @@ export const EXPERIMENTS = [
     description: "Keep lyric credits and source details visible while scrolling normal lyrics.",
     default: false,
     pageClass: "Exp_PinLyricsFooter",
+    rebuildsLyrics: true,
   },
 ] as const satisfies readonly Experiment[];
 

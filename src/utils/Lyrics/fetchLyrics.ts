@@ -549,4 +549,5 @@ export function ClearLyricsPageContainer(): void {
   if (lyricsContent) {
     lyricsContent.innerHTML = "";
   }
+  PageContainer?.querySelector<HTMLElement>(".LyricsContainer .LyricsPinnedFooter")?.replaceChildren();
 }

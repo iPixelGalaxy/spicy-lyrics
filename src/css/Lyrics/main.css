@@ -29,7 +29,8 @@
   --amll-lyric-player-font-size: var(--DefaultLyricsSize);
   --Simplebar-Scrollbar-Color: rgba(255, 255, 255, 0.6);
   --vertical-gap: 0px;
-  --SL-LyricsContent_MaskBottomPadding: 64px;
+  --SL-LyricsContent_MaskBottomFadeStart: 64px;
+  --SL-LyricsContent_MaskBottomFadeEnd: 16px;
 
   overflow-x: clip !important;
   overflow-clip-margin: 200px;
@@ -47,8 +48,8 @@
     transparent 0,
     transparent 16px,
     var(--spice-sidebar) calc(64px + var(--SL-LyricsContent_MaskTopPadding)),
-    var(--spice-sidebar) calc(100% - var(--SL-LyricsContent_MaskBottomPadding)),
-    transparent calc(100% - 16px),
+    var(--spice-sidebar) calc(100% - var(--SL-LyricsContent_MaskBottomFadeStart)),
+    transparent calc(100% - var(--SL-LyricsContent_MaskBottomFadeEnd)),
     transparent
   );
 
@@ -119,16 +120,35 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   margin: 0 !important;
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer:not(.SpaceGravityStage) .LyricsFooter {
-  position: sticky;
-  z-index: 2;
+#SpicyLyricsPage .LyricsContainer .LyricsPinnedFooter {
+  display: none;
+}
+
+#SpicyLyricsPage.Exp_PinLyricsFooter .LyricsContainer .LyricsPinnedFooter {
+  --DefaultLyricsSize: clamp(1.85rem, calc(1cqw * 7), 3.5rem);
+  position: absolute;
+  z-index: 10;
+  right: var(--LyricsRightSidePadding);
   bottom: 64px;
+  left: var(--LyricsLeftSidePadding);
   padding: 0 0 1.25rem;
-  background: none;
+  display: block;
+  font-size: var(--DefaultLyricsSize);
+  font-weight: 700;
 }
 
 #SpicyLyricsPage.Exp_PinLyricsFooter .LyricsContainer .LyricsContent {
-  --SL-LyricsContent_MaskBottomPadding: 168px;
+  --SL-LyricsContent_MaskBottomFadeStart: 264px;
+  --SL-LyricsContent_MaskBottomFadeEnd: 184px;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar.Active:is(.RightSide) + .LyricsContainer .LyricsPinnedFooter {
+  right: var(--LyricsLeftSidePadding);
+  left: calc(var(--LyricsRightSidePadding) * 1.45);
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage.Exp_PinLyricsFooter .LyricsContainer .LyricsPinnedFooter {
+  --DefaultLyricsSize: clamp(1.7rem, calc(1cqw * 5.5), 2.6rem);
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer.SpaceGravityStage {

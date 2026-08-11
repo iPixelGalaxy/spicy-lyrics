@@ -31,6 +31,7 @@ import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
+import { CreateLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../../components/Global/Defaults.ts";
 import { SpotifyPlayer } from "../../../../components/Global/SpotifyPlayer.ts";
 
@@ -712,12 +713,7 @@ export function ApplySyllableLyrics(
     }
   });
 
-  const footer = document.createElement("div");
-  footer.classList.add("LyricsFooter");
-  if (spaceGravityMode) {
-    footer.classList.add("SpaceGravityFooter");
-  }
-  LyricsContainer.appendChild(footer);
+  const footer = CreateLyricsFooter(LyricsContainer, LyricsContainerParent, spaceGravityMode);
 
   ApplyLyricsCredits(data, footer);
   ApplyExperimentalWordSyncNotice(data, footer);

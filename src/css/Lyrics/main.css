@@ -118,6 +118,14 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   margin: 0 !important;
 }
 
+#SpicyLyricsPage.Exp_PinLyricsFooter .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer:not(.SpaceGravityStage) .LyricsFooter {
+  position: sticky;
+  z-index: 2;
+  bottom: 0;
+  padding: 0.75rem 0 1rem;
+  background: color-mix(in srgb, var(--spice-sidebar) 88%, transparent);
+}
+
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer.SpaceGravityStage {
   margin: 0;
   padding: 0 !important;

@@ -712,11 +712,12 @@ export function ApplySyllableLyrics(
     }
   });
 
-  const footer = spaceGravityMode ? document.createElement("div") : LyricsContainer;
+  const footer = document.createElement("div");
+  footer.classList.add("LyricsFooter");
   if (spaceGravityMode) {
     footer.classList.add("SpaceGravityFooter");
-    LyricsContainer.appendChild(footer);
   }
+  LyricsContainer.appendChild(footer);
 
   ApplyLyricsCredits(data, footer);
   ApplyExperimentalWordSyncNotice(data, footer);

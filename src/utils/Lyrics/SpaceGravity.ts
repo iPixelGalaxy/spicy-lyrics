@@ -42,7 +42,6 @@ type ObstacleExit = "Left" | "Right" | "Top" | "Bottom";
 const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
 const LINE_GAP_CQW = 1;
-const BACKGROUND_LINE_GAP_CQW = 0.2;
 const MAX_SPEED = 16;
 const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
@@ -342,6 +341,12 @@ function getVisibleLines(position: number): Map<GravityLine, VisibleLine> {
     }
   }
 
+  // Once the final lead has completed, keep the words that are already on the
+  // stage drifting instead of clearing the whole field at once.
+  if (anchor < 0 && position >= (leadLines.at(-1)?.EndTime ?? Number.POSITIVE_INFINITY)) {
+    for (const [line, state] of visibleLines) nextVisible.set(line, state);
+  }
+
   for (const line of activeTransientLines) {
     nextVisible.set(line, {
       Role: line.DotLine ? "Instrumental" : "Background",
@@ -444,8 +449,8 @@ function prepareLines(nextLines: GravityLine[]): void {
   }
 }
 
-function getLineGap(width: number, background = false): number {
-  return width * (background ? BACKGROUND_LINE_GAP_CQW : LINE_GAP_CQW) / 100;
+function getLineGap(width: number): number {
+  return width * LINE_GAP_CQW / 100;
 }
 
 function getSpawnTops(anchor: number, width: number, height: number): Map<GravityLine, number> {
@@ -475,15 +480,19 @@ function getSpawnTops(anchor: number, width: number, height: number): Map<Gravit
   return tops;
 }
 
-function getBackgroundSpawnTop(line: GravityLine, width: number, tops: Map<GravityLine, number>): number | undefined {
-  const documentIndex = lines.indexOf(line);
-  for (let index = documentIndex - 1; index >= 0; index -= 1) {
-    const previous = lines[index];
-    const top = tops.get(previous);
-    if (top === undefined) continue;
-    return top + (lineLayouts.get(previous)?.Height ?? 0) + getLineGap(width, true);
-  }
-  return undefined;
+function getBackgroundSpawn(body: GravityBody, width: number, height: number): { X: number; Y: number } {
+  const minX = EDGE_PADDING + body.Radius;
+  const maxX = Math.max(minX, width - EDGE_PADDING - body.Radius);
+  const minY = EDGE_PADDING + body.Radius;
+  const maxY = Math.max(
+    minY,
+    Math.min(height - EDGE_PADDING - body.Radius, (footerBounds?.Top ?? height) - EDGE_PADDING - body.Radius)
+  );
+  const seed = hash(`${body.Line.StartTime}:${body.Line.EndTime}:${body.StartX}:${body.StartY}`);
+  return {
+    X: minX + (maxX - minX) * random(seed),
+    Y: minY + (maxY - minY) * random(seed + 1),
+  };
 }
 
 function updateVisibleWindow(nextVisible: Map<GravityLine, VisibleLine>): void {
@@ -534,14 +543,13 @@ function spawnBody(
   spawnTops: Map<GravityLine, number>
 ): void {
   if (body.Spawned) return;
-  const lineY = visibleLine.Role === "Background"
-    ? getBackgroundSpawnTop(body.Line, width, spawnTops)
-    : spawnTops.get(body.Line);
+  const lineY = spawnTops.get(body.Line);
+  const backgroundSpawn = visibleLine.Role === "Background" ? getBackgroundSpawn(body, width, height) : undefined;
   const instrumentalSpawn =
     visibleLine.Role === "Instrumental" ? getInstrumentalSpawn(body, width, height) : undefined;
-  if (!instrumentalSpawn && lineY === undefined) return;
-  body.X = instrumentalSpawn?.X ?? body.StartX + body.Width / 2;
-  body.Y = instrumentalSpawn?.Y ?? lineY! + body.StartY + body.Height / 2;
+  if (!instrumentalSpawn && !backgroundSpawn && lineY === undefined) return;
+  body.X = instrumentalSpawn?.X ?? backgroundSpawn?.X ?? body.StartX + body.Width / 2;
+  body.Y = instrumentalSpawn?.Y ?? backgroundSpawn?.Y ?? lineY! + body.StartY + body.Height / 2;
   body.Angle = 0;
   resolveBodyConstraints(body, width, height);
   body.Spawned = true;

@@ -48,6 +48,13 @@ export const EXPERIMENTS = [
     default: true,
     pageClass: "Exp_NewProgressBar",
   },
+  {
+    id: "pinLyricsFooter",
+    label: "Pin footer at all times",
+    description: "Keep lyric credits and source details visible while scrolling normal lyrics.",
+    default: false,
+    pageClass: "Exp_PinLyricsFooter",
+  },
 ] as const satisfies readonly Experiment[];
 
 /** A registry entry, narrowed to its literal `id` — what the UI iterates over. */

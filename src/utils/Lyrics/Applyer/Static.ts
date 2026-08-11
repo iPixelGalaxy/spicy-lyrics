@@ -131,10 +131,13 @@ export function ApplyStaticLyrics(
     lineElements.push(lineElem);
   });
 
-  ApplyLyricsCredits(data, LyricsContainer);
-  ApplyExperimentalWordSyncNotice(data, LyricsContainer);
-  ApplyLyricsProvider(data, LyricsContainer);
-  ApplyIsByCommunity(data, LyricsContainer);
+  const footer = document.createElement("div");
+  footer.classList.add("LyricsFooter");
+  LyricsContainer.appendChild(footer);
+  ApplyLyricsCredits(data, footer);
+  ApplyExperimentalWordSyncNotice(data, footer);
+  ApplyLyricsProvider(data, footer);
+  ApplyIsByCommunity(data, footer);
   if (LyricsContainerParent) {
     LyricsContainerInstance.Append(LyricsContainerParent);
   }

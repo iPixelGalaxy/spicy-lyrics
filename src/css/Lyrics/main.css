@@ -213,6 +213,14 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   pointer-events: auto;
 }
 
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup) {
+  background-image: linear-gradient(
+    var(--gradient-degrees),
+    rgba(255, 140, 168, var(--gradient-alpha)) var(--gradient-position),
+    rgba(255, 140, 168, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+  );
+}
+
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityHidden {
   opacity: 0;
   pointer-events: none;

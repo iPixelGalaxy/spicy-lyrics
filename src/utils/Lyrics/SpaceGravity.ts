@@ -29,9 +29,10 @@ type VisibleLine = {
 };
 
 type Bounds = { Width: number; Height: number };
-type FooterBounds = { Left: number; Top: number; Right: number; Bottom: number };
+type RectBounds = { Left: number; Top: number; Right: number; Bottom: number };
 
 const EDGE_PADDING = 18;
+const COVER_CLEARANCE = 12;
 const MAX_SPEED = 16;
 const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
@@ -42,6 +43,7 @@ const NEXT_LINE_COUNT = 4;
 let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
 let footer: HTMLElement | null = null;
+let cover: HTMLElement | null = null;
 let lines: GravityLine[] = [];
 let leadLines: GravityLine[] = [];
 let transientLines: GravityLine[] = [];
@@ -54,8 +56,11 @@ let transientCursor = 0;
 let lastPosition = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
 let layoutObserver: MutationObserver | null = null;
+let coverTrackingFrame: number | null = null;
+let coverTrackingUntil = 0;
 let stageBounds: Bounds | null = null;
-let footerBounds: FooterBounds | null = null;
+let footerBounds: RectBounds | null = null;
+let coverBounds: RectBounds | null = null;
 let lastTick = performance.now();
 let reducedMotion = false;
 
@@ -80,7 +85,7 @@ function updateReducedMotion(): void {
     .matches ?? false;
 }
 
-function updateBounds(): void {
+function updateBounds(refreshBodies = true): void {
   if (!stage || !viewport) return;
   const height = viewport.clientHeight;
   stage.style.height = `${height}px`;
@@ -89,6 +94,14 @@ function updateBounds(): void {
 
   stageBounds = { Width: width, Height: height };
   const stageRect = stage.getBoundingClientRect();
+  const contentBox = viewport.closest(".ContentBox");
+  const nextCover = contentBox?.querySelector<HTMLElement>(".NowBar.Active .MediaBox") ?? null;
+  if (cover !== nextCover) {
+    if (cover) resizeObserver?.unobserve(cover);
+    cover = nextCover;
+    if (cover) resizeObserver?.observe(cover);
+  }
+
   const footerRect = footer?.getBoundingClientRect();
   footerBounds =
     footerRect && footerRect.width > 0 && footerRect.height > 0
@@ -99,13 +112,25 @@ function updateBounds(): void {
           Bottom: footerRect.bottom - stageRect.top,
         }
       : null;
+  const coverRect = cover?.getBoundingClientRect();
+  coverBounds =
+    coverRect && coverRect.width > 0 && coverRect.height > 0
+      ? {
+          Left: coverRect.left - stageRect.left - COVER_CLEARANCE,
+          Top: coverRect.top - stageRect.top - COVER_CLEARANCE,
+          Right: coverRect.right - stageRect.left + COVER_CLEARANCE,
+          Bottom: coverRect.bottom - stageRect.top + COVER_CLEARANCE,
+        }
+      : null;
+
+  if (!refreshBodies) return;
 
   for (const body of activeBodies) {
     const rect = body.Element.getBoundingClientRect();
     body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
     if (!body.Spawned) continue;
     clampBody(body, width, height);
-    resolveFooterCollision(body);
+    resolveStaticObstacleCollisions(body);
     renderBody(body);
   }
 }
@@ -124,38 +149,52 @@ function renderBody(body: GravityBody): void {
   body.Element.style.rotate = `${body.Angle}deg`;
 }
 
-function resolveFooterCollision(body: GravityBody): void {
-  const obstacle = footerBounds;
+function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null): void {
   if (!obstacle) return;
 
-  const overlapsVertically = body.Y + body.Radius > obstacle.Top && body.Y - body.Radius < obstacle.Bottom;
-  const overlapsHorizontally = body.X + body.Radius > obstacle.Left && body.X - body.Radius < obstacle.Right;
-  if (!overlapsVertically || !overlapsHorizontally) return;
+  const nearestX = Math.min(obstacle.Right, Math.max(obstacle.Left, body.X));
+  const nearestY = Math.min(obstacle.Bottom, Math.max(obstacle.Top, body.Y));
+  if (Math.hypot(body.X - nearestX, body.Y - nearestY) >= body.Radius) return;
 
-  const topOverlap = body.Y + body.Radius - obstacle.Top;
-  const leftOverlap = body.X + body.Radius - obstacle.Left;
-  const rightOverlap = obstacle.Right - (body.X - body.Radius);
+  const distances = [
+    { Distance: Math.abs(body.X - obstacle.Left), Resolve: () => {
+      body.X = obstacle.Left - body.Radius;
+      body.VX = -Math.abs(body.VX);
+    } },
+    { Distance: Math.abs(obstacle.Right - body.X), Resolve: () => {
+      body.X = obstacle.Right + body.Radius;
+      body.VX = Math.abs(body.VX);
+    } },
+    { Distance: Math.abs(body.Y - obstacle.Top), Resolve: () => {
+      body.Y = obstacle.Top - body.Radius;
+      body.VY = -Math.abs(body.VY);
+    } },
+    { Distance: Math.abs(obstacle.Bottom - body.Y), Resolve: () => {
+      body.Y = obstacle.Bottom + body.Radius;
+      body.VY = Math.abs(body.VY);
+    } },
+  ];
+  distances.reduce((nearest, candidate) => (candidate.Distance < nearest.Distance ? candidate : nearest)).Resolve();
+}
 
-  if (body.Y <= obstacle.Top && topOverlap <= Math.min(leftOverlap, rightOverlap)) {
-    body.Y = obstacle.Top - body.Radius;
-    body.VY = -Math.abs(body.VY);
-    return;
-  }
+function resolveStaticObstacleCollisions(body: GravityBody): void {
+  resolveRectangleCollision(body, coverBounds);
+  resolveRectangleCollision(body, footerBounds);
+}
 
-  if (body.X < obstacle.Left && leftOverlap <= rightOverlap) {
-    body.X = obstacle.Left - body.Radius;
-    body.VX = -Math.abs(body.VX);
-    return;
-  }
+function trackCoverTransition(): void {
+  coverTrackingUntil = Math.max(coverTrackingUntil, performance.now() + 450);
+  if (coverTrackingFrame !== null) return;
 
-  if (body.X > obstacle.Right) {
-    body.X = obstacle.Right + body.Radius;
-    body.VX = Math.abs(body.VX);
-    return;
-  }
-
-  body.Y = obstacle.Top - body.Radius;
-  body.VY = -Math.abs(body.VY);
+  const updateCoverBounds = (): void => {
+    updateBounds(false);
+    if (performance.now() < coverTrackingUntil) {
+      coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
+      return;
+    }
+    coverTrackingFrame = null;
+  };
+  coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
 }
 
 function upperBoundByStart(source: GravityLine[], position: number): number {
@@ -372,6 +411,7 @@ function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, h
   body.Y = instrumentalSpawn?.Y ?? lineY + body.StartY;
   body.Angle = 0;
   clampBody(body, width, height);
+  resolveStaticObstacleCollisions(body);
   body.Spawned = true;
   renderBody(body);
 }
@@ -421,12 +461,12 @@ export function mountSpaceGravity(
   leadLines = lines.filter((line) => !line.DotLine && !line.BGLine).sort((a, b) => a.StartTime - b.StartTime);
   transientLines = lines.filter((line) => line.DotLine || line.BGLine).sort((a, b) => a.StartTime - b.StartTime);
   updateReducedMotion();
-  updateBounds();
 
   resizeObserver = new ResizeObserver(() => updateBounds());
   resizeObserver.observe(nextStage);
   resizeObserver.observe(nextViewport);
   resizeObserver.observe(nextFooter);
+  updateBounds();
   const layoutRoot = nextViewport.closest(".ContentBox")?.parentElement;
   if (layoutRoot) {
     layoutObserver = new MutationObserver((records) => {
@@ -436,7 +476,8 @@ export function mountSpaceGravity(
           return target.id === "SpicyLyricsPage" || target.classList.contains("NowBar");
         })
       ) {
-        requestAnimationFrame(updateBounds);
+        updateBounds();
+        trackCoverTransition();
       }
     });
     layoutObserver.observe(layoutRoot, { attributes: true, attributeFilter: ["class"], subtree: true });
@@ -487,7 +528,7 @@ export function tickSpaceGravity(position: number): void {
     if (body.X <= minX || body.X >= maxX) body.VX *= -1;
     if (body.Y <= minY || body.Y >= maxY) body.VY *= -1;
     clampBody(body, stageBounds.Width, stageBounds.Height);
-    resolveFooterCollision(body);
+    resolveStaticObstacleCollisions(body);
     renderBody(body);
   }
 }
@@ -497,9 +538,13 @@ export function destroySpaceGravity(): void {
   resizeObserver = null;
   layoutObserver?.disconnect();
   layoutObserver = null;
+  if (coverTrackingFrame !== null) cancelAnimationFrame(coverTrackingFrame);
+  coverTrackingFrame = null;
+  coverTrackingUntil = 0;
   stage = null;
   viewport = null;
   footer = null;
+  cover = null;
   lines = [];
   leadLines = [];
   transientLines = [];
@@ -512,5 +557,6 @@ export function destroySpaceGravity(): void {
   lastPosition = Number.NEGATIVE_INFINITY;
   stageBounds = null;
   footerBounds = null;
+  coverBounds = null;
   lastTick = performance.now();
 }

@@ -47,6 +47,17 @@ type GeneratedLine = {
   Background?: GeneratedBackground[];
 };
 
+type SyllableLyricsEntry = {
+  Type?: "Vocal" | string;
+  Lead?: {
+    StartTime: number;
+    EndTime: number;
+    Syllables: GeneratedWord[];
+  };
+  Background?: GeneratedBackground[];
+  [key: string]: unknown;
+};
+
 type Segment = {
   kind: "lead" | "background";
   text: string;
@@ -1254,4 +1265,74 @@ export function ConvertStaticLyricsToExperimentalWordSync(
     },
     analysis
   );
+}
+
+function splitAppleSyllables(syllables: GeneratedWord[]): {
+  syllables: GeneratedWord[];
+  didSplit: boolean;
+} {
+  let didSplit = false;
+  const splitSyllables: GeneratedWord[] = [];
+
+  syllables.forEach((syllable) => {
+    const words = splitWords(syllable.Text);
+    if (words.length <= 1) {
+      splitSyllables.push(syllable);
+      return;
+    }
+
+    const generatedWords = buildWords(
+      syllable.Text,
+      syllable.StartTime,
+      syllable.EndTime
+    );
+    assignWordText(generatedWords, "TransliteratedText", syllable.TransliteratedText);
+    assignWordText(generatedWords, "GibberishText", syllable.GibberishText);
+    splitSyllables.push(...generatedWords);
+    didSplit = true;
+  });
+
+  return { syllables: splitSyllables, didSplit };
+}
+
+export function SplitAppleMusicSyllableWords(lyrics: any) {
+  if (lyrics?.Type !== "Syllable" || !Array.isArray(lyrics.Content)) {
+    return lyrics;
+  }
+
+  let didSplit = false;
+  const content = (lyrics.Content as SyllableLyricsEntry[]).map((line) => {
+    if (line.Type !== undefined && line.Type !== "Vocal") return line;
+
+    const lead = line.Lead;
+    const splitLead = lead ? splitAppleSyllables(lead.Syllables ?? []) : null;
+    const background = line.Background?.map((entry) => {
+      const splitBackground = splitAppleSyllables(entry.Syllables ?? []);
+      didSplit ||= splitBackground.didSplit;
+      return splitBackground.didSplit
+        ? { ...entry, Syllables: splitBackground.syllables }
+        : entry;
+    });
+
+    if (splitLead) didSplit ||= splitLead.didSplit;
+    if (!splitLead?.didSplit && !background?.some((entry, index) => entry !== line.Background?.[index])) {
+      return line;
+    }
+
+    return {
+      ...line,
+      ...(splitLead?.didSplit
+        ? { Lead: { ...lead, Syllables: splitLead.syllables } }
+        : {}),
+      ...(background ? { Background: background } : {}),
+    };
+  });
+
+  return didSplit
+    ? {
+        ...lyrics,
+        Content: content,
+        experimentalAppleWordSplitting: true,
+      }
+    : lyrics;
 }

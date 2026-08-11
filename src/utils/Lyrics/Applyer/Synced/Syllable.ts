@@ -617,7 +617,14 @@ export function ApplySyllableLyrics(
         });
       });
     }
-    if (arr[index + 1] && arr[index + 1].Lead.StartTime - line.Lead.EndTime >= getLyricsBetweenShow()) {
+    const nextLine = arr[index + 1];
+    const nextVocalStart = nextLine
+      ? Math.min(
+          nextLine.Lead.StartTime,
+          ...(nextLine.Background?.map((background) => background.StartTime) ?? [])
+        )
+      : undefined;
+    if (nextLine && nextVocalStart! - line.Lead.EndTime >= getLyricsBetweenShow()) {
       const musicalLine = document.createElement("div");
       musicalLine.classList.add("line");
       musicalLine.classList.add("musical-line");
@@ -625,16 +632,16 @@ export function ApplySyllableLyrics(
       LyricsObject.Types.Syllable.Lines.push({
         HTMLElement: musicalLine,
         StartTime: ConvertTime(line.Lead.EndTime),
-        EndTime: ConvertTime(arr[index + 1].Lead.StartTime),
+        EndTime: ConvertTime(nextVocalStart!),
         TotalTime:
-          ConvertTime(arr[index + 1].Lead.StartTime) -
+          ConvertTime(nextVocalStart!) -
           ConvertTime(line.Lead.EndTime),
         DotLine: true,
       });
 
       SetWordArrayInCurentLine();
 
-      if (arr[index + 1].OppositeAligned) {
+      if (nextLine.OppositeAligned) {
         musicalLine.classList.add("OppositeAligned");
       }
 
@@ -646,7 +653,7 @@ export function ApplySyllableLyrics(
       const musicalDots3 = document.createElement("span");
 
       const gapStartTime = ConvertTime(line.Lead.EndTime);
-      const totalTime = ConvertTime(arr[index + 1].Lead.StartTime) - gapStartTime;
+      const totalTime = ConvertTime(nextVocalStart!) - gapStartTime;
       const baseDotTime = totalTime / 3;
       const dotPadding = getInterludeTimePadding() / 3;
       const dot1EndTime = Math.max(gapStartTime, gapStartTime + baseDotTime + dotPadding);

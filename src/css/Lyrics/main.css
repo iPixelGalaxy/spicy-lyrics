@@ -188,12 +188,23 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityFooter {
   position: absolute;
   z-index: 2;
-  right: 0;
+  right: var(--LyricsRightSidePadding);
   bottom: 0;
-  left: 0;
-  padding: 3rem 1.25rem 1.25rem;
+  left: var(--LyricsLeftSidePadding);
+  padding: 3rem 0 1.25rem;
   pointer-events: none;
   background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.48) 56%);
+}
+
+#SpicyLyricsPage
+  .ContentBox
+  .NowBar.Active:is(.RightSide)
+  + .LyricsContainer
+  .LyricsContent
+  .SpaceGravityStage
+  .SpaceGravityFooter {
+  right: var(--LyricsLeftSidePadding);
+  left: calc(var(--LyricsRightSidePadding) * 1.45);
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityFooter:empty {

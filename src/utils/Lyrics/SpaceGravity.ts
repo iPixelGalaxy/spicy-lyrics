@@ -29,6 +29,7 @@ type VisibleLine = {
 };
 
 type Bounds = { Width: number; Height: number };
+type FooterBounds = { Left: number; Top: number; Right: number; Bottom: number };
 
 const EDGE_PADDING = 18;
 const MAX_SPEED = 16;
@@ -52,7 +53,9 @@ let activeTransientLines = new Set<GravityLine>();
 let transientCursor = 0;
 let lastPosition = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
+let layoutObserver: MutationObserver | null = null;
 let stageBounds: Bounds | null = null;
+let footerBounds: FooterBounds | null = null;
 let lastTick = performance.now();
 let reducedMotion = false;
 
@@ -79,18 +82,30 @@ function updateReducedMotion(): void {
 
 function updateBounds(): void {
   if (!stage || !viewport) return;
+  const height = viewport.clientHeight;
+  stage.style.height = `${height}px`;
   const width = stage.clientWidth;
-  const height = viewport.clientHeight - (footer?.offsetHeight ?? 0);
   if (width < 1 || height < 1) return;
 
-  stage.style.height = `${height}px`;
   stageBounds = { Width: width, Height: height };
+  const stageRect = stage.getBoundingClientRect();
+  const footerRect = footer?.getBoundingClientRect();
+  footerBounds =
+    footerRect && footerRect.width > 0 && footerRect.height > 0
+      ? {
+          Left: footerRect.left - stageRect.left,
+          Top: footerRect.top - stageRect.top,
+          Right: footerRect.right - stageRect.left,
+          Bottom: footerRect.bottom - stageRect.top,
+        }
+      : null;
 
   for (const body of activeBodies) {
     const rect = body.Element.getBoundingClientRect();
     body.Radius = Math.max(14, Math.max(rect.width, rect.height) / 2);
     if (!body.Spawned) continue;
     clampBody(body, width, height);
+    resolveFooterCollision(body);
     renderBody(body);
   }
 }
@@ -107,6 +122,40 @@ function clampBody(body: GravityBody, width: number, height: number): void {
 function renderBody(body: GravityBody): void {
   body.Element.style.translate = `${body.X}px ${body.Y}px`;
   body.Element.style.rotate = `${body.Angle}deg`;
+}
+
+function resolveFooterCollision(body: GravityBody): void {
+  const obstacle = footerBounds;
+  if (!obstacle) return;
+
+  const overlapsVertically = body.Y + body.Radius > obstacle.Top && body.Y - body.Radius < obstacle.Bottom;
+  const overlapsHorizontally = body.X + body.Radius > obstacle.Left && body.X - body.Radius < obstacle.Right;
+  if (!overlapsVertically || !overlapsHorizontally) return;
+
+  const topOverlap = body.Y + body.Radius - obstacle.Top;
+  const leftOverlap = body.X + body.Radius - obstacle.Left;
+  const rightOverlap = obstacle.Right - (body.X - body.Radius);
+
+  if (body.Y <= obstacle.Top && topOverlap <= Math.min(leftOverlap, rightOverlap)) {
+    body.Y = obstacle.Top - body.Radius;
+    body.VY = -Math.abs(body.VY);
+    return;
+  }
+
+  if (body.X < obstacle.Left && leftOverlap <= rightOverlap) {
+    body.X = obstacle.Left - body.Radius;
+    body.VX = -Math.abs(body.VX);
+    return;
+  }
+
+  if (body.X > obstacle.Right) {
+    body.X = obstacle.Right + body.Radius;
+    body.VX = Math.abs(body.VX);
+    return;
+  }
+
+  body.Y = obstacle.Top - body.Radius;
+  body.VY = -Math.abs(body.VY);
 }
 
 function upperBoundByStart(source: GravityLine[], position: number): number {
@@ -378,6 +427,20 @@ export function mountSpaceGravity(
   resizeObserver.observe(nextStage);
   resizeObserver.observe(nextViewport);
   resizeObserver.observe(nextFooter);
+  const layoutRoot = nextViewport.closest(".ContentBox")?.parentElement;
+  if (layoutRoot) {
+    layoutObserver = new MutationObserver((records) => {
+      if (
+        records.some((record) => {
+          const target = record.target as HTMLElement;
+          return target.id === "SpicyLyricsPage" || target.classList.contains("NowBar");
+        })
+      ) {
+        requestAnimationFrame(updateBounds);
+      }
+    });
+    layoutObserver.observe(layoutRoot, { attributes: true, attributeFilter: ["class"], subtree: true });
+  }
   tickSpaceGravity(initialPosition);
 }
 
@@ -424,6 +487,7 @@ export function tickSpaceGravity(position: number): void {
     if (body.X <= minX || body.X >= maxX) body.VX *= -1;
     if (body.Y <= minY || body.Y >= maxY) body.VY *= -1;
     clampBody(body, stageBounds.Width, stageBounds.Height);
+    resolveFooterCollision(body);
     renderBody(body);
   }
 }
@@ -431,6 +495,8 @@ export function tickSpaceGravity(position: number): void {
 export function destroySpaceGravity(): void {
   resizeObserver?.disconnect();
   resizeObserver = null;
+  layoutObserver?.disconnect();
+  layoutObserver = null;
   stage = null;
   viewport = null;
   footer = null;
@@ -445,5 +511,6 @@ export function destroySpaceGravity(): void {
   transientCursor = 0;
   lastPosition = Number.NEGATIVE_INFINITY;
   stageBounds = null;
+  footerBounds = null;
   lastTick = performance.now();
 }

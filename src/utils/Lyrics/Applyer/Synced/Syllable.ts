@@ -238,7 +238,6 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
 }
 
 function wrapLineForSpaceGravity(line: HTMLElement): void {
-  if (line.classList.contains("musical-line")) return;
   line.classList.add("SpaceGravityLine");
 
   for (const child of Array.from(line.children)) {

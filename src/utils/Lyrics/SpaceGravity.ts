@@ -21,7 +21,7 @@ type GravityBody = {
   Spawned: boolean;
 };
 
-type GravityRole = "Previous" | "Current" | "Next" | "Nearby" | "Background";
+type GravityRole = "Previous" | "Current" | "Next" | "Nearby" | "Background" | "Instrumental";
 
 type VisibleLine = {
   Role: GravityRole;
@@ -30,6 +30,8 @@ type VisibleLine = {
 
 const EDGE_PADDING = 18;
 const MAX_SPEED = 16;
+const SOFT_AVOID_RADIUS = 96;
+const SOFT_AVOID_ACCELERATION = 5;
 
 let stage: HTMLElement | null = null;
 let lines: GravityLine[] = [];
@@ -125,8 +127,12 @@ function setVisibleLines(position: number): Map<GravityLine, VisibleLine> {
   for (const line of lines) {
     const active = position >= line.StartTime && position < line.EndTime;
     if (active && line.BGLine) visible.set(line, { Role: "Background", Slot: 3 });
+    if (active && line.DotLine) visible.set(line, { Role: "Instrumental", Slot: 3 });
     const state = visible.get(line);
-    line.HTMLElement.classList.toggle("SpaceGravityCurrent", state?.Role === "Current" || state?.Role === "Background");
+    line.HTMLElement.classList.toggle(
+      "SpaceGravityCurrent",
+      state?.Role === "Current" || state?.Role === "Background" || state?.Role === "Instrumental"
+    );
     line.HTMLElement.classList.toggle("SpaceGravityNext", state?.Role === "Next");
     line.HTMLElement.classList.toggle("SpaceGravityNearby", state?.Role === "Previous" || state?.Role === "Nearby");
     line.HTMLElement.classList.toggle("SpaceGravityDot", active && Boolean(line.DotLine));
@@ -146,6 +152,8 @@ function spawnBody(body: GravityBody, visibleLine: VisibleLine, width: number, h
       ? height * 0.44
       : visibleLine.Role === "Background"
         ? height * 0.52
+        : visibleLine.Role === "Instrumental"
+          ? height * 0.48
         : height * (0.18 + visibleLine.Slot * 0.13);
   body.X = body.StartX;
   body.Y = lineY + body.StartY;
@@ -172,7 +180,6 @@ export function mountSpaceGravity(
 
   let index = 0;
   for (const line of lines) {
-    if (line.DotLine) continue;
     const elements = Array.from(line.HTMLElement.children).filter(
       (element): element is HTMLElement => element.nodeType === 1 && element.classList.contains("SpaceGravityWord")
     );
@@ -225,6 +232,25 @@ export function tickSpaceGravity(position: number): void {
   }
 
   if (reducedMotion) return;
+
+  // Steering alters only velocity. Bodies still overlap when their paths cross.
+  for (let left = 0; left < activeBodies.length; left += 1) {
+    const a = activeBodies[left];
+    for (let right = left + 1; right < activeBodies.length; right += 1) {
+      const b = activeBodies[right];
+      const dx = b.X - a.X;
+      const dy = b.Y - a.Y;
+      const distance = Math.hypot(dx, dy) || 0.001;
+      if (distance >= SOFT_AVOID_RADIUS) continue;
+      const nudge = ((SOFT_AVOID_RADIUS - distance) / SOFT_AVOID_RADIUS) * SOFT_AVOID_ACCELERATION * delta;
+      const nx = dx / distance;
+      const ny = dy / distance;
+      a.VX -= nx * nudge;
+      a.VY -= ny * nudge;
+      b.VX += nx * nudge;
+      b.VY += ny * nudge;
+    }
+  }
 
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);

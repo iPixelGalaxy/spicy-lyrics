@@ -414,6 +414,7 @@ function getVisibleLines(
 
 function applyLineRole(line: GravityLine, state: VisibleLine | undefined): void {
   const element = line.HTMLElement;
+  const showPausedDotFrame = line.DotLine && heldPausedDotLines.has(line);
   element.classList.toggle(
     "SpaceGravityCurrent",
     state?.Role === "Current" || state?.Role === "Background" || state?.Role === "Instrumental"
@@ -422,6 +423,13 @@ function applyLineRole(line: GravityLine, state: VisibleLine | undefined): void 
   element.classList.toggle("SpaceGravityNearby", state?.Role === "Previous" || state?.Role === "Nearby");
   element.classList.toggle("SpaceGravityDot", state?.Role === "Instrumental");
   element.classList.toggle("SpaceGravityHidden", !state);
+  for (const dotGroup of element.querySelectorAll<HTMLElement>(".dotGroup")) {
+    if (showPausedDotFrame) {
+      dotGroup.style.setProperty("scale", "1", "important");
+    } else {
+      dotGroup.style.removeProperty("scale");
+    }
+  }
 }
 
 function prepareLines(nextLines: GravityLine[]): void {

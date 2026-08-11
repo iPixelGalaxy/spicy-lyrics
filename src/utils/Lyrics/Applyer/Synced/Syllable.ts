@@ -1,4 +1,4 @@
-import { $lyricsContainerExists, $minimalLyricsMode, $simpleLyricsMode } from "../../../../utils/stores.ts";
+import { $lyricsContainerExists, $minimalLyricsMode, $simpleLyricsMode, $spaceGravityMode } from "../../../../utils/stores.ts";
 import { PageContainer } from "../../../../components/Pages/PageView.ts";
 import { applyStyles, removeAllStyles } from "../../../CSS/Styles.ts";
 import {
@@ -23,6 +23,7 @@ import {
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
 import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
+import { mountSpaceGravity } from "../../SpaceGravity.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -236,6 +237,19 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
   );
 }
 
+function wrapLineForSpaceGravity(line: HTMLElement): void {
+  if (line.classList.contains("musical-line")) return;
+  line.classList.add("SpaceGravityLine");
+
+  for (const child of Array.from(line.children)) {
+    if (child.nodeType !== 1) continue;
+    const body = document.createElement("span");
+    body.classList.add("SpaceGravityWord");
+    line.replaceChild(body, child);
+    body.appendChild(child);
+  }
+}
+
 export function ApplySyllableLyrics(
   data: LyricsData,
   UseRomanized: boolean = false,
@@ -277,6 +291,7 @@ export function ApplySyllableLyrics(
   LyricsContainer.appendChild(virtualContainer);
 
   const lineElements: HTMLElement[] = [];
+  const spaceGravityMode = $spaceGravityMode.get();
   const syllableMode = "Default";
   const allowLetterEmphasis = !data.experimentalWordSync;
 
@@ -712,6 +727,14 @@ export function ApplySyllableLyrics(
   ApplyLyricsProvider(data, LyricsContainer);
   ApplyIsByCommunity(data, LyricsContainer);
 
+  if (spaceGravityMode) {
+    LyricsContainer.classList.add("SpaceGravityStage");
+    for (const lineElement of lineElements) {
+      wrapLineForSpaceGravity(lineElement);
+      virtualContainer.appendChild(lineElement);
+    }
+  }
+
   if (LyricsContainerParent) {
     LyricsContainerInstance.Append(LyricsContainerParent);
   }
@@ -720,7 +743,13 @@ export function ApplySyllableLyrics(
   else MountScrollSimplebar();
 
   const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-  if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
+  if (scrollEl) {
+    if (spaceGravityMode) {
+      mountSpaceGravity(virtualContainer, LyricsObject.Types.Syllable.Lines, scrollEl);
+    } else {
+      initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
+    }
+  }
 
   const LyricsStylingContainer = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent .simplebar-content"

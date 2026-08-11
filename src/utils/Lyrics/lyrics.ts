@@ -7,6 +7,7 @@ import { $romanization } from "../uiState.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { Lyrics } from "./Animator/Main.ts";
+import { tickSpaceGravity } from "./SpaceGravity.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import { Maid } from "../../modules/Maid.ts";
 
@@ -185,6 +186,7 @@ export const TickLyricsRenderer = () => {
     const progress = SpotifyPlayer.GetPosition();
     Lyrics.TimeSetter(progress);
     Lyrics.Animate(progress);
+    tickSpaceGravity(progress);
   }
 };
 

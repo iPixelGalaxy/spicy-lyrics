@@ -38,6 +38,7 @@ import {
   $simpleLyricsMode,
   $lyricsCacheAction,
   $showLyricsCacheActionButton,
+  $spaceGravityMode,
   $ttmlMakerMode,
   $viewControlsPosition,
 } from "../../utils/stores.ts";
@@ -284,6 +285,8 @@ async function OpenPage(
   if (!$lineHoverBackground.get()) {
     elem.classList.add("NoLineHoverBackground");
   }
+
+  elem.classList.toggle("SpaceGravityMode", $spaceGravityMode.get());
 
   ApplyExperimentClasses(elem);
 
@@ -907,6 +910,24 @@ $rightAlignLyrics.listen(() => {
 $lineHoverBackground.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("NoLineHoverBackground", !v);
+});
+
+$spaceGravityMode.listen((v) => {
+  if (!PageContainer) return;
+  PageContainer.classList.toggle("SpaceGravityMode", v);
+
+  const rawLyrics = $currentLyricsData.get();
+  if (rawLyrics && !rawLyrics.startsWith("NO_LYRICS:")) {
+    try {
+      void ApplyLyrics([JSON.parse(rawLyrics), 200]);
+      return;
+    } catch {
+      // Fall through to the normal fetch path for non-JSON notice states.
+    }
+  }
+
+  const uri = SpotifyPlayer.GetUri();
+  if (uri) void fetchLyrics(uri).then(ApplyLyrics);
 });
 
 $customFontEnabled.listen((v) => {

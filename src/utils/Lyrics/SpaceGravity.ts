@@ -67,6 +67,7 @@ let lines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
 let leadLines: GravityLine[] = [];
 let lineLayouts = new Map<GravityLine, { Height: number }>();
+let splitGroups: Array<{ Group: HTMLElement; Entities: HTMLElement[] }> = [];
 let parentLines = new Map<GravityLine, GravityLine>();
 let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
 let dotLines: GravityLine[] = [];
@@ -250,6 +251,7 @@ function splitDashedGroup(group: HTMLElement): HTMLElement[] {
   }
   entities.push(entity);
   group.replaceWith(...entities);
+  splitGroups.push({ Group: group, Entities: entities });
   return entities;
 }
 
@@ -276,24 +278,37 @@ function prepareLines(nextLines: GravityLine[]): void {
     line.HTMLElement.classList.add("SpaceGravityLine", "SpaceGravityMeasure");
     stage.appendChild(line.HTMLElement);
   }
+
+  // Finish all structural writes before reading layout. Interleaving wrapper
+  // insertion with offsetWidth reads made a long song toggle force layout once
+  // per word.
+  const entitiesByLine = new Map<GravityLine, HTMLElement[]>();
+  for (const line of nextLines) entitiesByLine.set(line, getEntities(line));
   for (const line of nextLines) {
     lineLayouts.set(line, { Height: line.HTMLElement.offsetHeight });
-    for (const [index, child] of getEntities(line).entries()) {
+    for (const [index, child] of (entitiesByLine.get(line) ?? []).entries()) {
       records.push({ Line: line, Child: child, X: line.HTMLElement.offsetLeft + child.offsetLeft, Y: child.offsetTop, Index: index });
     }
   }
-  let order = 0;
+
+  const wrappers: Array<{ Record: typeof records[number]; Element: HTMLElement }> = [];
   for (const record of records) {
-    const syllables = record.Line.Syllables?.Lead.filter((syllable) => record.Child === syllable.HTMLElement || record.Child.contains(syllable.HTMLElement)) ?? [];
-    const startTime = syllables.length ? Math.min(...syllables.map((syllable) => syllable.StartTime)) : record.Line.StartTime;
-    const endTime = syllables.length ? Math.max(...syllables.map((syllable) => syllable.EndTime)) : record.Line.EndTime;
     const bodyElement = document.createElement("span");
     bodyElement.classList.add("SpaceGravityWord", "SpaceGravityUnspawned");
     bodyElement.style.left = "0px";
     bodyElement.style.top = "0px";
-    if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${startTime}`;
+    if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${record.Line.StartTime}`;
     record.Line.HTMLElement.replaceChild(bodyElement, record.Child);
     bodyElement.appendChild(record.Child);
+    wrappers.push({ Record: record, Element: bodyElement });
+  }
+
+  let order = 0;
+  for (const { Record: record, Element: bodyElement } of wrappers) {
+    const syllables = record.Line.Syllables?.Lead.filter((syllable) => record.Child === syllable.HTMLElement || record.Child.contains(syllable.HTMLElement)) ?? [];
+    const startTime = syllables.length ? Math.min(...syllables.map((syllable) => syllable.StartTime)) : record.Line.StartTime;
+    const endTime = syllables.length ? Math.max(...syllables.map((syllable) => syllable.EndTime)) : record.Line.EndTime;
+    if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${startTime}`;
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speed = 4.4 + random(seed + 3) * 5.6;
     const direction = random(seed + 4) * Math.PI * 2;
@@ -668,6 +683,42 @@ export function tickSpaceGravity(position: number): void {
   }
 }
 
+/**
+ * Undo gravity-only DOM changes and return lines for the normal virtualizer.
+ * Lyrics nodes, timing objects, and credits stay intact.
+ */
+export function restoreSpaceGravity(): GravityLine[] {
+  const restoredLines = lines;
+
+  for (const bodies of bodiesByLine.values()) {
+    for (const body of bodies) {
+      if (!body.Element.parentElement) continue;
+      body.Element.replaceWith(...Array.from(body.Element.childNodes));
+    }
+  }
+
+  for (const { Group, Entities } of splitGroups) {
+    const first = Entities[0];
+    if (!first?.parentElement) continue;
+    const children = Entities.flatMap((entity) => Array.from(entity.childNodes));
+    Group.replaceChildren(...children);
+    first.replaceWith(Group);
+    for (const entity of Entities.slice(1)) entity.remove();
+  }
+
+  for (const line of restoredLines) {
+    line.HTMLElement.classList.remove(
+      "SpaceGravityLine",
+      "SpaceGravityMeasure",
+      "SpaceGravityVisible",
+      "SpaceGravityHidden"
+    );
+  }
+
+  destroySpaceGravity();
+  return restoredLines;
+}
+
 export function destroySpaceGravity(): void {
   resizeObserver?.disconnect();
   resizeObserver = null;
@@ -686,6 +737,7 @@ export function destroySpaceGravity(): void {
   bodiesByLine = new Map();
   leadLines = [];
   lineLayouts = new Map();
+  splitGroups = [];
   parentLines = new Map();
   backgroundLinesByParent = new Map();
   dotLines = [];

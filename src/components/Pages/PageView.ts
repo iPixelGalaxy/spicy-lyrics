@@ -7,6 +7,7 @@ import ApplyLyrics, {
   cleanupApplyLyricsAbortController,
   UpdateRenderedRomanization,
 } from "../../utils/Lyrics/Global/Applyer.ts";
+import { UpdateRenderedSpaceGravity } from "../../utils/Lyrics/Applyer/Synced/Syllable.ts";
 import {
   addLinesEvListener,
   isRomanized,
@@ -286,8 +287,6 @@ async function OpenPage(
   if (!$lineHoverBackground.get()) {
     elem.classList.add("NoLineHoverBackground");
   }
-
-  elem.classList.toggle("SpaceGravityMode", $spaceGravityMode.get());
 
   ApplyExperimentClasses(elem);
 
@@ -920,20 +919,16 @@ $lineHoverBackground.listen((v) => {
 
 $spaceGravityMode.listen((v) => {
   if (!PageContainer) return;
-  PageContainer.classList.toggle("SpaceGravityMode", v);
-
-  const rawLyrics = $currentLyricsData.get();
-  if (rawLyrics && !rawLyrics.startsWith("NO_LYRICS:")) {
-    try {
-      void ApplyLyrics([JSON.parse(rawLyrics), 200]);
+  requestAnimationFrame(() => {
+    if (!PageContainer) return;
+    if (!UpdateRenderedSpaceGravity(v)) {
+      // Line/static lyrics have no gravity renderer. Keep the preference for
+      // their next word-synced track without changing this renderer's layout.
+      PageContainer.classList.remove("SpaceGravityMode");
       return;
-    } catch {
-      // Fall through to the normal fetch path for non-JSON notice states.
     }
-  }
-
-  const uri = SpotifyPlayer.GetUri();
-  if (uri) void fetchLyrics(uri).then(ApplyLyrics);
+    PageContainer.classList.toggle("SpaceGravityMode", v);
+  });
 });
 
 $customFontEnabled.listen((v) => {

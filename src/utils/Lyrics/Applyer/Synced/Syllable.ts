@@ -22,8 +22,17 @@ import {
   setRomanizedStatus,
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
-import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
-import { mountSpaceGravity } from "../../SpaceGravity.ts";
+import {
+  destroyLyricsVirtualizer,
+  initLyricsVirtualizer,
+  releaseLyricsVirtualizerElements,
+  type LyricsViewportAnchor,
+} from "../../LyricsVirtualizer.ts";
+import {
+  mountSpaceGravity,
+  restoreSpaceGravity,
+  tickSpaceGravity,
+} from "../../SpaceGravity.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -239,6 +248,57 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
   );
 }
 
+type SyllableRenderSession = {
+  Container: HTMLElement;
+  VirtualContainer: HTMLElement;
+  Lines: typeof LyricsObject.Types.Syllable.Lines;
+  LineElements: HTMLElement[];
+  Footer: HTMLElement;
+  FooterHome: HTMLElement | null;
+  SpaceGravity: boolean;
+};
+
+let syllableRenderSession: SyllableRenderSession | null = null;
+
+export function ClearSyllableRenderSession(): void {
+  syllableRenderSession = null;
+}
+
+/** Switch layouts without rebuilding words, letters, credits, or lyric data. */
+export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
+  const session = syllableRenderSession;
+  if (!session || !session.Container.isConnected || session.SpaceGravity === enabled) return false;
+
+  if (enabled) {
+    PageContainer?.classList.add("SpaceGravityMode");
+    const released = releaseLyricsVirtualizerElements();
+    destroyLyricsVirtualizer();
+    if (released.length > 0) session.LineElements = released;
+    session.VirtualContainer.replaceChildren();
+    session.VirtualContainer.style.removeProperty("height");
+    session.FooterHome = session.Footer.parentElement as HTMLElement | null;
+    session.Container.appendChild(session.Footer);
+    session.Footer.classList.add("SpaceGravityFooter");
+    session.Container.classList.add("SpaceGravityStage");
+    mountSpaceGravity(session.VirtualContainer, session.Lines, session.Container, session.Footer);
+    tickSpaceGravity(SpotifyPlayer.GetPosition());
+  } else {
+    const restoredLines = restoreSpaceGravity();
+    session.Lines = restoredLines as typeof LyricsObject.Types.Syllable.Lines;
+    session.LineElements = restoredLines.map((line) => line.HTMLElement);
+    session.Container.classList.remove("SpaceGravityStage");
+    session.Footer.classList.remove("SpaceGravityFooter");
+    (session.FooterHome?.isConnected ? session.FooterHome : session.Container).appendChild(session.Footer);
+    session.VirtualContainer.replaceChildren();
+    PageContainer?.classList.remove("SpaceGravityMode");
+    const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
+    if (scrollEl) initLyricsVirtualizer(scrollEl, session.VirtualContainer, session.LineElements);
+  }
+
+  session.SpaceGravity = enabled;
+  return true;
+}
+
 export function ApplySyllableLyrics(
   data: LyricsData,
   UseRomanized: boolean = false,
@@ -248,6 +308,7 @@ export function ApplySyllableLyrics(
   EmitNotApplyed();
 
   DestroyAllLyricsContainers();
+  ClearSyllableRenderSession();
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
@@ -777,6 +838,16 @@ export function ApplySyllableLyrics(
     const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
     if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
   }
+
+  syllableRenderSession = {
+    Container: LyricsContainer,
+    VirtualContainer: virtualContainer,
+    Lines: LyricsObject.Types.Syllable.Lines,
+    LineElements: lineElements,
+    Footer: footer,
+    FooterHome: footer.parentElement as HTMLElement | null,
+    SpaceGravity: spaceGravityMode,
+  };
 
   EmitApply(data.Type, data.Content);
 

@@ -1,13 +1,13 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { $currentLyricsData, $currentLyricsType } from "../../stores.ts";
+import { $currentLyricsData, $currentLyricsType, $spaceGravityMode } from "../../stores.ts";
 import { ClearScrollSimplebar } from "../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { setBlurringLastLine } from "../Animator/Lyrics/LyricsAnimator.ts";
 import { DestroyAllLyricsContainers } from "../Applyer/CreateLyricsContainer.ts";
 import { EmitApply, EmitNotApplyed } from "../Applyer/OnApply.ts";
 import { ApplyStaticLyrics, type StaticLyricsData } from "../Applyer/Static.ts";
 import { ApplyLineLyrics } from "../Applyer/Synced/Line.ts";
-import { ApplySyllableLyrics } from "../Applyer/Synced/Syllable.ts";
+import { ApplySyllableLyrics, ClearSyllableRenderSession } from "../Applyer/Synced/Syllable.ts";
 import {
   ConvertLineLyricsToExperimentalWordSync,
   ConvertStaticLyricsToExperimentalWordSync,
@@ -145,6 +145,7 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   EmitNotApplyed();
 
+  ClearSyllableRenderSession();
   DestroyAllLyricsContainers();
 
   ClearLyricsContentArrays();
@@ -291,6 +292,10 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   Defaults.CurrentLyricsType = lyrics.Type;
   $currentLyricsType.set(lyrics.Type);
+  PageContainer?.classList.toggle(
+    "SpaceGravityMode",
+    lyrics.Type === "Syllable" && $spaceGravityMode.get()
+  );
 
   const romanize = isRomanized;
 

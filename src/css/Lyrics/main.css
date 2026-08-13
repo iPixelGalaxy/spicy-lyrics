@@ -177,6 +177,10 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   touch-action: none;
 }
 
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .simplebar-track {
+  display: none;
+}
+
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .VirtualLyricsContainer {
   overflow: hidden;
   container-type: normal;

@@ -804,6 +804,20 @@ class LyricsVirtualizer {
   }
 
   /**
+   * Detach every lyric line before shutting down the virtualizer. Another
+   * renderer can reuse the existing DOM without mounting a whole song at once.
+   */
+  releaseElements(): HTMLElement[] {
+    const container = this._virtualContainer;
+    if (!container) return [];
+
+    const fragment = document.createDocumentFragment();
+    for (const element of this._allElements) fragment.appendChild(element);
+    container.replaceChildren();
+    return this._allElements;
+  }
+
+  /**
    * Scroll the virtualizer to center (or align) a specific line index.
    *
    * Bypasses TanStack's scrollToIndex() (its offset ignores the scroll
@@ -1139,6 +1153,10 @@ export function scrollLyricsToIndex(
 
 export function destroyLyricsVirtualizer(): void {
   lyricsVirtualizer.destroy();
+}
+
+export function releaseLyricsVirtualizerElements(): HTMLElement[] {
+  return lyricsVirtualizer.releaseElements();
 }
 
 export function setOnNewElementMounted(cb: (() => void) | null): void {

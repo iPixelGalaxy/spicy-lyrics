@@ -1,5 +1,5 @@
 import { $currentLyricsType } from "../../../../utils/stores.ts";
-import { LyricsObject, preHiddenDotLineMs, type LyricsType } from "../../lyrics.ts";
+import { LyricsObject, type LyricsType } from "../../lyrics.ts";
 import { timeOffset } from "../Shared.ts";
 
 // Extend the LyricsType to include "None"
@@ -7,6 +7,7 @@ type ExtendedLyricsType = LyricsType | "None";
 
 // Define a type for the word/syllable status
 type ElementStatus = "NotSung" | "Active" | "Sung";
+const DOT_LINE_LAYOUT_RELEASE_MS = 120;
 
 // Define interfaces for the objects we're working with
 interface _SyllableLead {
@@ -29,7 +30,7 @@ function getElementStatus(
 
 function getLineStatus(currentTime: number, line: any): ElementStatus {
   const endTime = line.DotLine
-    ? Math.max(line.StartTime, line.EndTime - preHiddenDotLineMs)
+    ? Math.max(line.StartTime, line.EndTime - DOT_LINE_LAYOUT_RELEASE_MS)
     : line.EndTime;
   return getElementStatus(currentTime, line.StartTime, endTime);
 }

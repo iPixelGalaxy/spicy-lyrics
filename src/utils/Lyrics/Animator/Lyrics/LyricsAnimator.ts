@@ -515,9 +515,11 @@ function getElementState(
   return "Active";
 }
 
+const DOT_LINE_LAYOUT_RELEASE_MS = 120;
+
 function getLineState(currentTime: number, line: any): "NotSung" | "Active" | "Sung" {
   const endTime = line.DotLine
-    ? Math.max(line.StartTime, line.EndTime - preHiddenDotLineMs)
+    ? Math.max(line.StartTime, line.EndTime - DOT_LINE_LAYOUT_RELEASE_MS)
     : line.EndTime;
   return getElementState(currentTime, line.StartTime, endTime);
 }
@@ -955,10 +957,15 @@ export function Animate(position: number): void {
               targetOpacity = DotOpacitySpline.at(1);
             }
 
-            const currentScale = targetScale;
-            const currentYOffset = targetYOffset;
-            const currentGlow = targetGlow;
-            const currentOpacity = targetOpacity;
+            word.AnimatorStore.Scale.SetGoal(targetScale);
+            word.AnimatorStore.YOffset.SetGoal(targetYOffset);
+            word.AnimatorStore.Glow.SetGoal(targetGlow);
+            word.AnimatorStore.Opacity.SetGoal(targetOpacity);
+
+            const currentScale = word.AnimatorStore.Scale.Step(deltaTime);
+            const currentYOffset = word.AnimatorStore.YOffset.Step(deltaTime);
+            const currentGlow = word.AnimatorStore.Glow.Step(deltaTime);
+            const currentOpacity = word.AnimatorStore.Opacity.Step(deltaTime);
 
             // Use translate3d to ensure GPU-accelerated transforms
             setStyleIfChanged(
@@ -1720,10 +1727,15 @@ export function Animate(position: number): void {
               targetOpacity = DotOpacitySpline.at(1);
             }
 
-            const currentScale = targetScale;
-            const currentYOffset = targetYOffset;
-            const currentGlow = targetGlow;
-            const currentOpacity = targetOpacity;
+            dot.AnimatorStore.Scale.SetGoal(targetScale);
+            dot.AnimatorStore.YOffset.SetGoal(targetYOffset);
+            dot.AnimatorStore.Glow.SetGoal(targetGlow);
+            dot.AnimatorStore.Opacity.SetGoal(targetOpacity);
+
+            const currentScale = dot.AnimatorStore.Scale.Step(deltaTime);
+            const currentYOffset = dot.AnimatorStore.YOffset.Step(deltaTime);
+            const currentGlow = dot.AnimatorStore.Glow.Step(deltaTime);
+            const currentOpacity = dot.AnimatorStore.Opacity.Step(deltaTime);
 
             // Use translate3d to ensure GPU-accelerated transforms
             queueStyle(

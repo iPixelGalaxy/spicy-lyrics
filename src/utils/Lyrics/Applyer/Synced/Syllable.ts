@@ -763,8 +763,7 @@ export function ApplySyllableLyrics(
       virtualContainer,
       LyricsObject.Types.Syllable.Lines,
       LyricsContainer,
-      footer,
-      SpotifyPlayer.GetPosition()
+      footer
     );
   } else {
     if (ScrollSimplebar) RecalculateScrollSimplebar();

@@ -509,7 +509,7 @@ function applySoftAvoidance(delta: number): void {
   }
 }
 
-export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine[], nextViewport: HTMLElement, nextFooter: HTMLElement, initialPosition: number): void {
+export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine[], nextViewport: HTMLElement, nextFooter: HTMLElement): void {
   destroySpaceGravity();
   stage = nextStage;
   viewport = nextViewport;
@@ -553,7 +553,6 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
     });
     layoutObserver.observe(layoutRoot, { attributes: true, attributeFilter: ["class"], subtree: true });
   }
-  tickSpaceGravity(initialPosition);
 }
 
 export function tickSpaceGravity(position: number): void {

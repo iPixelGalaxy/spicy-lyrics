@@ -186,8 +186,8 @@ export const TickLyricsRenderer = () => {
   if ($lyricsContainerExists.get() && !$lyricsRendererPaused.get()) {
     const progress = SpotifyPlayer.GetPosition();
     Lyrics.TimeSetter(progress);
-    Lyrics.Animate(progress);
     tickSpaceGravity(progress);
+    Lyrics.Animate(progress);
   }
 };
 

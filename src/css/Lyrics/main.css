@@ -266,6 +266,9 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityUnspawned {
   visibility: hidden;
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: none;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord > :is(.word, .word-group, .letterGroup, .dotGroup) {

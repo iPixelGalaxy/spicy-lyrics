@@ -54,6 +54,7 @@ const SOFT_AVOID_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
 const WORD_WINDOW = 25;
 const LINE_GAP_CQW = 1;
+const LINE_EXIT_DELAY_MS = 200;
 
 let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
@@ -72,6 +73,7 @@ let leadWordCounts = new Map<GravityLine, number>();
 let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
 let visibleLines = new Set<GravityLine>();
+let pendingLineRemovals = new Map<GravityLine, number>();
 let selectionEpoch = 0;
 let lastAnchor = Number.NaN;
 let lastWordAnchor = Number.NaN;
@@ -350,6 +352,23 @@ function resetBody(body: GravityBody): void {
   applyBodyRole(body, undefined);
 }
 
+function cancelLineRemoval(line: GravityLine): void {
+  const timer = pendingLineRemovals.get(line);
+  if (timer === undefined) return;
+  line.HTMLElement.ownerDocument.defaultView?.clearTimeout(timer);
+  pendingLineRemovals.delete(line);
+}
+
+function scheduleLineRemoval(line: GravityLine): void {
+  line.HTMLElement.classList.remove("SpaceGravityVisible");
+  if (pendingLineRemovals.has(line)) return;
+  const timer = line.HTMLElement.ownerDocument.defaultView?.setTimeout(() => {
+    pendingLineRemovals.delete(line);
+    if (!visibleLines.has(line)) line.HTMLElement.remove();
+  }, LINE_EXIT_DELAY_MS);
+  if (timer !== undefined) pendingLineRemovals.set(line, timer);
+}
+
 function getActiveLeadLine(position: number, anchor: number): GravityLine | undefined {
   const candidate = leadLines[anchor];
   return candidate && position >= candidate.StartTime && position < candidate.EndTime ? candidate : undefined;
@@ -437,8 +456,12 @@ function updateVisibleBodies(position: number): void {
     body.NaturalY = getNaturalLineTop(body.Line, activeLine, stageBounds!.Height) + body.StartY + body.Height / 2;
     applyBodyRole(body, getRole(body, position, activeLine));
   }
-  for (const line of visibleLines) if (!nextLines.has(line)) { line.HTMLElement.classList.remove("SpaceGravityVisible"); line.HTMLElement.remove(); }
-  for (const line of nextLines) { line.HTMLElement.classList.add("SpaceGravityVisible"); if (!line.HTMLElement.isConnected) stage?.appendChild(line.HTMLElement); }
+  for (const line of visibleLines) if (!nextLines.has(line)) scheduleLineRemoval(line);
+  for (const line of nextLines) {
+    cancelLineRemoval(line);
+    line.HTMLElement.classList.add("SpaceGravityVisible");
+    if (!line.HTMLElement.isConnected) stage?.appendChild(line.HTMLElement);
+  }
   visibleLines = nextLines;
   layoutDirty = false;
   staticLayoutDirty = true;
@@ -456,8 +479,8 @@ function spawnBody(body: GravityBody, width: number, height: number): void {
   body.Angle = 0;
   resolveBodyConstraints(body, width, height);
   body.Spawned = true;
-  body.Element.classList.remove("SpaceGravityUnspawned");
   renderBody(body);
+  body.Element.classList.remove("SpaceGravityUnspawned");
 }
 
 function applyStaticLayout(width: number, height: number): void {
@@ -589,6 +612,8 @@ export function destroySpaceGravity(): void {
   layoutObserver?.disconnect();
   layoutObserver = null;
   if (coverTrackingFrame !== null) cancelAnimationFrame(coverTrackingFrame);
+  for (const [line, timer] of pendingLineRemovals) line.HTMLElement.ownerDocument.defaultView?.clearTimeout(timer);
+  pendingLineRemovals = new Map();
   coverTrackingFrame = null;
   coverTrackingUntil = 0;
   stage = null;

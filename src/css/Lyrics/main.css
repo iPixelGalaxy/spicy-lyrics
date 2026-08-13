@@ -221,12 +221,6 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   pointer-events: auto;
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent > :is(.word, .word-group, .letterGroup, .dotGroup),
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent :is(.word, .letter, .letterGroup) {
-  --gradient-alpha: 1 !important;
-  --gradient-alpha-end: 1 !important;
-}
-
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
   pointer-events: auto;
   transition: opacity 180ms ease;

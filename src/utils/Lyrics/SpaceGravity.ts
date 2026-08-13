@@ -21,6 +21,7 @@ type GravityBody = {
   StartTime: number;
   EndTime: number;
   Order: number;
+  WordIndex: number;
   X: number;
   Y: number;
   VX: number;
@@ -66,11 +67,14 @@ let parentLines = new Map<GravityLine, GravityLine>();
 let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
 let dotLines: GravityLine[] = [];
 let leadLineIndexes = new Map<GravityLine, number>();
+let leadWordStarts = new Map<GravityLine, number>();
+let leadWordCounts = new Map<GravityLine, number>();
 let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
 let visibleLines = new Set<GravityLine>();
 let selectionEpoch = 0;
 let lastAnchor = Number.NaN;
+let lastWordAnchor = Number.NaN;
 let lastDotSignature = "";
 let finalVocalEnd = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
@@ -248,6 +252,16 @@ function getEntities(line: GravityLine): HTMLElement[] {
     .flatMap((child) => child.classList.contains("word-group") ? splitDashedGroup(child) : [child]);
 }
 
+function getEntityCount(line: GravityLine): number {
+  const children = Array.from(line.HTMLElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+  return Math.max(1, children.reduce((count, child) => {
+    if (!child.classList.contains("word-group")) return count + 1;
+    const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
+    if (parts.length < 2) return count + 1;
+    return count + 1 + parts.slice(0, -1).filter((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1])).length;
+  }, 0));
+}
+
 function prepareLines(nextLines: GravityLine[]): void {
   if (!stage || nextLines.length === 0) return;
   const records: Array<{ Line: GravityLine; Child: HTMLElement; X: number; Y: number; Index: number }> = [];
@@ -276,7 +290,7 @@ function prepareLines(nextLines: GravityLine[]): void {
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speed = 4.4 + random(seed + 3) * 5.6;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
     body.Width = bodyElement.offsetWidth;
     body.Height = bodyElement.offsetHeight;
     body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
@@ -341,29 +355,19 @@ function getActiveLeadLine(position: number, anchor: number): GravityLine | unde
   return candidate && position >= candidate.StartTime && position < candidate.EndTime ? candidate : undefined;
 }
 
-function getLineWordCount(line: GravityLine): number {
-  return Math.max(1, line.Syllables?.Lead.filter((word) => !word.Dot).length ?? 0);
+function getAnchorBody(position: number, line: GravityLine): GravityBody | undefined {
+  const bodies = bodiesByLine.get(line) ?? [];
+  return bodies.find((body) => position >= body.StartTime && position < body.EndTime)
+    ?? bodies.find((body) => position < body.StartTime)
+    ?? bodies.at(-1);
 }
 
-function getLeadWindow(anchor: number): GravityLine[] {
-  if (anchor < 0) return [];
-  const before: GravityLine[] = [];
-  const after: GravityLine[] = [];
-  let beforeCount = 0;
-  let afterCount = getLineWordCount(leadLines[anchor]);
-  for (let index = anchor - 1; index >= 0; index -= 1) {
-    const count = getLineWordCount(leadLines[index]);
-    if (beforeCount > 0 && beforeCount + count > WORD_WINDOW) break;
-    before.unshift(leadLines[index]);
-    beforeCount += count;
-  }
-  for (let index = anchor + 1; index < leadLines.length; index += 1) {
-    const count = getLineWordCount(leadLines[index]);
-    if (afterCount > 0 && afterCount + count > WORD_WINDOW) break;
-    after.push(leadLines[index]);
-    afterCount += count;
-  }
-  return [...before, leadLines[anchor], ...after];
+function getLeadWindow(firstWord: number, lastWord: number): GravityLine[] {
+  return leadLines.filter((line) => {
+    const first = leadWordStarts.get(line) ?? 0;
+    const last = first + (leadWordCounts.get(line) ?? 0) - 1;
+    return first <= lastWord && last >= firstWord;
+  });
 }
 
 function getActiveDotLine(position: number): GravityLine | undefined {
@@ -400,33 +404,31 @@ function updateVisibleBodies(position: number): void {
   const anchor = getAnchorIndex(position);
   const activeDotLine = getActiveDotLine(position);
   const dotSignature = activeDotLine ? `${activeDotLine.StartTime}` : "";
-  if (!layoutDirty && anchor === lastAnchor && dotSignature === lastDotSignature) return;
+  const anchorLine = leadLines[anchor];
+  if (anchorLine && !preparedLines.has(anchorLine)) prepareLines([anchorLine]);
+  const wordAnchor = anchorLine ? getAnchorBody(position, anchorLine)?.WordIndex ?? Number.NaN : Number.NaN;
+  if (!layoutDirty && anchor === lastAnchor && wordAnchor === lastWordAnchor && dotSignature === lastDotSignature) return;
   lastAnchor = anchor;
+  lastWordAnchor = wordAnchor;
   lastDotSignature = dotSignature;
   selectionEpoch += 1;
   const activeLine = getActiveLeadLine(position, anchor);
-  const leadWindow = getLeadWindow(anchor);
+  const leadWindow = Number.isNaN(wordAnchor) ? [] : getLeadWindow(wordAnchor - WORD_WINDOW, wordAnchor + WORD_WINDOW);
   const selectedParents = new Set<GravityLine>();
-  for (const line of leadWindow) {
-    selectedParents.add(line);
-    for (const body of bodiesByLine.get(line) ?? []) body.SelectionEpoch = selectionEpoch;
-  }
-  for (const parent of selectedParents) {
-    for (const line of backgroundLinesByParent.get(parent) ?? []) {
-      for (const body of bodiesByLine.get(line) ?? []) body.SelectionEpoch = selectionEpoch;
-    }
-  }
-  for (const body of activeDotLine ? bodiesByLine.get(activeDotLine) ?? [] : []) body.SelectionEpoch = selectionEpoch;
-  const nextBodies: GravityBody[] = [];
-  const nextLines = new Set<GravityLine>();
-  for (const body of activeBodies) if (body.SelectionEpoch !== selectionEpoch) resetBody(body);
+  for (const line of leadWindow) selectedParents.add(line);
   const entering = Array.from(selectedParents).filter((line) => !preparedLines.has(line));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) if (!preparedLines.has(line)) entering.push(line);
   if (activeDotLine && !preparedLines.has(activeDotLine)) entering.push(activeDotLine);
   prepareLines(entering);
-  for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []));
+  const firstWord = wordAnchor - WORD_WINDOW;
+  const lastWord = wordAnchor + WORD_WINDOW;
+  const nextBodies: GravityBody[] = [];
+  const nextLines = new Set<GravityLine>();
+  for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []).filter((body) => body.WordIndex >= firstWord && body.WordIndex <= lastWord));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) nextBodies.push(...(bodiesByLine.get(line) ?? []));
   if (activeDotLine) nextBodies.push(...(bodiesByLine.get(activeDotLine) ?? []));
+  for (const body of nextBodies) body.SelectionEpoch = selectionEpoch;
+  for (const body of activeBodies) if (body.SelectionEpoch !== selectionEpoch) resetBody(body);
   activeBodies = nextBodies;
   for (const body of activeBodies) {
     body.Visible = true;
@@ -515,9 +517,16 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   lines = nextLines;
   finalVocalEnd = lines
     .filter((line) => !line.DotLine)
-    .reduce((end, line) => Math.max(end, line.EndTime), Number.NEGATIVE_INFINITY);
+    .reduce((end, line) => Math.max(end, ...(line.Syllables?.Lead.filter((word) => !word.Dot).map((word) => word.EndTime) ?? [line.EndTime])), Number.NEGATIVE_INFINITY);
   leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
-  for (const [index, line] of leadLines.entries()) leadLineIndexes.set(line, index);
+  let wordStart = 0;
+  for (const [index, line] of leadLines.entries()) {
+    leadLineIndexes.set(line, index);
+    leadWordStarts.set(line, wordStart);
+    const count = getEntityCount(line);
+    leadWordCounts.set(line, count);
+    wordStart += count;
+  }
   for (const line of lines) {
     if (!line.BGLine || line.SpaceGravityParentLineIndex === undefined) continue;
     const parent = lines[line.SpaceGravityParentLineIndex];
@@ -595,11 +604,14 @@ export function destroySpaceGravity(): void {
   backgroundLinesByParent = new Map();
   dotLines = [];
   leadLineIndexes = new Map();
+  leadWordStarts = new Map();
+  leadWordCounts = new Map();
   preparedLines = new Set();
   activeBodies = [];
   visibleLines = new Set();
   selectionEpoch = 0;
   lastAnchor = Number.NaN;
+  lastWordAnchor = Number.NaN;
   lastDotSignature = "";
   finalVocalEnd = Number.NEGATIVE_INFINITY;
   layoutDirty = true;

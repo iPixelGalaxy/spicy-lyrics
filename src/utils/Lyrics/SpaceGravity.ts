@@ -54,7 +54,7 @@ const MAX_SPEED = 16;
 const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
-const WORD_WINDOW = 25;
+const MAX_VISIBLE_LEAD_WORDS = 50;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
 const WORD_PRESENCE_FADE_MS = 180;
@@ -417,6 +417,14 @@ function getLeadWindow(firstWord: number, lastWord: number): GravityLine[] {
   });
 }
 
+function getLeadWordRange(anchor: number): { First: number; Last: number } | undefined {
+  const total = Array.from(leadWordCounts.values()).reduce((sum, count) => sum + count, 0);
+  if (total === 0 || Number.isNaN(anchor)) return undefined;
+  const count = Math.min(MAX_VISIBLE_LEAD_WORDS, total);
+  const first = Math.max(0, Math.min(anchor - Math.floor((count - 1) / 2), total - count));
+  return { First: first, Last: first + count - 1 };
+}
+
 function getActiveDotLine(position: number): GravityLine | undefined {
   let low = 0;
   let high = dotLines.length;
@@ -464,18 +472,17 @@ function updateVisibleBodies(position: number): void {
   lastDotSignature = dotSignature;
   selectionEpoch += 1;
   const activeLine = getActiveLeadLine(position, anchor);
-  const leadWindow = Number.isNaN(wordAnchor) ? [] : getLeadWindow(wordAnchor - WORD_WINDOW, wordAnchor + WORD_WINDOW);
+  const wordRange = getLeadWordRange(wordAnchor);
+  const leadWindow = wordRange ? getLeadWindow(wordRange.First, wordRange.Last) : [];
   const selectedParents = new Set<GravityLine>();
   for (const line of leadWindow) selectedParents.add(line);
   const entering = Array.from(selectedParents).filter((line) => !preparedLines.has(line));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) if (!preparedLines.has(line)) entering.push(line);
   if (activeDotLine && !preparedLines.has(activeDotLine)) entering.push(activeDotLine);
   prepareLines(entering);
-  const firstWord = wordAnchor - WORD_WINDOW;
-  const lastWord = wordAnchor + WORD_WINDOW;
   const nextBodies: GravityBody[] = [];
   const nextLines = new Set<GravityLine>();
-  for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []).filter((body) => body.WordIndex >= firstWord && body.WordIndex <= lastWord));
+  if (wordRange) for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []).filter((body) => body.WordIndex >= wordRange.First && body.WordIndex <= wordRange.Last));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) nextBodies.push(...(bodiesByLine.get(line) ?? []));
   if (activeDotLine) nextBodies.push(...(bodiesByLine.get(activeDotLine) ?? []));
   for (const body of nextBodies) body.SelectionEpoch = selectionEpoch;

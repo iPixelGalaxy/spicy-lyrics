@@ -12,8 +12,7 @@ import Logger from "../Logger.ts";
 // different trailing gaps without any virtualizer-level workaround.
 const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
-const PINNED_FOOTER_BASE_CLEARANCE = 164;
-const PINNED_FOOTER_MIN_CLEARANCE = 98;
+const PINNED_FOOTER_DEFAULT_CLEARANCE = 98;
 const PINNED_FOOTER_BOTTOM_OFFSET = 64;
 
 const ESTIMATE: Record<string, number> = {
@@ -170,26 +169,40 @@ class LyricsVirtualizer {
     );
     if (!footerLayer) return;
 
-    let trailingBackgroundHeight = 0;
-    for (let index = this._allElements.length - 1; index >= 0; index -= 1) {
-      const line = this._allElements[index];
-      if (!line.classList.contains("bg-line")) break;
-      const measurement = this._virtualizer?.measurementsCache[index] as
-        | { size: number }
-        | undefined;
-      trailingBackgroundHeight += measurement?.size ?? this._estimateSize(index);
-    }
-
-    const trailingClearance = Math.max(
-      PINNED_FOOTER_MIN_CLEARANCE,
-      PINNED_FOOTER_BASE_CLEARANCE - trailingBackgroundHeight
-    );
     const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
+    lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+
+    const scrollEl = this._scrollEl;
+    const lastMeasurement = this._virtualizer?.measurementsCache[
+      this._allElements.length - 1
+    ] as { end: number } | undefined;
+    if (!scrollEl || !lastMeasurement) return;
+
+    const scrollRect = scrollEl.getBoundingClientRect();
+    const containerOffset =
+      virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
+    const terminalBottomAtMaxScroll =
+      scrollRect.top + containerOffset + lastMeasurement.end -
+      Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const fadeStart = parseFloat(
+      getComputedStyle(lyricsContent).getPropertyValue("--SL-LyricsContent_MaskBottomFadeStart")
+    );
+    if (!Number.isFinite(fadeStart)) return;
+
+    const inlineClearance = parseFloat(
+      scrollContainer.style.getPropertyValue("--SL-PinnedFooterTrailingClearance")
+    );
+    const currentClearance = Number.isFinite(inlineClearance)
+      ? inlineClearance
+      : PINNED_FOOTER_DEFAULT_CLEARANCE;
+    const requiredClearance = Math.max(
+      0,
+      currentClearance + terminalBottomAtMaxScroll - (scrollRect.bottom - fadeStart)
+    );
     scrollContainer.style.setProperty(
       "--SL-PinnedFooterTrailingClearance",
-      `${Math.ceil(trailingClearance)}px`
+      `${Math.ceil(requiredClearance)}px`
     );
-    lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
   }
 
   private _remeasureVisible(): void {

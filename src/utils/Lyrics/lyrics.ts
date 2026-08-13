@@ -263,7 +263,7 @@ function shouldBlockSeekForCurrentTrack() {
 
 function seekToLyric(startTime: number): void {
   const targetTime = isExperimentEnabled("lyricClickLeadIn")
-    ? Math.max(0, startTime - 400)
+    ? Math.max(0, startTime - 500)
     : startTime;
   SpotifyPlayer.Seek(targetTime);
   Global.Event.evoke("song:seek", targetTime);

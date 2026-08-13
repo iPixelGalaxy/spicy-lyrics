@@ -62,7 +62,7 @@ export const EXPERIMENTS = [
   {
     id: "lyricClickLeadIn",
     label: "Lyric Click Lead-in",
-    description: "Seek 400ms before the lyric timing point. Disable to seek to the exact timing point.",
+    description: "Seek 500ms before the lyric timing point. Disable to seek to the exact timing point.",
     default: true,
   },
 ] as const satisfies readonly Experiment[];

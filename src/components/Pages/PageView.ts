@@ -5,6 +5,7 @@ import "../../css/Loaders/DotLoader.css";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
   cleanupApplyLyricsAbortController,
+  ShouldReapplyRenderedLyricsForSpaceGravity,
   UpdateRenderedRomanization,
 } from "../../utils/Lyrics/Global/Applyer.ts";
 import { UpdateRenderedSpaceGravity } from "../../utils/Lyrics/Applyer/Synced/Syllable.ts";
@@ -919,6 +920,10 @@ $lineHoverBackground.listen((v) => {
 
 $spaceGravityMode.listen((v) => {
   if (!PageContainer) return;
+  if (ShouldReapplyRenderedLyricsForSpaceGravity(v)) {
+    ReapplyCurrentLyrics();
+    return;
+  }
   requestAnimationFrame(() => {
     if (!PageContainer) return;
     if (!UpdateRenderedSpaceGravity(v)) {

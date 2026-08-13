@@ -1,3 +1,21 @@
+## v100.10.36
+
+- **Space Gravity Mode**
+  Improved word visibility, duet colours, instrumental endings, credits, cover avoidance, and switching mode without rebuilding lyrics.
+  Line and static lyrics now use temporary word sync when Gravity needs it.
+
+- **Lyric seek lead-in removed**
+  Clicking lyrics now seeks at their exact timing point again.
+
+- **Pinned credits**
+  Improved final-lyric clearance and fade behavior.
+
+- **Cinema**
+  Cinema pop-out now disabled by default.
+
+- **Scrollbar**
+  Fixed hover visibility.
+
 ## v100.10.35
 
 - **Space Gravity Mode**

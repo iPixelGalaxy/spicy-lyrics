@@ -82,6 +82,7 @@ interface LyricsData {
   fetchProvider?: string;
   userUploaded?: boolean;
   experimentalWordSync?: boolean;
+  experimentalWordSyncReason?: "SpaceGravity" | string;
   classes?: string;
   styles?: Record<string, string>;
 }

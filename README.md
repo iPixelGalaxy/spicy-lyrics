@@ -63,7 +63,28 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.35 — Latest
+### v100.10.36 — Latest
+
+- **Space Gravity Mode**
+  Improved word visibility, duet colours, instrumental endings, credits, cover avoidance, and switching mode without rebuilding lyrics.
+  Line and static lyrics now use temporary word sync when Gravity needs it.
+
+- **Lyric seek lead-in removed**
+  Clicking lyrics now seeks at their exact timing point again.
+
+- **Pinned credits**
+  Improved final-lyric clearance and fade behavior.
+
+- **Cinema**
+  Cinema pop-out now disabled by default.
+
+- **Scrollbar**
+  Fixed hover visibility.
+
+<details>
+<summary>v100.10.35</summary>
+
+### v100.10.35
 
 - **Space Gravity Mode**
   An Appearance option lets synced lyric words drift freely from their normal line positions. It supports instrumental dots, background vocals, duet colouring, cover-art avoidance, and persistent credits.
@@ -79,6 +100,8 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 - **Added Extra Glow On Active Line**
   Added Extra Glow if hovering over active line
+
+</details>
 
 <details>
 <summary>v100.10.34</summary>

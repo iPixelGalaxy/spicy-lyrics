@@ -183,16 +183,13 @@ class LyricsVirtualizer {
     const terminalBottomAtMaxScroll =
       scrollRect.top + containerOffset + lastMeasurement.end -
       Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-    const fadeStart = parseFloat(
-      getComputedStyle(lyricsContent).getPropertyValue("--SL-LyricsContent_MaskBottomFadeStart")
-    );
-    if (!Number.isFinite(fadeStart)) return;
+    const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - 32;
 
     const currentMargin = parseFloat(getComputedStyle(scrollContainer).marginBottom);
     if (!Number.isFinite(currentMargin)) return;
     const requiredMargin = Math.max(
       0,
-      currentMargin + terminalBottomAtMaxScroll - (scrollRect.bottom - fadeStart)
+      currentMargin + terminalBottomAtMaxScroll - terminalOpaqueBoundary
     );
     scrollContainer.style.setProperty(
       "--SL-PinnedFooterBottomMargin",

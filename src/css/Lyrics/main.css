@@ -181,19 +181,6 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   display: none;
 }
 
-/* Gravity reuses SimpleBar's already-mounted DOM. Give each wrapper a definite
-   height so the stage's 100% height does not collapse after virtualized lines
-   are detached. */
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent :is(
-  .simplebar-wrapper,
-  .simplebar-mask,
-  .simplebar-offset,
-  .simplebar-content-wrapper,
-  .simplebar-content
-) {
-  height: 100%;
-}
-
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .VirtualLyricsContainer {
   overflow: hidden;
   container-type: normal;

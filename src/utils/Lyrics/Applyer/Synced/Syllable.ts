@@ -7,7 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
-import { AdoptReappliedScrollPosition } from "../../../Scrolling/ScrollToActiveLine.ts";
+import { AdoptReappliedScrollPosition, QueueForceScroll } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
@@ -249,6 +249,7 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
 }
 
 type SyllableRenderSession = {
+  Host: HTMLElement;
   Container: HTMLElement;
   VirtualContainer: HTMLElement;
   Lines: typeof LyricsObject.Types.Syllable.Lines;
@@ -274,7 +275,11 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     const released = releaseLyricsVirtualizerElements();
     destroyLyricsVirtualizer();
     if (released.length > 0) session.LineElements = released;
-    session.VirtualContainer.replaceChildren();
+    ClearScrollSimplebar();
+    // SimpleBar keeps an internal wrapper/mask/content tree. Gravity's stage
+    // is sized against the real LyricsContent host, exactly like first render;
+    // leaving it in that shell defers a usable size until the page is hidden.
+    session.Host.replaceChildren(session.Container);
     session.VirtualContainer.style.removeProperty("height");
     session.FooterHome = session.Footer.parentElement as HTMLElement | null;
     session.Container.appendChild(session.Footer);
@@ -291,8 +296,13 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     (session.FooterHome?.isConnected ? session.FooterHome : session.Container).appendChild(session.Footer);
     session.VirtualContainer.replaceChildren();
     PageContainer?.classList.remove("SpaceGravityMode");
+    // Fresh normal mode owns a fresh SimpleBar tree. This also fixes pages
+    // opened in gravity mode, where no scroll instance exists yet.
+    session.Host.replaceChildren(session.Container);
+    MountScrollSimplebar();
     const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
     if (scrollEl) initLyricsVirtualizer(scrollEl, session.VirtualContainer, session.LineElements);
+    QueueForceScroll();
   }
 
   session.SpaceGravity = enabled;
@@ -840,6 +850,7 @@ export function ApplySyllableLyrics(
   }
 
   syllableRenderSession = {
+    Host: LyricsContainerParent!,
     Container: LyricsContainer,
     VirtualContainer: virtualContainer,
     Lines: LyricsObject.Types.Syllable.Lines,

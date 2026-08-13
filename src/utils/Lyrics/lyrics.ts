@@ -403,5 +403,5 @@ export const setRomanizedStatus = (val: boolean) => {
   $romanization.set(val);
 };
 
-export const preHiddenDotLineMs = 150;
-export const getInterludeTimePadding = () => (preHiddenDotLineMs + 50) * -1;
+export const preHiddenDotLineMs = 20;
+export const getInterludeTimePadding = () => preHiddenDotLineMs * -1;

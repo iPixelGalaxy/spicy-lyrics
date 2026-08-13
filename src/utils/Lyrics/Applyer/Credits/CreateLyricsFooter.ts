@@ -1,5 +1,3 @@
-import { isExperimentEnabled } from "../../../experiments.ts";
-
 export function CreateLyricsFooter(
   lyricsContainer: HTMLElement,
   lyricsContent: HTMLElement | null | undefined,
@@ -17,7 +15,13 @@ export function CreateLyricsFooter(
   const pinnedFooterLayer = lyricsContent?.parentElement?.querySelector<HTMLElement>(
     ".LyricsPinnedFooter"
   );
-  if (isExperimentEnabled("pinLyricsFooter") && pinnedFooterLayer) {
+  // Footer placement must follow the page class. CSS uses this same class to
+  // reveal and pin the layer, while the persisted experiment store can lag one
+  // render behind during page construction.
+  const pinFooterEnabled = lyricsContent
+    ?.closest<HTMLElement>("#SpicyLyricsPage")
+    ?.classList.contains("Exp_PinLyricsFooter");
+  if (pinFooterEnabled && pinnedFooterLayer) {
     footer.classList.add("PinnedLyricsFooter");
     pinnedFooterLayer.appendChild(footer);
     return footer;

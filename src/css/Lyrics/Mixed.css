@@ -41,7 +41,7 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letter {
   --gradient-position: -20%;
-  --gradient-color: 255;
+  --gradient-rgb: 255, 255, 255;
   --gradient-alpha: 0.85;
   --gradient-alpha-end: 0.5;
   --gradient-degrees: 90deg;
@@ -80,8 +80,8 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.static {
   background-image: linear-gradient(
     var(--gradient-degrees),
-    rgba(255, 255, 255, var(--gradient-alpha)) var(--gradient-position),
-    rgba(255, 255, 255, var(--gradient-alpha-end))
+    rgba(var(--gradient-rgb), var(--gradient-alpha)) var(--gradient-position),
+    rgba(var(--gradient-rgb), var(--gradient-alpha-end))
       calc(var(--gradient-position) + 20% + var(--gradient-offset))
   );
 }
@@ -89,12 +89,7 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.NotSung .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.NotSung .letter {
   text-shadow: 0 0 var(--BlurAmount, 0)
-    rgba(
-      var(--gradient-color),
-      var(--gradient-color),
-      var(--gradient-color),
-      var(--gradient-alpha-end)
-    );
+    rgba(var(--gradient-rgb), var(--gradient-alpha-end));
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Sung,
@@ -105,7 +100,7 @@
   .SpicyLyricsScrollContainer[data-lyrics-type="Static"]
   .line {
   text-shadow: 0 0 var(--BlurAmount, 0)
-    rgba(var(--gradient-color), var(--gradient-color), var(--gradient-color), var(--gradient-alpha));
+    rgba(var(--gradient-rgb), var(--gradient-alpha));
 }
 
 /* #SpicyLyricsPage.SpicyRenderer.Podcast .LyricsContainer .LyricsContent .line,

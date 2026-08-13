@@ -131,6 +131,9 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
       madeTippys.add(
         Spicetify.Tippy(uploaderSpan, {
           ...Spicetify.TippyProps,
+          ...(uploaderSpan.ownerDocument === document
+            ? {}
+            : { appendTo: () => uploaderSpan.ownerDocument.body }),
           content: `View TTML Profile`,
         })
       )
@@ -153,6 +156,9 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
       madeTippys.add(
         Spicetify.Tippy(makerSpan, {
           ...Spicetify.TippyProps,
+          ...(makerSpan.ownerDocument === document
+            ? {}
+            : { appendTo: () => makerSpan.ownerDocument.body }),
           content: `View TTML Profile`,
         })
       )

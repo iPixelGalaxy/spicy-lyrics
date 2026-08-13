@@ -585,15 +585,20 @@ function AppendViewControls(ReAppend: boolean = false) {
   }
 
   function SetupTippy(elem: HTMLElement) {
-    // If in PIP mode, do not create any Tippy tooltips, but still wire up click handlers
-    const isDetachedWindow = IsPIP || IsExternalCinemaLyrics;
+    // PiP cannot host Spotify Tippy instances, but Cinema can use its own document.
+    const tippyProps = (target: HTMLElement) => ({
+      ...Spicetify.TippyProps,
+      ...(target.ownerDocument === document
+        ? {}
+        : { appendTo: () => target.ownerDocument.body }),
+    });
 
     const closeButton = elem.querySelector("#Close");
     if (closeButton) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(closeButton, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(closeButton),
             content: `Close Page`,
           });
         }
@@ -623,9 +628,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const compactModeToggle = elem.querySelector("#CompactModeToggle");
     if (compactModeToggle) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(compactModeToggle, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(compactModeToggle),
             content: `${
               IsCompactMode() ? "Disable Compact Mode" : "Enable Compact Mode"
             }`,
@@ -669,9 +674,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const romanizationToggle = elem.querySelector("#RomanizationToggle");
     if (romanizationToggle) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(romanizationToggle, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(romanizationToggle),
             content: isRomanized ? `Disable Romanization` : `Enable Romanization`,
           });
         }
@@ -703,9 +708,9 @@ function AppendViewControls(ReAppend: boolean = false) {
       const nowBarButton = elem.querySelector("#NowBarToggle");
       if (nowBarButton) {
         try {
-          if (!isDetachedWindow) {
+          if (!IsPIP) {
             Tooltips.NowBarToggle = Spicetify.Tippy(nowBarButton, {
-              ...Spicetify.TippyProps,
+              ...tippyProps(nowBarButton),
               content: `NowBar`,
             });
           }
@@ -720,9 +725,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const fullscreenBtn = elem.querySelector("#FullscreenToggle");
     if (fullscreenBtn) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.FullscreenToggle = Spicetify.Tippy(fullscreenBtn, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(fullscreenBtn),
             content: `${
               Fullscreen.CinemaViewOpen ? "Fullscreen" : "Cinema View"
             }`,
@@ -749,9 +754,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const cinemaViewBtn = elem.querySelector("#CinemaView");
     if (cinemaViewBtn && !Fullscreen.IsOpen) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.CinemaView = Spicetify.Tippy(cinemaViewBtn, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(cinemaViewBtn),
             content: `Cinema View`,
           });
         }
@@ -770,9 +775,9 @@ function AppendViewControls(ReAppend: boolean = false) {
       !(isNoLyrics && (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen))
     ) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.NowBarSideToggle = Spicetify.Tippy(nowBarSideToggleBtn, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(nowBarSideToggleBtn),
             content: `Swap NowBar Side`,
           });
         }
@@ -785,9 +790,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const settingsButton = elem.querySelector("#SettingsToggle");
     if (settingsButton && !IsPIP) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.Settings = Spicetify.Tippy(settingsButton, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(settingsButton),
             content: `Spicy Lyrics Settings`,
           });
         }
@@ -802,9 +807,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const cacheActionButton = elem.querySelector<HTMLButtonElement>("#CacheAction");
     if (cacheActionButton) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.CacheAction = Spicetify.Tippy(cacheActionButton, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(cacheActionButton),
             content: getLyricsCacheActionLabel(cacheAction),
           });
         }
@@ -832,9 +837,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const lyricsManagerButton = elem.querySelector("#LyricsManager");
     if (lyricsManagerButton && isTTMLMakerMode) {
       try {
-        if (!isDetachedWindow) {
+        if (!IsPIP) {
           Tooltips.LyricsManager = Spicetify.Tippy(lyricsManagerButton, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(lyricsManagerButton),
             content: `Load TTML`,
           });
         }
@@ -843,7 +848,7 @@ function AppendViewControls(ReAppend: boolean = false) {
             globalThis.focus();
           }
           
-          OpenLyricsDBPanel();
+          OpenLyricsDBPanel(PageContainer?.ownerDocument ?? document);
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Load TTML tooltip", err);

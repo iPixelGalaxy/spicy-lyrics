@@ -447,6 +447,10 @@ function getNaturalLineTop(line: GravityLine, activeLine: GravityLine | undefine
   return top;
 }
 
+function getSpawnLineTop(line: GravityLine, height: number): number {
+  return (height - (lineLayouts.get(line)?.Height ?? 0)) / 2;
+}
+
 function updateVisibleBodies(position: number): void {
   const anchor = getAnchorIndex(position);
   const activeDotLine = getActiveDotLine(position);
@@ -484,6 +488,7 @@ function updateVisibleBodies(position: number): void {
     nextLines.add(body.Line);
     body.NaturalX = body.StartX + body.Width / 2;
     body.NaturalY = getNaturalLineTop(body.Line, activeLine, stageBounds!.Height) + body.StartY + body.Height / 2;
+    if (!body.Spawned) body.NaturalY = getSpawnLineTop(body.Line, stageBounds!.Height) + body.StartY + body.Height / 2;
     applyBodyRole(body, getRole(body, position, activeLine));
   }
   for (const line of visibleLines) if (!nextLines.has(line)) scheduleLineRemoval(line);

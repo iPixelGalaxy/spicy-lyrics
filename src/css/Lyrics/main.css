@@ -207,27 +207,30 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent {
-  opacity: 1 !important;
+  --space-gravity-role-opacity: 1;
   pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityNext {
-  opacity: 0.34 !important;
+  --space-gravity-role-opacity: 0.34;
   pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityNearby {
-  opacity: 0.22 !important;
+  --space-gravity-role-opacity: 0.22;
   pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
+  --space-gravity-role-opacity: 1;
+  --space-gravity-presence-opacity: 1;
+  opacity: calc(var(--space-gravity-role-opacity) * var(--space-gravity-presence-opacity)) !important;
   pointer-events: auto;
   transition: opacity 180ms ease;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord:hover {
-  opacity: 1 !important;
+  --space-gravity-role-opacity: 1;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent:not(.SpaceGravityDot):hover {
@@ -266,9 +269,14 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityUnspawned {
   visibility: hidden;
-  opacity: 0 !important;
+  --space-gravity-presence-opacity: 0;
   pointer-events: none;
   transition: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityExiting {
+  --space-gravity-presence-opacity: 0;
+  pointer-events: none;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord > :is(.word, .word-group, .letterGroup, .dotGroup) {

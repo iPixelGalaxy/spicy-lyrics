@@ -39,6 +39,8 @@ type GravityBody = {
   SelectionEpoch: number;
   Spawned: boolean;
   Visible: boolean;
+  EntryFrame?: number;
+  ExitUntil?: number;
 };
 
 type GravityRole = "Previous" | "Current" | "Next" | "Nearby" | "Instrumental";
@@ -55,6 +57,7 @@ const UPWARD_ACCELERATION = 0.4;
 const WORD_WINDOW = 25;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
+const WORD_PRESENCE_FADE_MS = 180;
 
 let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
@@ -72,6 +75,7 @@ let leadWordStarts = new Map<GravityLine, number>();
 let leadWordCounts = new Map<GravityLine, number>();
 let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
+let exitingBodies = new Set<GravityBody>();
 let visibleLines = new Set<GravityLine>();
 let pendingLineRemovals = new Map<GravityLine, number>();
 let selectionEpoch = 0;
@@ -87,6 +91,7 @@ let stageBounds: Bounds | null = null;
 let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
 let lastTick = performance.now();
+let renderFrame = 0;
 let reducedMotion = false;
 let layoutDirty = true;
 let staticLayoutDirty = true;
@@ -348,8 +353,30 @@ function resetBody(body: GravityBody): void {
   body.Visible = false;
   body.Spawned = false;
   body.Angle = 0;
+  body.EntryFrame = undefined;
+  body.ExitUntil = undefined;
+  body.Element.classList.remove("SpaceGravityExiting");
   body.Element.classList.add("SpaceGravityUnspawned");
   applyBodyRole(body, undefined);
+}
+
+function beginBodyExit(body: GravityBody, now: number): void {
+  if (reducedMotion || !body.Spawned) {
+    resetBody(body);
+    return;
+  }
+  body.Visible = false;
+  body.EntryFrame = undefined;
+  body.ExitUntil = now + WORD_PRESENCE_FADE_MS;
+  body.Element.classList.remove("SpaceGravityUnspawned");
+  body.Element.classList.add("SpaceGravityExiting");
+  exitingBodies.add(body);
+}
+
+function restoreBody(body: GravityBody): void {
+  body.ExitUntil = undefined;
+  exitingBodies.delete(body);
+  body.Element.classList.remove("SpaceGravityExiting");
 }
 
 function cancelLineRemoval(line: GravityLine): void {
@@ -360,6 +387,7 @@ function cancelLineRemoval(line: GravityLine): void {
 }
 
 function scheduleLineRemoval(line: GravityLine): void {
+  if (Array.from(exitingBodies).some((body) => body.Line === line)) return;
   line.HTMLElement.classList.remove("SpaceGravityVisible");
   if (pendingLineRemovals.has(line)) return;
   const timer = line.HTMLElement.ownerDocument.defaultView?.setTimeout(() => {
@@ -447,9 +475,11 @@ function updateVisibleBodies(position: number): void {
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) nextBodies.push(...(bodiesByLine.get(line) ?? []));
   if (activeDotLine) nextBodies.push(...(bodiesByLine.get(activeDotLine) ?? []));
   for (const body of nextBodies) body.SelectionEpoch = selectionEpoch;
-  for (const body of activeBodies) if (body.SelectionEpoch !== selectionEpoch) resetBody(body);
+  const now = performance.now();
+  for (const body of activeBodies) if (body.SelectionEpoch !== selectionEpoch) beginBodyExit(body, now);
   activeBodies = nextBodies;
   for (const body of activeBodies) {
+    restoreBody(body);
     body.Visible = true;
     nextLines.add(body.Line);
     body.NaturalX = body.StartX + body.Width / 2;
@@ -480,7 +510,25 @@ function spawnBody(body: GravityBody, width: number, height: number): void {
   resolveBodyConstraints(body, width, height);
   body.Spawned = true;
   renderBody(body);
-  body.Element.classList.remove("SpaceGravityUnspawned");
+  if (reducedMotion) {
+    body.Element.classList.remove("SpaceGravityUnspawned");
+    return;
+  }
+  body.EntryFrame = renderFrame;
+}
+
+function settleBodyPresence(now: number): void {
+  for (const body of activeBodies) {
+    if (body.EntryFrame === undefined || body.EntryFrame >= renderFrame) continue;
+    body.EntryFrame = undefined;
+    body.Element.classList.remove("SpaceGravityUnspawned");
+  }
+  for (const body of exitingBodies) {
+    if ((body.ExitUntil ?? Number.POSITIVE_INFINITY) > now) continue;
+    exitingBodies.delete(body);
+    resetBody(body);
+    if (!visibleLines.has(body.Line)) scheduleLineRemoval(body.Line);
+  }
 }
 
 function applyStaticLayout(width: number, height: number): void {
@@ -580,10 +628,12 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
 
 export function tickSpaceGravity(position: number): void {
   if (!stage || !stageBounds) return;
+  renderFrame += 1;
   updateVisibleBodies(position);
   updateBodyRoles(position);
   for (const body of activeBodies) spawnBody(body, stageBounds.Width, stageBounds.Height);
   const now = performance.now();
+  settleBodyPresence(now);
   const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
   if (reducedMotion) {
@@ -632,6 +682,7 @@ export function destroySpaceGravity(): void {
   leadWordCounts = new Map();
   preparedLines = new Set();
   activeBodies = [];
+  exitingBodies = new Set();
   visibleLines = new Set();
   selectionEpoch = 0;
   lastAnchor = Number.NaN;
@@ -644,4 +695,5 @@ export function destroySpaceGravity(): void {
   footerBounds = null;
   coverBounds = null;
   lastTick = performance.now();
+  renderFrame = 0;
 }

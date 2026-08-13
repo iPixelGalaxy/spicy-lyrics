@@ -12,6 +12,9 @@ import Logger from "../Logger.ts";
 // different trailing gaps without any virtualizer-level workaround.
 const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
+const PINNED_FOOTER_BASE_CLEARANCE = 164;
+const PINNED_FOOTER_MIN_CLEARANCE = 98;
+const PINNED_FOOTER_BOTTOM_OFFSET = 64;
 
 const ESTIMATE: Record<string, number> = {
   // Inactive musical-lines have line-height: 0 → measured height ~0.
@@ -72,6 +75,8 @@ class LyricsVirtualizer {
 
   // MutationObserver that watches class attribute changes on musical-line elements.
   private _classObserver: MutationObserver | null = null;
+
+  private _pinnedFooterObserver: ResizeObserver | null = null;
 
   // Permanent spacer appended after the virtual container so the last item can
   // always be scrolled to center without temporarily inflating container height.
@@ -145,6 +150,46 @@ class LyricsVirtualizer {
 
   private _bottomSpacerHeight(clientHeight: number): number {
     return Math.min(24, Math.max(8, clientHeight * 0.03));
+  }
+
+  private _updatePinnedFooterLayout(): void {
+    const virtualContainer = this._virtualContainer;
+    if (!virtualContainer) return;
+
+    const scrollContainer = virtualContainer.parentElement;
+    const lyricsContent = scrollContainer?.closest<HTMLElement>(".LyricsContent");
+    const page = lyricsContent?.closest<HTMLElement>("#SpicyLyricsPage");
+    if (!scrollContainer || !lyricsContent || !page?.classList.contains("Exp_PinLyricsFooter")) {
+      scrollContainer?.style.removeProperty("--SL-PinnedFooterTrailingClearance");
+      lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
+      return;
+    }
+
+    const footerLayer = lyricsContent.parentElement?.querySelector<HTMLElement>(
+      ".LyricsPinnedFooter"
+    );
+    if (!footerLayer) return;
+
+    let trailingBackgroundHeight = 0;
+    for (let index = this._allElements.length - 1; index >= 0; index -= 1) {
+      const line = this._allElements[index];
+      if (!line.classList.contains("bg-line")) break;
+      const measurement = this._virtualizer?.measurementsCache[index] as
+        | { size: number }
+        | undefined;
+      trailingBackgroundHeight += measurement?.size ?? this._estimateSize(index);
+    }
+
+    const trailingClearance = Math.max(
+      PINNED_FOOTER_MIN_CLEARANCE,
+      PINNED_FOOTER_BASE_CLEARANCE - trailingBackgroundHeight
+    );
+    const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
+    scrollContainer.style.setProperty(
+      "--SL-PinnedFooterTrailingClearance",
+      `${Math.ceil(trailingClearance)}px`
+    );
+    lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
   }
 
   private _remeasureVisible(): void {
@@ -442,6 +487,16 @@ class LyricsVirtualizer {
       attributeFilter: ["class"],
     });
 
+    const footerLayer = virtualContainer
+      .closest<HTMLElement>(".LyricsContent")
+      ?.parentElement?.querySelector<HTMLElement>(".LyricsPinnedFooter");
+    if (footerLayer) {
+      this._pinnedFooterObserver = this._maid!.Give(new ResizeObserver(() => {
+        this._updatePinnedFooterLayout();
+      }));
+      this._pinnedFooterObserver.observe(footerLayer);
+    }
+
     this._virtualizer = new Virtualizer<HTMLElement, HTMLElement>({
       count: lineElements.length,
       getScrollElement: () => scrollEl,
@@ -463,6 +518,7 @@ class LyricsVirtualizer {
       virtualizerLogger.debug("Scroll position reset to top during init");
     }
     this._virtualizer._willUpdate();
+    this._updatePinnedFooterLayout();
 
     if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
@@ -735,6 +791,7 @@ class LyricsVirtualizer {
         }
       });
     }
+    this._updatePinnedFooterLayout();
   }
 
   getVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {
@@ -1019,6 +1076,7 @@ class LyricsVirtualizer {
     this._containerWidth = 0;
     this._containerHeight = 0;
     this._classObserver = null;
+    this._pinnedFooterObserver = null;
     this._spacer = null;
 
     try {

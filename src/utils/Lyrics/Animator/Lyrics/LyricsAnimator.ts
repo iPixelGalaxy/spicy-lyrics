@@ -515,11 +515,9 @@ function getElementState(
   return "Active";
 }
 
-const DOT_LINE_LAYOUT_RELEASE_MS = 120;
-
 function getLineState(currentTime: number, line: any): "NotSung" | "Active" | "Sung" {
   const endTime = line.DotLine
-    ? Math.max(line.StartTime, line.EndTime - DOT_LINE_LAYOUT_RELEASE_MS)
+    ? Math.max(line.StartTime, line.EndTime - preHiddenDotLineMs)
     : line.EndTime;
   return getElementState(currentTime, line.StartTime, endTime);
 }

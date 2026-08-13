@@ -10,7 +10,6 @@ import { Lyrics } from "./Animator/Main.ts";
 import { tickSpaceGravity } from "./SpaceGravity.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import { Maid } from "../../modules/Maid.ts";
-import { isExperimentEnabled } from "../experiments.ts";
 
 export const ScrollingIntervalTime = Infinity;
 
@@ -262,11 +261,8 @@ function shouldBlockSeekForCurrentTrack() {
 }
 
 function seekToLyric(startTime: number): void {
-  const targetTime = isExperimentEnabled("lyricClickLeadIn")
-    ? Math.max(0, startTime - 500)
-    : startTime;
-  SpotifyPlayer.Seek(targetTime);
-  Global.Event.evoke("song:seek", targetTime);
+  SpotifyPlayer.Seek(startTime);
+  Global.Event.evoke("song:seek", startTime);
 }
 
 // Define proper type for event parameter

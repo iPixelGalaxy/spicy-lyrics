@@ -500,6 +500,7 @@ export function ApplySyllableLyrics(
       }
     });
 
+    const parentLineIndex = LyricsObject.Types.Syllable.Lines.length - 1;
     if (line.Background) {
       line.Background.forEach((bg) => {
         const lineE = document.createElement("div");
@@ -511,6 +512,7 @@ export function ApplySyllableLyrics(
           EndTime: ConvertTime(bg.EndTime),
           TotalTime: ConvertTime(bg.EndTime) - ConvertTime(bg.StartTime),
           BGLine: true,
+          SpaceGravityParentLineIndex: parentLineIndex,
           ActivationStartTime: ConvertTime(line.Lead.StartTime),
           ActivationEndTime: ConvertTime(line.Lead.EndTime),
         });

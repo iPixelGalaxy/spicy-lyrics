@@ -86,6 +86,7 @@ export interface LyricsSyllable {
   };
   DotLine?: boolean;
   BGLine?: boolean;
+  SpaceGravityParentLineIndex?: number;
   AnimatorStore?: LineAnimatorStore;
   SLMAnimated?: boolean;
   PreSLMAnimated?: boolean;

@@ -59,6 +59,12 @@ export const EXPERIMENTS = [
     pageClass: "Exp_PinLyricsFooter",
     rebuildsLyrics: true,
   },
+  {
+    id: "lyricClickLeadIn",
+    label: "Lyric Click Lead-in",
+    description: "Seek 400ms before the lyric timing point. Disable to seek to the exact timing point.",
+    default: true,
+  },
 ] as const satisfies readonly Experiment[];
 
 /** A registry entry, narrowed to its literal `id` — what the UI iterates over. */

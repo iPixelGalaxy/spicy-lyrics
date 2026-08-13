@@ -32,6 +32,11 @@ type GravityBody = {
   Height: number;
   StartX: number;
   StartY: number;
+  NaturalX: number;
+  NaturalY: number;
+  LineIndex: number;
+  Role?: GravityRole;
+  SelectionEpoch: number;
   Spawned: boolean;
   Visible: boolean;
 };
@@ -48,6 +53,7 @@ const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
 const WORD_WINDOW = 25;
+const LINE_GAP_CQW = 1;
 
 let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
@@ -56,8 +62,17 @@ let cover: HTMLElement | null = null;
 let lines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
 let leadBodies: GravityBody[] = [];
+let leadLines: GravityLine[] = [];
+let lineLayouts = new Map<GravityLine, { Height: number }>();
+let parentLines = new Map<GravityLine, GravityLine>();
+let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
+let dotLines: GravityLine[] = [];
+let leadLineIndexes = new Map<GravityLine, number>();
 let activeBodies: GravityBody[] = [];
 let visibleLines = new Set<GravityLine>();
+let selectionEpoch = 0;
+let lastAnchor = Number.NaN;
+let lastDotSignature = "";
 let resizeObserver: ResizeObserver | null = null;
 let layoutObserver: MutationObserver | null = null;
 let coverTrackingFrame: number | null = null;
@@ -67,6 +82,8 @@ let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
 let lastTick = performance.now();
 let reducedMotion = false;
+let layoutDirty = true;
+let staticLayoutDirty = true;
 
 function hash(value: string): number {
   let result = 2166136261;
@@ -96,6 +113,8 @@ function updateBounds(refreshBodies = true): void {
   const width = stage.clientWidth;
   if (width < 1 || height < 1) return;
   stageBounds = { Width: width, Height: height };
+  layoutDirty = true;
+  staticLayoutDirty = true;
   const stageRect = stage.getBoundingClientRect();
   const nextCover = viewport.closest(".ContentBox")?.querySelector<HTMLElement>(".NowBar .MediaImageContainer") ?? null;
   if (cover !== nextCover) {
@@ -136,8 +155,7 @@ function constrainToStage(body: GravityBody, width: number, height: number): boo
 }
 
 function renderBody(body: GravityBody): void {
-  body.Element.style.translate = `${body.X - body.Width / 2}px ${body.Y - body.Height / 2}px`;
-  body.Element.style.rotate = `${body.Angle}deg`;
+  body.Element.style.transform = `translate3d(${body.X - body.Width / 2}px, ${body.Y - body.Height / 2}px, 0) rotate(${body.Angle}deg)`;
 }
 
 function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null, width: number, height: number, exits: ObstacleExit[]): boolean {
@@ -238,6 +256,7 @@ function prepareLines(): void {
     stage.appendChild(line.HTMLElement);
   }
   for (const line of lines) {
+    lineLayouts.set(line, { Height: line.HTMLElement.offsetHeight });
     for (const [index, child] of getEntities(line).entries()) {
       records.push({ Line: line, Child: child, X: line.HTMLElement.offsetLeft + child.offsetLeft, Y: child.offsetTop, Index: index });
     }
@@ -257,7 +276,7 @@ function prepareLines(): void {
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speed = 4.4 + random(seed + 3) * 5.6;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, LineIndex: lines.indexOf(record.Line), SelectionEpoch: 0, Spawned: false, Visible: false };
     body.Width = bodyElement.offsetWidth;
     body.Height = bodyElement.offsetHeight;
     body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
@@ -267,6 +286,20 @@ function prepareLines(): void {
     if (!record.Line.BGLine && !record.Line.DotLine) leadBodies.push(body);
   }
   leadBodies.sort((a, b) => a.StartTime - b.StartTime || a.Order - b.Order);
+  leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
+  for (const [index, line] of leadLines.entries()) leadLineIndexes.set(line, index);
+  for (const line of lines) {
+    if (line.BGLine && line.SpaceGravityParentLineIndex !== undefined) {
+      const parent = lines[line.SpaceGravityParentLineIndex];
+      if (parent) {
+        parentLines.set(line, parent);
+        const backgrounds = backgroundLinesByParent.get(parent) ?? [];
+        backgrounds.push(line);
+        backgroundLinesByParent.set(parent, backgrounds);
+      }
+    }
+  }
+  dotLines = lines.filter((line) => line.DotLine).sort((a, b) => a.StartTime - b.StartTime);
   for (const line of lines) {
     line.HTMLElement.classList.remove("SpaceGravityMeasure");
     line.HTMLElement.remove();
@@ -275,27 +308,38 @@ function prepareLines(): void {
 
 function getAnchorIndex(position: number): number {
   if (leadBodies.length === 0) return -1;
-  let next = leadBodies.findIndex((body) => body.StartTime > position);
-  if (next === -1) return leadBodies.length - 1;
-  for (let index = next - 1; index >= 0; index -= 1) {
-    if (leadBodies[index].EndTime > position) return index;
+  let low = 0;
+  let high = leadBodies.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (leadBodies[middle].StartTime <= position) low = middle + 1;
+    else high = middle;
   }
-  return next;
+  const previous = low - 1;
+  if (previous >= 0 && leadBodies[previous].EndTime > position) return previous;
+  return low < leadBodies.length ? low : leadBodies.length - 1;
 }
 
-function getRole(body: GravityBody, position: number): GravityRole {
+function getRole(body: GravityBody, position: number, activeLeadLine: GravityLine | undefined): GravityRole {
   if (body.Line.DotLine) return "Instrumental";
-  if (position < body.StartTime) return "Next";
-  if (position < body.EndTime) return "Current";
+  if (body.Line.BGLine) {
+    if (position < body.StartTime) return "Next";
+    if (position < body.EndTime) return "Current";
+    return "Previous";
+  }
+  const displayLine = body.Line.BGLine ? parentLines.get(body.Line) : body.Line;
+  if (displayLine === activeLeadLine) return "Current";
+  if (displayLine && position < displayLine.StartTime) return "Next";
   return "Previous";
 }
 
 function applyBodyRole(body: GravityBody, role: GravityRole | undefined): void {
-  for (const name of ["SpaceGravityCurrent", "SpaceGravityNext", "SpaceGravityNearby", "SpaceGravityDot"]) body.Element.classList.remove(name);
-  if (role === "Current" || role === "Instrumental") body.Element.classList.add("SpaceGravityCurrent");
-  if (role === "Next") body.Element.classList.add("SpaceGravityNext");
-  if (role === "Previous") body.Element.classList.add("SpaceGravityNearby");
-  if (role === "Instrumental") body.Element.classList.add("SpaceGravityDot");
+  if (body.Role === role) return;
+  body.Role = role;
+  body.Element.classList.toggle("SpaceGravityCurrent", role === "Current" || role === "Instrumental");
+  body.Element.classList.toggle("SpaceGravityNext", role === "Next");
+  body.Element.classList.toggle("SpaceGravityNearby", role === "Previous");
+  body.Element.classList.toggle("SpaceGravityDot", role === "Instrumental");
 }
 
 function resetBody(body: GravityBody): void {
@@ -306,44 +350,94 @@ function resetBody(body: GravityBody): void {
   applyBodyRole(body, undefined);
 }
 
+function getActiveLeadLine(position: number, anchor: number): GravityLine | undefined {
+  const candidate = leadBodies[anchor]?.Line;
+  return candidate && position >= candidate.StartTime && position < candidate.EndTime ? candidate : undefined;
+}
+
+function getActiveDotLine(position: number): GravityLine | undefined {
+  let low = 0;
+  let high = dotLines.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (dotLines[middle].StartTime <= position) low = middle + 1;
+    else high = middle;
+  }
+  const candidate = dotLines[low - 1];
+  return candidate && position < candidate.EndTime ? candidate : undefined;
+}
+
+function getNaturalLineTop(line: GravityLine, activeLine: GravityLine | undefined, height: number): number {
+  const displayLine = line.BGLine ? parentLines.get(line) : line;
+  const ordinal = displayLine ? leadLineIndexes.get(displayLine) : undefined;
+  const activeOrdinal = activeLine ? leadLineIndexes.get(activeLine) : undefined;
+  if (ordinal === undefined || activeOrdinal === undefined) return height * 0.5;
+  let top = (height - (lineLayouts.get(activeLine)?.Height ?? 0)) / 2;
+  if (ordinal < activeOrdinal) {
+    for (let index = activeOrdinal - 1; index >= ordinal; index -= 1) {
+      top -= (lineLayouts.get(leadLines[index])?.Height ?? 0) + height * LINE_GAP_CQW / 100;
+    }
+  } else {
+    for (let index = activeOrdinal; index < ordinal; index += 1) {
+      top += (lineLayouts.get(leadLines[index])?.Height ?? 0) + height * LINE_GAP_CQW / 100;
+    }
+  }
+  return top;
+}
+
 function updateVisibleBodies(position: number): void {
   const anchor = getAnchorIndex(position);
-  const selected = new Set<GravityBody>();
-  if (anchor >= 0) {
-    for (let index = Math.max(0, anchor - WORD_WINDOW); index <= Math.min(leadBodies.length - 1, anchor + WORD_WINDOW); index += 1) selected.add(leadBodies[index]);
+  const activeDotLine = getActiveDotLine(position);
+  const dotSignature = activeDotLine ? `${activeDotLine.StartTime}` : "";
+  if (!layoutDirty && anchor === lastAnchor && dotSignature === lastDotSignature) return;
+  lastAnchor = anchor;
+  lastDotSignature = dotSignature;
+  selectionEpoch += 1;
+  const activeLine = getActiveLeadLine(position, anchor);
+  const first = Math.max(0, anchor - WORD_WINDOW);
+  const last = Math.min(leadBodies.length - 1, anchor + WORD_WINDOW);
+  const selectedParents = new Set<GravityLine>();
+  for (let index = first; index <= last; index += 1) {
+    const body = leadBodies[index];
+    body.SelectionEpoch = selectionEpoch;
+    selectedParents.add(body.Line);
   }
-  const selectedParentIndexes = new Set(Array.from(selected, (body) => lines.indexOf(body.Line)));
-  for (const line of lines) {
-    if (!line.BGLine || line.SpaceGravityParentLineIndex === undefined || !selectedParentIndexes.has(line.SpaceGravityParentLineIndex)) continue;
-    for (const body of bodiesByLine.get(line) ?? []) selected.add(body);
+  for (const parent of selectedParents) {
+    for (const line of backgroundLinesByParent.get(parent) ?? []) {
+      for (const body of bodiesByLine.get(line) ?? []) body.SelectionEpoch = selectionEpoch;
+    }
   }
-  for (const line of lines) {
-    if (!line.DotLine || position < line.StartTime || position >= line.EndTime) continue;
-    for (const body of bodiesByLine.get(line) ?? []) selected.add(body);
-  }
-  for (const bodies of bodiesByLine.values()) for (const body of bodies) if (!selected.has(body) && body.Visible) resetBody(body);
-  activeBodies = Array.from(selected);
-  const nextLines = new Set(activeBodies.map((body) => body.Line));
-  for (const line of visibleLines) {
-    if (nextLines.has(line)) continue;
-    line.HTMLElement.classList.remove("SpaceGravityVisible");
-    line.HTMLElement.remove();
-  }
-  for (const line of nextLines) {
-    line.HTMLElement.classList.add("SpaceGravityVisible");
-    if (!line.HTMLElement.isConnected) stage?.appendChild(line.HTMLElement);
-  }
-  visibleLines = nextLines;
+  for (const body of activeDotLine ? bodiesByLine.get(activeDotLine) ?? [] : []) body.SelectionEpoch = selectionEpoch;
+  const nextBodies: GravityBody[] = [];
+  const nextLines = new Set<GravityLine>();
+  for (const body of activeBodies) if (body.SelectionEpoch !== selectionEpoch) resetBody(body);
+  for (let index = first; index <= last; index += 1) nextBodies.push(leadBodies[index]);
+  for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) nextBodies.push(...(bodiesByLine.get(line) ?? []));
+  if (activeDotLine) nextBodies.push(...(bodiesByLine.get(activeDotLine) ?? []));
+  activeBodies = nextBodies;
   for (const body of activeBodies) {
     body.Visible = true;
-    applyBodyRole(body, getRole(body, position));
+    nextLines.add(body.Line);
+    body.NaturalX = body.StartX + body.Width / 2;
+    body.NaturalY = getNaturalLineTop(body.Line, activeLine, stageBounds!.Height) + body.StartY + body.Height / 2;
+    applyBodyRole(body, getRole(body, position, activeLine));
   }
+  for (const line of visibleLines) if (!nextLines.has(line)) { line.HTMLElement.classList.remove("SpaceGravityVisible"); line.HTMLElement.remove(); }
+  for (const line of nextLines) { line.HTMLElement.classList.add("SpaceGravityVisible"); if (!line.HTMLElement.isConnected) stage?.appendChild(line.HTMLElement); }
+  visibleLines = nextLines;
+  layoutDirty = false;
+  staticLayoutDirty = true;
+}
+
+function updateBodyRoles(position: number): void {
+  const activeLine = getActiveLeadLine(position, lastAnchor);
+  for (const body of activeBodies) applyBodyRole(body, getRole(body, position, activeLine));
 }
 
 function spawnBody(body: GravityBody, width: number, height: number): void {
   if (body.Spawned) return;
-  body.X = width / 2;
-  body.Y = height / 2;
+  body.X = body.NaturalX + (Math.random() * 2 - 1) * body.Width * 1.35;
+  body.Y = body.NaturalY + (Math.random() * 2 - 1) * body.Height * 1.35;
   body.Angle = 0;
   resolveBodyConstraints(body, width, height);
   body.Spawned = true;
@@ -378,11 +472,11 @@ function applyStaticLayout(width: number, height: number): void {
 }
 
 function applySoftAvoidance(delta: number): void {
-  const buckets = new Map<string, GravityBody[]>();
+  const buckets = new Map<number, GravityBody[]>();
   for (const body of activeBodies) {
     const cellX = Math.floor(body.X / SOFT_AVOID_RADIUS);
     const cellY = Math.floor(body.Y / SOFT_AVOID_RADIUS);
-    for (let x = cellX - 1; x <= cellX + 1; x += 1) for (let y = cellY - 1; y <= cellY + 1; y += 1) for (const other of buckets.get(`${x}:${y}`) ?? []) {
+    for (let x = cellX - 1; x <= cellX + 1; x += 1) for (let y = cellY - 1; y <= cellY + 1; y += 1) for (const other of buckets.get(x * 65536 + y) ?? []) {
       const dx = body.X - other.X;
       const dy = body.Y - other.Y;
       const distance = Math.hypot(dx, dy) || 0.001;
@@ -393,7 +487,7 @@ function applySoftAvoidance(delta: number): void {
       other.VX -= dx / distance * nudge;
       other.VY -= dy / distance * nudge;
     }
-    const key = `${cellX}:${cellY}`;
+    const key = cellX * 65536 + cellY;
     const bucket = buckets.get(key) ?? [];
     bucket.push(body);
     buckets.set(key, bucket);
@@ -429,11 +523,18 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
 export function tickSpaceGravity(position: number): void {
   if (!stage || !stageBounds) return;
   updateVisibleBodies(position);
+  updateBodyRoles(position);
   for (const body of activeBodies) spawnBody(body, stageBounds.Width, stageBounds.Height);
   const now = performance.now();
   const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
-  if (reducedMotion) { applyStaticLayout(stageBounds.Width, stageBounds.Height); return; }
+  if (reducedMotion) {
+    if (staticLayoutDirty) {
+      applyStaticLayout(stageBounds.Width, stageBounds.Height);
+      staticLayoutDirty = false;
+    }
+    return;
+  }
   applySoftAvoidance(delta);
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);
@@ -462,8 +563,19 @@ export function destroySpaceGravity(): void {
   lines = [];
   bodiesByLine = new Map();
   leadBodies = [];
+  leadLines = [];
+  lineLayouts = new Map();
+  parentLines = new Map();
+  backgroundLinesByParent = new Map();
+  dotLines = [];
+  leadLineIndexes = new Map();
   activeBodies = [];
   visibleLines = new Set();
+  selectionEpoch = 0;
+  lastAnchor = Number.NaN;
+  lastDotSignature = "";
+  layoutDirty = true;
+  staticLayoutDirty = true;
   stageBounds = null;
   footerBounds = null;
   coverBounds = null;

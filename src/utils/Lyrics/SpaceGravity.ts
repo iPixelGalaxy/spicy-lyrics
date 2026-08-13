@@ -34,7 +34,6 @@ type GravityBody = {
   StartY: number;
   NaturalX: number;
   NaturalY: number;
-  LineIndex: number;
   Role?: GravityRole;
   SelectionEpoch: number;
   Spawned: boolean;
@@ -61,13 +60,13 @@ let footer: HTMLElement | null = null;
 let cover: HTMLElement | null = null;
 let lines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
-let leadBodies: GravityBody[] = [];
 let leadLines: GravityLine[] = [];
 let lineLayouts = new Map<GravityLine, { Height: number }>();
 let parentLines = new Map<GravityLine, GravityLine>();
 let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
 let dotLines: GravityLine[] = [];
 let leadLineIndexes = new Map<GravityLine, number>();
+let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
 let visibleLines = new Set<GravityLine>();
 let selectionEpoch = 0;
@@ -248,14 +247,14 @@ function getEntities(line: GravityLine): HTMLElement[] {
     .flatMap((child) => child.classList.contains("word-group") ? splitDashedGroup(child) : [child]);
 }
 
-function prepareLines(): void {
-  if (!stage) return;
+function prepareLines(nextLines: GravityLine[]): void {
+  if (!stage || nextLines.length === 0) return;
   const records: Array<{ Line: GravityLine; Child: HTMLElement; X: number; Y: number; Index: number }> = [];
-  for (const line of lines) {
+  for (const line of nextLines) {
     line.HTMLElement.classList.add("SpaceGravityLine", "SpaceGravityMeasure");
     stage.appendChild(line.HTMLElement);
   }
-  for (const line of lines) {
+  for (const line of nextLines) {
     lineLayouts.set(line, { Height: line.HTMLElement.offsetHeight });
     for (const [index, child] of getEntities(line).entries()) {
       records.push({ Line: line, Child: child, X: line.HTMLElement.offsetLeft + child.offsetLeft, Y: child.offsetTop, Index: index });
@@ -276,48 +275,33 @@ function prepareLines(): void {
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speed = 4.4 + random(seed + 3) * 5.6;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, LineIndex: lines.indexOf(record.Line), SelectionEpoch: 0, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
     body.Width = bodyElement.offsetWidth;
     body.Height = bodyElement.offsetHeight;
     body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
     const lineBodies = bodiesByLine.get(record.Line) ?? [];
     lineBodies.push(body);
     bodiesByLine.set(record.Line, lineBodies);
-    if (!record.Line.BGLine && !record.Line.DotLine) leadBodies.push(body);
   }
-  leadBodies.sort((a, b) => a.StartTime - b.StartTime || a.Order - b.Order);
-  leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
-  for (const [index, line] of leadLines.entries()) leadLineIndexes.set(line, index);
-  for (const line of lines) {
-    if (line.BGLine && line.SpaceGravityParentLineIndex !== undefined) {
-      const parent = lines[line.SpaceGravityParentLineIndex];
-      if (parent) {
-        parentLines.set(line, parent);
-        const backgrounds = backgroundLinesByParent.get(parent) ?? [];
-        backgrounds.push(line);
-        backgroundLinesByParent.set(parent, backgrounds);
-      }
-    }
-  }
-  dotLines = lines.filter((line) => line.DotLine).sort((a, b) => a.StartTime - b.StartTime);
-  for (const line of lines) {
+  for (const line of nextLines) {
     line.HTMLElement.classList.remove("SpaceGravityMeasure");
     line.HTMLElement.remove();
+    preparedLines.add(line);
   }
 }
 
 function getAnchorIndex(position: number): number {
-  if (leadBodies.length === 0) return -1;
+  if (leadLines.length === 0) return -1;
   let low = 0;
-  let high = leadBodies.length;
+  let high = leadLines.length;
   while (low < high) {
     const middle = (low + high) >>> 1;
-    if (leadBodies[middle].StartTime <= position) low = middle + 1;
+    if (leadLines[middle].StartTime <= position) low = middle + 1;
     else high = middle;
   }
   const previous = low - 1;
-  if (previous >= 0 && leadBodies[previous].EndTime > position) return previous;
-  return low < leadBodies.length ? low : leadBodies.length - 1;
+  if (previous >= 0 && leadLines[previous].EndTime > position) return previous;
+  return low < leadLines.length ? low : leadLines.length - 1;
 }
 
 function getRole(body: GravityBody, position: number, activeLeadLine: GravityLine | undefined): GravityRole {
@@ -351,8 +335,33 @@ function resetBody(body: GravityBody): void {
 }
 
 function getActiveLeadLine(position: number, anchor: number): GravityLine | undefined {
-  const candidate = leadBodies[anchor]?.Line;
+  const candidate = leadLines[anchor];
   return candidate && position >= candidate.StartTime && position < candidate.EndTime ? candidate : undefined;
+}
+
+function getLineWordCount(line: GravityLine): number {
+  return Math.max(1, line.Syllables?.Lead.filter((word) => !word.Dot).length ?? 0);
+}
+
+function getLeadWindow(anchor: number): GravityLine[] {
+  if (anchor < 0) return [];
+  const before: GravityLine[] = [];
+  const after: GravityLine[] = [];
+  let beforeCount = 0;
+  let afterCount = getLineWordCount(leadLines[anchor]);
+  for (let index = anchor - 1; index >= 0; index -= 1) {
+    const count = getLineWordCount(leadLines[index]);
+    if (beforeCount > 0 && beforeCount + count > WORD_WINDOW) break;
+    before.unshift(leadLines[index]);
+    beforeCount += count;
+  }
+  for (let index = anchor + 1; index < leadLines.length; index += 1) {
+    const count = getLineWordCount(leadLines[index]);
+    if (afterCount > 0 && afterCount + count > WORD_WINDOW) break;
+    after.push(leadLines[index]);
+    afterCount += count;
+  }
+  return [...before, leadLines[anchor], ...after];
 }
 
 function getActiveDotLine(position: number): GravityLine | undefined {
@@ -394,13 +403,11 @@ function updateVisibleBodies(position: number): void {
   lastDotSignature = dotSignature;
   selectionEpoch += 1;
   const activeLine = getActiveLeadLine(position, anchor);
-  const first = Math.max(0, anchor - WORD_WINDOW);
-  const last = Math.min(leadBodies.length - 1, anchor + WORD_WINDOW);
+  const leadWindow = getLeadWindow(anchor);
   const selectedParents = new Set<GravityLine>();
-  for (let index = first; index <= last; index += 1) {
-    const body = leadBodies[index];
-    body.SelectionEpoch = selectionEpoch;
-    selectedParents.add(body.Line);
+  for (const line of leadWindow) {
+    selectedParents.add(line);
+    for (const body of bodiesByLine.get(line) ?? []) body.SelectionEpoch = selectionEpoch;
   }
   for (const parent of selectedParents) {
     for (const line of backgroundLinesByParent.get(parent) ?? []) {
@@ -411,7 +418,11 @@ function updateVisibleBodies(position: number): void {
   const nextBodies: GravityBody[] = [];
   const nextLines = new Set<GravityLine>();
   for (const body of activeBodies) if (body.SelectionEpoch !== selectionEpoch) resetBody(body);
-  for (let index = first; index <= last; index += 1) nextBodies.push(leadBodies[index]);
+  const entering = Array.from(selectedParents).filter((line) => !preparedLines.has(line));
+  for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) if (!preparedLines.has(line)) entering.push(line);
+  if (activeDotLine && !preparedLines.has(activeDotLine)) entering.push(activeDotLine);
+  prepareLines(entering);
+  for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) nextBodies.push(...(bodiesByLine.get(line) ?? []));
   if (activeDotLine) nextBodies.push(...(bodiesByLine.get(activeDotLine) ?? []));
   activeBodies = nextBodies;
@@ -500,13 +511,24 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   viewport = nextViewport;
   footer = nextFooter;
   lines = nextLines;
+  leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
+  for (const [index, line] of leadLines.entries()) leadLineIndexes.set(line, index);
+  for (const line of lines) {
+    if (!line.BGLine || line.SpaceGravityParentLineIndex === undefined) continue;
+    const parent = lines[line.SpaceGravityParentLineIndex];
+    if (!parent) continue;
+    parentLines.set(line, parent);
+    const backgrounds = backgroundLinesByParent.get(parent) ?? [];
+    backgrounds.push(line);
+    backgroundLinesByParent.set(parent, backgrounds);
+  }
+  dotLines = lines.filter((line) => line.DotLine).sort((a, b) => a.StartTime - b.StartTime);
   updateReducedMotion();
   resizeObserver = new ResizeObserver(() => updateBounds());
   resizeObserver.observe(nextStage);
   resizeObserver.observe(nextViewport);
   resizeObserver.observe(nextFooter);
   updateBounds();
-  prepareLines();
   const layoutRoot = nextViewport.closest(".ContentBox")?.parentElement;
   if (layoutRoot) {
     layoutObserver = new MutationObserver((records) => {
@@ -562,13 +584,13 @@ export function destroySpaceGravity(): void {
   cover = null;
   lines = [];
   bodiesByLine = new Map();
-  leadBodies = [];
   leadLines = [];
   lineLayouts = new Map();
   parentLines = new Map();
   backgroundLinesByParent = new Map();
   dotLines = [];
   leadLineIndexes = new Map();
+  preparedLines = new Set();
   activeBodies = [];
   visibleLines = new Set();
   selectionEpoch = 0;

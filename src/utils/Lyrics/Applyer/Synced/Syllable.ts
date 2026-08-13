@@ -378,20 +378,26 @@ export function ApplySyllableLyrics(
     const lineElem = document.createElement("div");
     lineElem.classList.add("line");
 
+    const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
+    const primaryLineEndTime = line.Background?.length && processedLeadSyllables.length
+      ? Math.max(...processedLeadSyllables.map((syllable) => syllable.EndTime))
+      : line.Lead.EndTime;
     const nextLineStartTime = arr[index + 1]?.Lead.StartTime ?? 0;
 
     const lineEndTimeAndNextLineStartTimeDistance =
-      nextLineStartTime !== 0 ? nextLineStartTime - line.Lead.EndTime : 0;
+      nextLineStartTime !== 0 ? nextLineStartTime - primaryLineEndTime : 0;
 
     const lineEndTime =
-      $minimalLyricsMode.get()
+      line.Background?.length
+        ? primaryLineEndTime
+        : $minimalLyricsMode.get()
         ? nextLineStartTime === 0
-          ? line.Lead.EndTime
+          ? primaryLineEndTime
           : lineEndTimeAndNextLineStartTimeDistance < getLyricsBetweenShow() &&
-              nextLineStartTime > line.Lead.EndTime
+              nextLineStartTime > primaryLineEndTime
             ? nextLineStartTime
-            : line.Lead.EndTime
-        : line.Lead.EndTime;
+            : primaryLineEndTime
+        : primaryLineEndTime;
 
     LyricsObject.Types.Syllable.Lines.push({
       HTMLElement: lineElem,
@@ -410,7 +416,6 @@ export function ApplySyllableLyrics(
 
     let currentWordGroup: HTMLSpanElement | null = null;
 
-    const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
     processedLeadSyllables.forEach((lead, iL, aL) => {
       let word = document.createElement("span");
       const isLastInLine = iL === aL.length - 1;

@@ -355,16 +355,20 @@ export function ApplySyllableLyrics(
   const spaceGravityMode = $spaceGravityMode.get();
   const syllableMode = "Default";
   const allowLetterEmphasis = !data.experimentalWordSync;
+  const firstVocalStartTime = Math.min(
+    data.Content[0].Lead.StartTime,
+    ...(data.Content[0].Background?.map((background) => background.StartTime) ?? [])
+  );
 
-  if (data.StartTime >= getLyricsBetweenShow()) {
+  if (firstVocalStartTime >= getLyricsBetweenShow()) {
     const musicalLine = document.createElement("div");
     musicalLine.classList.add("line");
     musicalLine.classList.add("musical-line");
     LyricsObject.Types.Syllable.Lines.push({
       HTMLElement: musicalLine,
       StartTime: 0,
-      EndTime: ConvertTime(data.StartTime),
-      TotalTime: ConvertTime(data.StartTime),
+      EndTime: ConvertTime(firstVocalStartTime),
+      TotalTime: ConvertTime(firstVocalStartTime),
       DotLine: true,
     });
 
@@ -381,7 +385,7 @@ export function ApplySyllableLyrics(
     const musicalDots2 = document.createElement("span");
     const musicalDots3 = document.createElement("span");
 
-    const totalTime = ConvertTime(data.StartTime);
+    const totalTime = ConvertTime(firstVocalStartTime);
     const baseDotTime = totalTime / 3;
     const dotPadding = getInterludeTimePadding() / 3;
     const dot1EndTime = Math.max(0, baseDotTime + dotPadding);
@@ -696,6 +700,10 @@ export function ApplySyllableLyrics(
         });
       });
     }
+    const lastVocalEndTime = Math.max(
+      line.Lead.EndTime,
+      ...(line.Background?.map((background) => background.EndTime) ?? [])
+    );
     const nextLine = arr[index + 1];
     const nextVocalStart = nextLine
       ? Math.min(
@@ -703,18 +711,18 @@ export function ApplySyllableLyrics(
           ...(nextLine.Background?.map((background) => background.StartTime) ?? [])
         )
       : undefined;
-    if (nextLine && nextVocalStart! - line.Lead.EndTime >= getLyricsBetweenShow()) {
+    if (nextLine && nextVocalStart! - lastVocalEndTime >= getLyricsBetweenShow()) {
       const musicalLine = document.createElement("div");
       musicalLine.classList.add("line");
       musicalLine.classList.add("musical-line");
 
       LyricsObject.Types.Syllable.Lines.push({
         HTMLElement: musicalLine,
-        StartTime: ConvertTime(line.Lead.EndTime),
+        StartTime: ConvertTime(lastVocalEndTime),
         EndTime: ConvertTime(nextVocalStart!),
         TotalTime:
           ConvertTime(nextVocalStart!) -
-          ConvertTime(line.Lead.EndTime),
+          ConvertTime(lastVocalEndTime),
         DotLine: true,
       });
 
@@ -731,7 +739,7 @@ export function ApplySyllableLyrics(
       const musicalDots2 = document.createElement("span");
       const musicalDots3 = document.createElement("span");
 
-      const gapStartTime = ConvertTime(line.Lead.EndTime);
+      const gapStartTime = ConvertTime(lastVocalEndTime);
       const totalTime = ConvertTime(nextVocalStart!) - gapStartTime;
       const baseDotTime = totalTime / 3;
       const dotPadding = getInterludeTimePadding() / 3;

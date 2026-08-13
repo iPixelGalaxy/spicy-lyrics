@@ -146,7 +146,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
-  margin-bottom: calc(8cqh + var(--SL-PinnedFooterTrailingClearance, 98px));
+  margin-bottom: var(--SL-PinnedFooterBottomMargin, calc(8cqh + 98px));
 }
 
 #SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .simplebar-track.simplebar-vertical {

@@ -12,7 +12,6 @@ import Logger from "../Logger.ts";
 // different trailing gaps without any virtualizer-level workaround.
 const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
-const PINNED_FOOTER_DEFAULT_CLEARANCE = 98;
 const PINNED_FOOTER_BOTTOM_OFFSET = 64;
 
 const ESTIMATE: Record<string, number> = {
@@ -159,7 +158,7 @@ class LyricsVirtualizer {
     const lyricsContent = scrollContainer?.closest<HTMLElement>(".LyricsContent");
     const page = lyricsContent?.closest<HTMLElement>("#SpicyLyricsPage");
     if (!scrollContainer || !lyricsContent || !page?.classList.contains("Exp_PinLyricsFooter")) {
-      scrollContainer?.style.removeProperty("--SL-PinnedFooterTrailingClearance");
+      scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");
       lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
       return;
     }
@@ -189,19 +188,15 @@ class LyricsVirtualizer {
     );
     if (!Number.isFinite(fadeStart)) return;
 
-    const inlineClearance = parseFloat(
-      scrollContainer.style.getPropertyValue("--SL-PinnedFooterTrailingClearance")
-    );
-    const currentClearance = Number.isFinite(inlineClearance)
-      ? inlineClearance
-      : PINNED_FOOTER_DEFAULT_CLEARANCE;
-    const requiredClearance = Math.max(
+    const currentMargin = parseFloat(getComputedStyle(scrollContainer).marginBottom);
+    if (!Number.isFinite(currentMargin)) return;
+    const requiredMargin = Math.max(
       0,
-      currentClearance + terminalBottomAtMaxScroll - (scrollRect.bottom - fadeStart)
+      currentMargin + terminalBottomAtMaxScroll - (scrollRect.bottom - fadeStart)
     );
     scrollContainer.style.setProperty(
-      "--SL-PinnedFooterTrailingClearance",
-      `${Math.ceil(requiredClearance)}px`
+      "--SL-PinnedFooterBottomMargin",
+      `${Math.ceil(requiredMargin)}px`
     );
   }
 

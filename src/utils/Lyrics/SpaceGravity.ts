@@ -361,9 +361,12 @@ function getVisibleLines(
   }
 
   // Once the final lead has completed, keep the words that are already on the
-  // stage drifting instead of clearing the whole field at once.
+  // stage drifting instead of clearing the whole field at once. Demote the
+  // final current line so it no longer receives active styling after ending.
   if (anchor < 0 && position >= (leadLines.at(-1)?.EndTime ?? Number.POSITIVE_INFINITY)) {
-    for (const [line, state] of visibleLines) nextVisible.set(line, state);
+    for (const [line, state] of visibleLines) {
+      nextVisible.set(line, { Role: state.Role === "Current" ? "Previous" : state.Role });
+    }
   }
 
   for (const line of activeTransientLines) {

@@ -72,6 +72,7 @@ let visibleLines = new Set<GravityLine>();
 let selectionEpoch = 0;
 let lastAnchor = Number.NaN;
 let lastDotSignature = "";
+let finalVocalEnd = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
 let layoutObserver: MutationObserver | null = null;
 let coverTrackingFrame: number | null = null;
@@ -306,6 +307,7 @@ function getAnchorIndex(position: number): number {
 
 function getRole(body: GravityBody, position: number, activeLeadLine: GravityLine | undefined): GravityRole {
   if (body.Line.DotLine) return "Instrumental";
+  if (position >= finalVocalEnd) return "Previous";
   if (body.Line.BGLine) {
     if (position < body.StartTime) return "Next";
     if (position < body.EndTime) return "Current";
@@ -511,6 +513,9 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   viewport = nextViewport;
   footer = nextFooter;
   lines = nextLines;
+  finalVocalEnd = lines
+    .filter((line) => !line.DotLine)
+    .reduce((end, line) => Math.max(end, line.EndTime), Number.NEGATIVE_INFINITY);
   leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
   for (const [index, line] of leadLines.entries()) leadLineIndexes.set(line, index);
   for (const line of lines) {
@@ -596,6 +601,7 @@ export function destroySpaceGravity(): void {
   selectionEpoch = 0;
   lastAnchor = Number.NaN;
   lastDotSignature = "";
+  finalVocalEnd = Number.NEGATIVE_INFINITY;
   layoutDirty = true;
   staticLayoutDirty = true;
   stageBounds = null;

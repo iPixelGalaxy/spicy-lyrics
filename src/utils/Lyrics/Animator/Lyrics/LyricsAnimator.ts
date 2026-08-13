@@ -920,7 +920,8 @@ export function Animate(position: number): void {
                         dotGroup.HTMLElement.style.opacity = currentOpacity.toString();
                       } */
 
-            // Refactored Dot Animation using Springs
+            // Dots must land on their timeline boundary. Springs lag behind the
+            // final target, which cut off the third dot before it could finish.
             if (!word.AnimatorStore) {
               word.AnimatorStore = createDotSprings();
               word.AnimatorStore.Scale.SetGoal(DotScaleSpline.at(0), true);
@@ -954,15 +955,10 @@ export function Animate(position: number): void {
               targetOpacity = DotOpacitySpline.at(1);
             }
 
-            word.AnimatorStore.Scale.SetGoal(targetScale);
-            word.AnimatorStore.YOffset.SetGoal(targetYOffset);
-            word.AnimatorStore.Glow.SetGoal(targetGlow);
-            word.AnimatorStore.Opacity.SetGoal(targetOpacity);
-
-            const currentScale = word.AnimatorStore.Scale.Step(deltaTime);
-            const currentYOffset = word.AnimatorStore.YOffset.Step(deltaTime);
-            const currentGlow = word.AnimatorStore.Glow.Step(deltaTime);
-            const currentOpacity = word.AnimatorStore.Opacity.Step(deltaTime);
+            const currentScale = targetScale;
+            const currentYOffset = targetYOffset;
+            const currentGlow = targetGlow;
+            const currentOpacity = targetOpacity;
 
             // Use translate3d to ensure GPU-accelerated transforms
             setStyleIfChanged(
@@ -1689,7 +1685,8 @@ export function Animate(position: number): void {
               dot.EndTime
             );
 
-            // Refactored Dot Animation using Springs for Line Type
+            // Keep dots in lockstep with their assigned timing. Spring settling
+            // made short final dot intervals end before their visual peak.
             if (!dot.AnimatorStore) {
               dot.AnimatorStore = createDotSprings();
               dot.AnimatorStore.Scale.SetGoal(DotScaleSpline.at(0), true);
@@ -1723,15 +1720,10 @@ export function Animate(position: number): void {
               targetOpacity = DotOpacitySpline.at(1);
             }
 
-            dot.AnimatorStore.Scale.SetGoal(targetScale);
-            dot.AnimatorStore.YOffset.SetGoal(targetYOffset);
-            dot.AnimatorStore.Glow.SetGoal(targetGlow);
-            dot.AnimatorStore.Opacity.SetGoal(targetOpacity);
-
-            const currentScale = dot.AnimatorStore.Scale.Step(deltaTime);
-            const currentYOffset = dot.AnimatorStore.YOffset.Step(deltaTime);
-            const currentGlow = dot.AnimatorStore.Glow.Step(deltaTime);
-            const currentOpacity = dot.AnimatorStore.Opacity.Step(deltaTime);
+            const currentScale = targetScale;
+            const currentYOffset = targetYOffset;
+            const currentGlow = targetGlow;
+            const currentOpacity = targetOpacity;
 
             // Use translate3d to ensure GPU-accelerated transforms
             queueStyle(

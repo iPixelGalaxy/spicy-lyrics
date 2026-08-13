@@ -69,6 +69,9 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
   Improved word visibility, duet colours, instrumental endings, credits, cover avoidance, and switching mode without rebuilding lyrics.
   Line and static lyrics now use temporary word sync when Gravity needs it.
 
+- **Instrumental dots**
+  Restored smooth full dot animation and fade-out.
+
 - **Lyric seek lead-in removed**
   Clicking lyrics now seeks at their exact timing point again.
 

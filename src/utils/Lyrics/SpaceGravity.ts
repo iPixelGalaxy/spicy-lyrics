@@ -45,6 +45,7 @@ type GravityBody = {
 
 type GravityRole = "Previous" | "Current" | "Next" | "Nearby" | "Instrumental";
 type Bounds = { Width: number; Height: number };
+type WindowPosition = { X: number; Y: number };
 type RectBounds = { Left: number; Top: number; Right: number; Bottom: number };
 type ObstacleExit = "Left" | "Right" | "Top" | "Bottom";
 
@@ -93,6 +94,9 @@ let coverTrackingUntil = 0;
 let stageBounds: Bounds | null = null;
 let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
+let windowPosition: WindowPosition | null = null;
+let windowPositionDocument: Document | null = null;
+let windowPositionVisibilityListener: (() => void) | null = null;
 let lastTick = performance.now();
 let renderFrame = 0;
 let reducedMotion = false;
@@ -120,13 +124,51 @@ function updateReducedMotion(): void {
     .matches ?? false;
 }
 
+function getWindowPosition(): WindowPosition | null {
+  const ownerWindow = stage?.ownerDocument.defaultView;
+  if (!ownerWindow || !Number.isFinite(ownerWindow.screenX) || !Number.isFinite(ownerWindow.screenY)) return null;
+  return { X: ownerWindow.screenX, Y: ownerWindow.screenY };
+}
+
+function syncWindowPosition(): void {
+  windowPosition = getWindowPosition();
+}
+
+function applyWindowGravity(width: number, height: number): void {
+  const nextPosition = getWindowPosition();
+  if (!nextPosition) return;
+  const previousPosition = windowPosition;
+  windowPosition = nextPosition;
+  if (!previousPosition || reducedMotion || stage?.ownerDocument.visibilityState !== "visible") return;
+  const deltaX = nextPosition.X - previousPosition.X;
+  const deltaY = nextPosition.Y - previousPosition.Y;
+  if (deltaX === 0 && deltaY === 0) return;
+
+  for (const body of activeBodies) {
+    if (!body.Spawned) continue;
+    body.X -= deltaX;
+    body.Y -= deltaY;
+  }
+  for (const body of exitingBodies) {
+    if (!body.Spawned) continue;
+    body.X -= deltaX;
+    body.Y -= deltaY;
+    resolveBodyConstraints(body, width, height);
+    renderBody(body);
+  }
+}
+
 function updateBounds(refreshBodies = true): void {
   if (!stage || !viewport) return;
+  const previousBounds = stageBounds;
   const height = viewport.clientHeight;
   stage.style.height = `${height}px`;
   const width = stage.clientWidth;
   if (width < 1 || height < 1) return;
   stageBounds = { Width: width, Height: height };
+  const resized = previousBounds !== null && (previousBounds.Width !== width || previousBounds.Height !== height);
+  const scaleX = previousBounds ? width / previousBounds.Width : 1;
+  const scaleY = previousBounds ? height / previousBounds.Height : 1;
   layoutDirty = true;
   staticLayoutDirty = true;
   const stageRect = stage.getBoundingClientRect();
@@ -144,8 +186,25 @@ function updateBounds(refreshBodies = true): void {
   coverBounds = coverRect && coverRect.width > 0 && coverRect.height > 0
     ? { Left: coverRect.left - stageRect.left - COVER_CLEARANCE, Top: coverRect.top - stageRect.top - COVER_CLEARANCE, Right: coverRect.right - stageRect.left + COVER_CLEARANCE, Bottom: coverRect.bottom - stageRect.top + COVER_CLEARANCE }
     : null;
+  if (resized) syncWindowPosition();
   if (!refreshBodies) return;
   for (const body of activeBodies) {
+    if (resized && body.Spawned) {
+      body.X *= scaleX;
+      body.Y *= scaleY;
+    }
+    body.Width = body.Element.offsetWidth;
+    body.Height = body.Element.offsetHeight;
+    body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
+    if (!body.Spawned) continue;
+    resolveBodyConstraints(body, width, height);
+    renderBody(body);
+  }
+  for (const body of exitingBodies) {
+    if (resized && body.Spawned) {
+      body.X *= scaleX;
+      body.Y *= scaleY;
+    }
     body.Width = body.Element.offsetWidth;
     body.Height = body.Element.offsetHeight;
     body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
@@ -681,11 +740,15 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   }
   dotLines = lines.filter((line) => line.DotLine).sort((a, b) => a.StartTime - b.StartTime);
   updateReducedMotion();
+  windowPositionDocument = nextStage.ownerDocument;
+  windowPositionVisibilityListener = () => syncWindowPosition();
+  windowPositionDocument.addEventListener("visibilitychange", windowPositionVisibilityListener);
   resizeObserver = new ResizeObserver(() => updateBounds());
   resizeObserver.observe(nextStage);
   resizeObserver.observe(nextViewport);
   resizeObserver.observe(nextFooter);
   updateBounds();
+  syncWindowPosition();
   const layoutRoot = nextViewport.closest(".ContentBox")?.parentElement;
   if (layoutRoot) {
     layoutObserver = new MutationObserver((records) => {
@@ -708,6 +771,7 @@ export function tickSpaceGravity(position: number): void {
   settleBodyPresence(now);
   const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
+  applyWindowGravity(stageBounds.Width, stageBounds.Height);
   if (reducedMotion) {
     if (staticLayoutDirty) {
       applyStaticLayout(stageBounds.Width, stageBounds.Height);
@@ -769,6 +833,11 @@ export function destroySpaceGravity(): void {
   resizeObserver = null;
   layoutObserver?.disconnect();
   layoutObserver = null;
+  if (windowPositionDocument && windowPositionVisibilityListener) {
+    windowPositionDocument.removeEventListener("visibilitychange", windowPositionVisibilityListener);
+  }
+  windowPositionDocument = null;
+  windowPositionVisibilityListener = null;
   if (coverTrackingFrame !== null) cancelAnimationFrame(coverTrackingFrame);
   for (const [line, timer] of pendingLineRemovals) line.HTMLElement.ownerDocument.defaultView?.clearTimeout(timer);
   pendingLineRemovals = new Map();
@@ -804,6 +873,7 @@ export function destroySpaceGravity(): void {
   stageBounds = null;
   footerBounds = null;
   coverBounds = null;
+  windowPosition = null;
   lastTick = performance.now();
   renderFrame = 0;
 }

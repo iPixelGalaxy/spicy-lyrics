@@ -65,7 +65,9 @@ const SOFT_SEPARATION_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
 const UPRIGHT_TORQUE = 0.225;
 const ANGULAR_DAMPING = 0.18;
-const MAX_VISIBLE_LEAD_WORDS = 50;
+const MIN_VISIBLE_LEAD_WORDS = 50;
+const MAX_VISIBLE_LEAD_WORDS = 120;
+const VISIBLE_WORD_AREA = 8_000;
 const MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION = 25;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
@@ -599,6 +601,26 @@ function getLeadWindow(firstWord: number, lastWord: number): GravityLine[] {
   });
 }
 
+function getStageOverlapArea(bounds: RectBounds | null, width: number, height: number): number {
+  if (!bounds) return 0;
+  const overlapWidth = Math.max(0, Math.min(width, bounds.Right) - Math.max(0, bounds.Left));
+  const overlapHeight = Math.max(0, Math.min(height, bounds.Bottom) - Math.max(0, bounds.Top));
+  return overlapWidth * overlapHeight;
+}
+
+function getVisibleLeadWordCount(): number {
+  if (!stageBounds) return MIN_VISIBLE_LEAD_WORDS;
+  const { Width, Height } = stageBounds;
+  const occupiedArea =
+    getStageOverlapArea(coverBounds, Width, Height) +
+    getStageOverlapArea(footerBounds, Width, Height);
+  const availableArea = Math.max(0, Width * Height - occupiedArea);
+  return Math.min(
+    MAX_VISIBLE_LEAD_WORDS,
+    Math.max(MIN_VISIBLE_LEAD_WORDS, Math.ceil(availableArea / VISIBLE_WORD_AREA))
+  );
+}
+
 function getLeadWordRange(anchor: number): { First: number; Last: number } | undefined {
   const total = Array.from(leadWordCounts.values()).reduce((sum, count) => sum + count, 0);
   if (total === 0 || Number.isNaN(anchor)) return undefined;
@@ -621,7 +643,7 @@ function getLeadWordRange(anchor: number): { First: number; Last: number } | und
     }
     return { First: first, Last: last };
   }
-  const count = Math.min(MAX_VISIBLE_LEAD_WORDS, total);
+  const count = Math.min(getVisibleLeadWordCount(), total);
   const first = Math.max(0, Math.min(anchor - Math.floor((count - 1) / 2), total - count));
   return { First: first, Last: first + count - 1 };
 }

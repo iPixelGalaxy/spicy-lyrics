@@ -29,6 +29,8 @@ type GravityBody = {
   Angle: number;
   AngularVelocity: number;
   Radius: number;
+  BaseRadius: number;
+  Scale: number;
   Width: number;
   Height: number;
   StartX: number;
@@ -192,7 +194,7 @@ function updateBounds(refreshBodies = true): void {
     : null;
   const coverRect = cover?.getBoundingClientRect();
   coverBounds = coverRect && coverRect.width > 0 && coverRect.height > 0
-    ? { Left: coverRect.left - stageRect.left - COVER_CLEARANCE, Top: coverRect.top - stageRect.top - COVER_CLEARANCE, Right: coverRect.right - stageRect.left + COVER_CLEARANCE, Bottom: coverRect.bottom - stageRect.top + COVER_CLEARANCE }
+    ? { Left: coverRect.left - stageRect.left, Top: coverRect.top - stageRect.top, Right: coverRect.right - stageRect.left, Bottom: coverRect.bottom - stageRect.top }
     : null;
   if (resized) resetWindowMotion();
   if (!refreshBodies) return;
@@ -201,9 +203,7 @@ function updateBounds(refreshBodies = true): void {
       body.X *= scaleX;
       body.Y *= scaleY;
     }
-    body.Width = body.Element.offsetWidth;
-    body.Height = body.Element.offsetHeight;
-    body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
+    measureBody(body);
     if (!body.Spawned) continue;
     resolveBodyConstraints(body, width, height);
     renderBody(body);
@@ -213,20 +213,30 @@ function updateBounds(refreshBodies = true): void {
       body.X *= scaleX;
       body.Y *= scaleY;
     }
-    body.Width = body.Element.offsetWidth;
-    body.Height = body.Element.offsetHeight;
-    body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
+    measureBody(body);
     if (!body.Spawned) continue;
     resolveBodyConstraints(body, width, height);
     renderBody(body);
   }
 }
 
-function constrainToStage(body: GravityBody, width: number, height: number): boolean {
-  const minX = EDGE_PADDING + body.Radius;
-  const maxX = Math.max(minX, width - EDGE_PADDING - body.Radius);
-  const minY = EDGE_PADDING + body.Radius;
-  const maxY = Math.max(minY, height - EDGE_PADDING - body.Radius);
+function measureBody(body: GravityBody): void {
+  body.Width = body.Element.offsetWidth;
+  body.Height = body.Element.offsetHeight;
+  body.BaseRadius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
+  body.Radius = body.BaseRadius * body.Scale;
+}
+
+function setBodyScale(body: GravityBody, scale: number): void {
+  body.Scale = scale;
+  body.Radius = body.BaseRadius * scale;
+}
+
+function constrainToStage(body: GravityBody, width: number, height: number, padding = EDGE_PADDING): boolean {
+  const minX = padding + body.Radius;
+  const maxX = Math.max(minX, width - padding - body.Radius);
+  const minY = padding + body.Radius;
+  const maxY = Math.max(minY, height - padding - body.Radius);
   let changed = false;
   if (body.X < minX) { body.X = minX; if (body.VX < 0) body.VX = -body.VX * BOUNCE_RESTITUTION; changed = true; }
   else if (body.X > maxX) { body.X = maxX; if (body.VX > 0) body.VX = -body.VX * BOUNCE_RESTITUTION; changed = true; }
@@ -236,18 +246,32 @@ function constrainToStage(body: GravityBody, width: number, height: number): boo
 }
 
 function renderBody(body: GravityBody): void {
-  body.Element.style.transform = `translate3d(${body.X - body.Width / 2}px, ${body.Y - body.Height / 2}px, 0) rotate(${body.Angle}deg)`;
+  body.Element.style.transform = `translate3d(${body.X - body.Width / 2}px, ${body.Y - body.Height / 2}px, 0) rotate(${body.Angle}deg) scale(${body.Scale})`;
 }
 
-function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null, width: number, height: number, exits: ObstacleExit[]): boolean {
+function expandBounds(bounds: RectBounds | null, amount: number): RectBounds | null {
+  if (!bounds) return null;
+  return {
+    Left: bounds.Left - amount,
+    Top: bounds.Top - amount,
+    Right: bounds.Right + amount,
+    Bottom: bounds.Bottom + amount,
+  };
+}
+
+function intersectsRectangle(body: GravityBody, obstacle: RectBounds | null): boolean {
   if (!obstacle) return false;
   const nearestX = Math.min(obstacle.Right, Math.max(obstacle.Left, body.X));
   const nearestY = Math.min(obstacle.Bottom, Math.max(obstacle.Top, body.Y));
-  if (Math.hypot(body.X - nearestX, body.Y - nearestY) >= body.Radius) return false;
-  const minX = EDGE_PADDING + body.Radius;
-  const maxX = Math.max(minX, width - EDGE_PADDING - body.Radius);
-  const minY = EDGE_PADDING + body.Radius;
-  const maxY = Math.max(minY, height - EDGE_PADDING - body.Radius);
+  return Math.hypot(body.X - nearestX, body.Y - nearestY) < body.Radius;
+}
+
+function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null, width: number, height: number, exits: ObstacleExit[], padding = EDGE_PADDING): boolean {
+  if (!intersectsRectangle(body, obstacle) || !obstacle) return false;
+  const minX = padding + body.Radius;
+  const maxX = Math.max(minX, width - padding - body.Radius);
+  const minY = padding + body.Radius;
+  const maxY = Math.max(minY, height - padding - body.Radius);
   const candidates = [
     { Exit: "Left" as const, X: obstacle.Left - body.Radius, Y: body.Y },
     { Exit: "Right" as const, X: obstacle.Right + body.Radius, Y: body.Y },
@@ -265,14 +289,49 @@ function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | nul
   return true;
 }
 
+function fitBodyAroundCover(body: GravityBody, width: number, height: number): void {
+  const obstacle = coverBounds;
+  if (!obstacle || obstacle.Right <= 0 || obstacle.Left >= width || obstacle.Bottom <= 0 || obstacle.Top >= height) {
+    setBodyScale(body, 1);
+    return;
+  }
+  const freeSpans = [
+    Math.max(0, Math.min(width, obstacle.Left)),
+    Math.max(0, width - Math.max(0, obstacle.Right)),
+    Math.max(0, Math.min(height, obstacle.Top)),
+    Math.max(0, height - Math.max(0, obstacle.Bottom)),
+  ];
+  const maximumRadius = Math.max(
+    Math.min(freeSpans[0] / 2, height / 2),
+    Math.min(freeSpans[1] / 2, height / 2),
+    Math.min(freeSpans[2] / 2, width / 2),
+    Math.min(freeSpans[3] / 2, width / 2),
+  );
+  setBodyScale(body, Math.min(1, maximumRadius / body.BaseRadius));
+}
+
 function resolveBodyConstraints(body: GravityBody, width: number, height: number): void {
+  fitBodyAroundCover(body, width, height);
+  const paddedCover = expandBounds(coverBounds, COVER_CLEARANCE);
   for (let pass = 0; pass < 4; pass += 1) {
     const clamped = constrainToStage(body, width, height);
-    const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"]);
+    const coverResolved = resolveRectangleCollision(body, paddedCover, width, height, ["Left", "Right", "Top", "Bottom"]);
     const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"]);
     if (!clamped && !coverResolved && !footerResolved) return;
   }
-  constrainToStage(body, width, height);
+  if (!intersectsRectangle(body, coverBounds)) {
+    constrainToStage(body, width, height);
+    return;
+  }
+  // Tight layouts may not fit both normal margins. Keep cover and viewport
+  // hard boundaries, then use the scale selected from their largest free strip.
+  for (let pass = 0; pass < 4; pass += 1) {
+    const clamped = constrainToStage(body, width, height, 0);
+    const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"], 0);
+    const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"]);
+    if (!clamped && !coverResolved && !footerResolved) break;
+  }
+  constrainToStage(body, width, height, 0);
 }
 
 function trackCoverTransition(): void {
@@ -285,8 +344,17 @@ function trackCoverTransition(): void {
       if (!body.Spawned) continue;
       const x = body.X;
       const y = body.Y;
+      const scale = body.Scale;
       resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
-      if (body.X !== x || body.Y !== y) renderBody(body);
+      if (body.X !== x || body.Y !== y || body.Scale !== scale) renderBody(body);
+    }
+    for (const body of exitingBodies) {
+      if (!body.Spawned) continue;
+      const x = body.X;
+      const y = body.Y;
+      const scale = body.Scale;
+      resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
+      if (body.X !== x || body.Y !== y || body.Scale !== scale) renderBody(body);
     }
     if (performance.now() < coverTrackingUntil) coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
     else coverTrackingFrame = null;
@@ -402,10 +470,8 @@ function prepareLines(nextLines: GravityLine[]): void {
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speed = 4.4 + random(seed + 3) * 5.6;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
-    body.Width = bodyElement.offsetWidth;
-    body.Height = bodyElement.offsetHeight;
-    body.Radius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
+    measureBody(body);
     const lineBodies = bodiesByLine.get(record.Line) ?? [];
     lineBodies.push(body);
     bodiesByLine.set(record.Line, lineBodies);

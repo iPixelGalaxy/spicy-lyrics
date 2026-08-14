@@ -40,7 +40,7 @@ import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
-import { CreateLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
+import { CreateLyricsFooter, PlaceLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../../components/Global/Defaults.ts";
 import { SpotifyPlayer } from "../../../../components/Global/SpotifyPlayer.ts";
 
@@ -256,7 +256,6 @@ type SyllableRenderSession = {
   Lines: typeof LyricsObject.Types.Syllable.Lines;
   LineElements: HTMLElement[];
   Footer: HTMLElement;
-  FooterHome: HTMLElement | null;
   SpaceGravity: boolean;
 };
 
@@ -282,9 +281,7 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     // leaving it in that shell defers a usable size until the page is hidden.
     session.Host.replaceChildren(session.Container);
     session.VirtualContainer.style.removeProperty("height");
-    session.FooterHome = session.Footer.parentElement as HTMLElement | null;
-    session.Container.appendChild(session.Footer);
-    session.Footer.classList.add("SpaceGravityFooter");
+    PlaceLyricsFooter(session.Footer, session.Container, session.Host, true);
     session.Container.classList.add("SpaceGravityStage");
     mountSpaceGravity(session.VirtualContainer, session.Lines, session.Container, session.Footer);
     tickSpaceGravity(SpotifyPlayer.GetPosition());
@@ -293,13 +290,12 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     session.Lines = restoredLines as typeof LyricsObject.Types.Syllable.Lines;
     session.LineElements = restoredLines.map((line) => line.HTMLElement);
     session.Container.classList.remove("SpaceGravityStage");
-    session.Footer.classList.remove("SpaceGravityFooter");
-    (session.FooterHome?.isConnected ? session.FooterHome : session.Container).appendChild(session.Footer);
     session.VirtualContainer.replaceChildren();
     PageContainer?.classList.remove("SpaceGravityMode");
     // Fresh normal mode owns a fresh SimpleBar tree. This also fixes pages
     // opened in gravity mode, where no scroll instance exists yet.
     session.Host.replaceChildren(session.Container);
+    PlaceLyricsFooter(session.Footer, session.Container, session.Host);
     MountScrollSimplebar();
     const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
     if (scrollEl) initLyricsVirtualizer(scrollEl, session.VirtualContainer, session.LineElements);
@@ -865,7 +861,6 @@ export function ApplySyllableLyrics(
     Lines: LyricsObject.Types.Syllable.Lines,
     LineElements: lineElements,
     Footer: footer,
-    FooterHome: footer.parentElement as HTMLElement | null,
     SpaceGravity: spaceGravityMode,
   };
 

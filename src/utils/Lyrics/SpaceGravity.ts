@@ -28,6 +28,7 @@ type GravityBody = {
   VY: number;
   Angle: number;
   AngularVelocity: number;
+  BounceCount: number;
   Radius: number;
   BaseRadius: number;
   Scale: number;
@@ -58,6 +59,7 @@ const HIGH_SPEED_DRAG = 0.6;
 const WINDOW_VELOCITY_SMOOTHING = 0.18;
 const WINDOW_IMPULSE = 1.1;
 const BOUNCE_RESTITUTION = 0.82;
+const MAX_BOUNCE_RESTITUTION = 2.4;
 const SOFT_SEPARATION_GAP = 10;
 const SOFT_SEPARATION_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
@@ -126,6 +128,15 @@ function random(seed: number): number {
   value = Math.imul(value ^ (value >>> 15), value | 1);
   value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+}
+
+function bounce(body: GravityBody, axis: "X" | "Y", direction: -1 | 1): void {
+  const velocity = axis === "X" ? body.VX : body.VY;
+  if (velocity * direction >= 0) return;
+  // Keep ordinary bounces near existing restitution. Rare hits launch hard.
+  const strength = BOUNCE_RESTITUTION + random(hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount++}`)) ** 2 * (MAX_BOUNCE_RESTITUTION - BOUNCE_RESTITUTION);
+  if (axis === "X") body.VX = direction * Math.abs(velocity) * strength;
+  else body.VY = direction * Math.abs(velocity) * strength;
 }
 
 function updateReducedMotion(): void {
@@ -238,10 +249,10 @@ function constrainToStage(body: GravityBody, width: number, height: number, padd
   const minY = padding + body.Radius;
   const maxY = Math.max(minY, height - padding - body.Radius);
   let changed = false;
-  if (body.X < minX) { body.X = minX; if (body.VX < 0) body.VX = -body.VX * BOUNCE_RESTITUTION; changed = true; }
-  else if (body.X > maxX) { body.X = maxX; if (body.VX > 0) body.VX = -body.VX * BOUNCE_RESTITUTION; changed = true; }
-  if (body.Y < minY) { body.Y = minY; if (body.VY < 0) body.VY = -body.VY * BOUNCE_RESTITUTION; changed = true; }
-  else if (body.Y > maxY) { body.Y = maxY; if (body.VY > 0) body.VY = -body.VY * BOUNCE_RESTITUTION; changed = true; }
+  if (body.X < minX) { body.X = minX; bounce(body, "X", 1); changed = true; }
+  else if (body.X > maxX) { body.X = maxX; bounce(body, "X", -1); changed = true; }
+  if (body.Y < minY) { body.Y = minY; bounce(body, "Y", 1); changed = true; }
+  else if (body.Y > maxY) { body.Y = maxY; bounce(body, "Y", -1); changed = true; }
   return changed;
 }
 
@@ -282,10 +293,10 @@ function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | nul
   const candidate = candidates.reduce((nearest, next) => Math.hypot(next.X - body.X, next.Y - body.Y) < Math.hypot(nearest.X - body.X, nearest.Y - body.Y) ? next : nearest);
   body.X = candidate.X;
   body.Y = candidate.Y;
-  if (candidate.Exit === "Left" && body.VX > 0) body.VX = -body.VX * BOUNCE_RESTITUTION;
-  else if (candidate.Exit === "Right" && body.VX < 0) body.VX = -body.VX * BOUNCE_RESTITUTION;
-  else if (candidate.Exit === "Top" && body.VY > 0) body.VY = -body.VY * BOUNCE_RESTITUTION;
-  else if (candidate.Exit === "Bottom" && body.VY < 0) body.VY = -body.VY * BOUNCE_RESTITUTION;
+  if (candidate.Exit === "Left") bounce(body, "X", -1);
+  else if (candidate.Exit === "Right") bounce(body, "X", 1);
+  else if (candidate.Exit === "Top") bounce(body, "Y", -1);
+  else if (candidate.Exit === "Bottom") bounce(body, "Y", 1);
   return true;
 }
 
@@ -470,7 +481,7 @@ function prepareLines(nextLines: GravityLine[]): void {
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speed = 4.4 + random(seed + 3) * 5.6;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
     measureBody(body);
     const lineBodies = bodiesByLine.get(record.Line) ?? [];
     lineBodies.push(body);

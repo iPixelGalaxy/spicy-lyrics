@@ -51,6 +51,7 @@ type Bounds = { Width: number; Height: number };
 type WindowPosition = { X: number; Y: number };
 type RectBounds = { Left: number; Top: number; Right: number; Bottom: number };
 type ObstacleExit = "Left" | "Right" | "Top" | "Bottom";
+type CollisionAxis = "X" | "Y";
 
 const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
@@ -60,6 +61,7 @@ const WINDOW_VELOCITY_SMOOTHING = 0.18;
 const WINDOW_IMPULSE = 1.1;
 const BOUNCE_RESTITUTION = 0.82;
 const MAX_BOUNCE_RESTITUTION = 2.4;
+const MAX_BOUNCE_SPEED = MAX_SPEED * MAX_BOUNCE_RESTITUTION;
 const SOFT_SEPARATION_GAP = 10;
 const SOFT_SEPARATION_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
@@ -133,13 +135,50 @@ function random(seed: number): number {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 }
 
-function bounce(body: GravityBody, axis: "X" | "Y", direction: -1 | 1): void {
+function bounce(body: GravityBody, axis: CollisionAxis, direction: -1 | 1, bouncedAxes: Set<CollisionAxis>): void {
   const velocity = axis === "X" ? body.VX : body.VY;
+  if (!Number.isFinite(velocity)) {
+    if (axis === "X") body.VX = 0;
+    else body.VY = 0;
+    return;
+  }
   if (velocity * direction >= 0) return;
+  // A narrow gap can hit opposite constraints in one solve. Stop there rather
+  // than amplifying a rebound back and forth between them.
+  if (bouncedAxes.has(axis)) {
+    if (axis === "X") body.VX = 0;
+    else body.VY = 0;
+    return;
+  }
+  bouncedAxes.add(axis);
   // Keep ordinary bounces near existing restitution. Rare hits launch hard.
   const strength = BOUNCE_RESTITUTION + random(hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount++}`)) ** 2 * (MAX_BOUNCE_RESTITUTION - BOUNCE_RESTITUTION);
-  if (axis === "X") body.VX = direction * Math.abs(velocity) * strength;
-  else body.VY = direction * Math.abs(velocity) * strength;
+  const reboundSpeed = Math.min(MAX_BOUNCE_SPEED, Math.abs(velocity) * strength);
+  if (axis === "X") body.VX = direction * reboundSpeed;
+  else body.VY = direction * reboundSpeed;
+}
+
+function recoverInvalidBodyMotion(body: GravityBody): void {
+  const positionValid = Number.isFinite(body.X) && Number.isFinite(body.Y);
+  const velocityValid = Number.isFinite(body.VX) && Number.isFinite(body.VY);
+  const rotationValid = Number.isFinite(body.Angle) && Number.isFinite(body.AngularVelocity);
+  if (positionValid && velocityValid && rotationValid) return;
+
+  const seed = hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount}:recovery`);
+  const speed = 4.4 + random(seed) * 5.6;
+  const direction = random(seed + 1) * Math.PI * 2;
+  if (!positionValid) {
+    body.X = Number.isFinite(body.NaturalX) ? body.NaturalX : 0;
+    body.Y = Number.isFinite(body.NaturalY) ? body.NaturalY : 0;
+  }
+  if (!velocityValid) {
+    body.VX = Math.cos(direction) * speed;
+    body.VY = Math.sin(direction) * speed;
+  }
+  if (!rotationValid) {
+    body.Angle = 0;
+    body.AngularVelocity = (random(seed + 2) * 2 - 1) * 19;
+  }
 }
 
 function updateReducedMotion(): void {
@@ -247,16 +286,16 @@ function setBodyScale(body: GravityBody, scale: number): void {
   body.Radius = body.BaseRadius * scale;
 }
 
-function constrainToStage(body: GravityBody, width: number, height: number, padding = EDGE_PADDING): boolean {
+function constrainToStage(body: GravityBody, width: number, height: number, bouncedAxes: Set<CollisionAxis>, padding = EDGE_PADDING): boolean {
   const minX = padding + body.Radius;
   const maxX = Math.max(minX, width - padding - body.Radius);
   const minY = padding + body.Radius;
   const maxY = Math.max(minY, height - padding - body.Radius);
   let changed = false;
-  if (body.X < minX) { body.X = minX; bounce(body, "X", 1); changed = true; }
-  else if (body.X > maxX) { body.X = maxX; bounce(body, "X", -1); changed = true; }
-  if (body.Y < minY) { body.Y = minY; bounce(body, "Y", 1); changed = true; }
-  else if (body.Y > maxY) { body.Y = maxY; bounce(body, "Y", -1); changed = true; }
+  if (body.X < minX) { body.X = minX; bounce(body, "X", 1, bouncedAxes); changed = true; }
+  else if (body.X > maxX) { body.X = maxX; bounce(body, "X", -1, bouncedAxes); changed = true; }
+  if (body.Y < minY) { body.Y = minY; bounce(body, "Y", 1, bouncedAxes); changed = true; }
+  else if (body.Y > maxY) { body.Y = maxY; bounce(body, "Y", -1, bouncedAxes); changed = true; }
   return changed;
 }
 
@@ -281,7 +320,7 @@ function intersectsRectangle(body: GravityBody, obstacle: RectBounds | null): bo
   return Math.hypot(body.X - nearestX, body.Y - nearestY) < body.Radius;
 }
 
-function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null, width: number, height: number, exits: ObstacleExit[], padding = EDGE_PADDING): boolean {
+function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null, width: number, height: number, exits: ObstacleExit[], bouncedAxes: Set<CollisionAxis>, padding = EDGE_PADDING): boolean {
   if (!intersectsRectangle(body, obstacle) || !obstacle) return false;
   const minX = padding + body.Radius;
   const maxX = Math.max(minX, width - padding - body.Radius);
@@ -297,10 +336,10 @@ function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | nul
   const candidate = candidates.reduce((nearest, next) => Math.hypot(next.X - body.X, next.Y - body.Y) < Math.hypot(nearest.X - body.X, nearest.Y - body.Y) ? next : nearest);
   body.X = candidate.X;
   body.Y = candidate.Y;
-  if (candidate.Exit === "Left") bounce(body, "X", -1);
-  else if (candidate.Exit === "Right") bounce(body, "X", 1);
-  else if (candidate.Exit === "Top") bounce(body, "Y", -1);
-  else if (candidate.Exit === "Bottom") bounce(body, "Y", 1);
+  if (candidate.Exit === "Left") bounce(body, "X", -1, bouncedAxes);
+  else if (candidate.Exit === "Right") bounce(body, "X", 1, bouncedAxes);
+  else if (candidate.Exit === "Top") bounce(body, "Y", -1, bouncedAxes);
+  else if (candidate.Exit === "Bottom") bounce(body, "Y", 1, bouncedAxes);
   return true;
 }
 
@@ -328,25 +367,26 @@ function fitBodyAroundCover(body: GravityBody, width: number, height: number): v
 function resolveBodyConstraints(body: GravityBody, width: number, height: number): void {
   fitBodyAroundCover(body, width, height);
   const paddedCover = expandBounds(coverBounds, COVER_CLEARANCE);
+  const bouncedAxes = new Set<CollisionAxis>();
   for (let pass = 0; pass < 4; pass += 1) {
-    const clamped = constrainToStage(body, width, height);
-    const coverResolved = resolveRectangleCollision(body, paddedCover, width, height, ["Left", "Right", "Top", "Bottom"]);
-    const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"]);
+    const clamped = constrainToStage(body, width, height, bouncedAxes);
+    const coverResolved = resolveRectangleCollision(body, paddedCover, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
+    const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"], bouncedAxes);
     if (!clamped && !coverResolved && !footerResolved) return;
   }
   if (!intersectsRectangle(body, coverBounds)) {
-    constrainToStage(body, width, height);
+    constrainToStage(body, width, height, bouncedAxes);
     return;
   }
   // Tight layouts may not fit both normal margins. Keep cover and viewport
   // hard boundaries, then use the scale selected from their largest free strip.
   for (let pass = 0; pass < 4; pass += 1) {
-    const clamped = constrainToStage(body, width, height, 0);
-    const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"], 0);
-    const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"]);
+    const clamped = constrainToStage(body, width, height, bouncedAxes, 0);
+    const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
+    const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"], bouncedAxes);
     if (!clamped && !coverResolved && !footerResolved) break;
   }
-  constrainToStage(body, width, height, 0);
+  constrainToStage(body, width, height, bouncedAxes, 0);
 }
 
 function trackCoverTransition(): void {
@@ -872,6 +912,7 @@ export function tickSpaceGravity(position: number): void {
   settleBodyPresence(now);
   const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
+  for (const body of activeBodies) recoverInvalidBodyMotion(body);
   applyWindowGravity(delta);
   if (reducedMotion) {
     if (staticLayoutDirty) {

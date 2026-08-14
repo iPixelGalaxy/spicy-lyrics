@@ -115,6 +115,7 @@ let renderFrame = 0;
 let reducedMotion = false;
 let layoutDirty = true;
 let staticLayoutDirty = true;
+let visibleLeadWordCount = MIN_VISIBLE_LEAD_WORDS;
 
 function hash(value: string): number {
   let result = 2166136261;
@@ -209,6 +210,7 @@ function updateBounds(refreshBodies = true): void {
   coverBounds = coverRect && coverRect.width > 0 && coverRect.height > 0
     ? { Left: coverRect.left - stageRect.left, Top: coverRect.top - stageRect.top, Right: coverRect.right - stageRect.left, Bottom: coverRect.bottom - stageRect.top }
     : null;
+  if (previousBounds === null || resized) visibleLeadWordCount = calculateVisibleLeadWordCount(width, height);
   if (resized) resetWindowMotion();
   if (!refreshBodies) return;
   for (const body of activeBodies) {
@@ -608,13 +610,11 @@ function getStageOverlapArea(bounds: RectBounds | null, width: number, height: n
   return overlapWidth * overlapHeight;
 }
 
-function getVisibleLeadWordCount(): number {
-  if (!stageBounds) return MIN_VISIBLE_LEAD_WORDS;
-  const { Width, Height } = stageBounds;
+function calculateVisibleLeadWordCount(width: number, height: number): number {
   const occupiedArea =
-    getStageOverlapArea(coverBounds, Width, Height) +
-    getStageOverlapArea(footerBounds, Width, Height);
-  const availableArea = Math.max(0, Width * Height - occupiedArea);
+    getStageOverlapArea(coverBounds, width, height) +
+    getStageOverlapArea(footerBounds, width, height);
+  const availableArea = Math.max(0, width * height - occupiedArea);
   return Math.min(
     MAX_VISIBLE_LEAD_WORDS,
     Math.max(MIN_VISIBLE_LEAD_WORDS, Math.ceil(availableArea / VISIBLE_WORD_AREA))
@@ -643,7 +643,7 @@ function getLeadWordRange(anchor: number): { First: number; Last: number } | und
     }
     return { First: first, Last: last };
   }
-  const count = Math.min(getVisibleLeadWordCount(), total);
+  const count = Math.min(visibleLeadWordCount, total);
   const first = Math.max(0, Math.min(anchor - Math.floor((count - 1) / 2), total - count));
   return { First: first, Last: first + count - 1 };
 }
@@ -978,6 +978,7 @@ export function destroySpaceGravity(): void {
   finalVocalEnd = Number.NEGATIVE_INFINITY;
   layoutDirty = true;
   staticLayoutDirty = true;
+  visibleLeadWordCount = MIN_VISIBLE_LEAD_WORDS;
   stageBounds = null;
   footerBounds = null;
   coverBounds = null;

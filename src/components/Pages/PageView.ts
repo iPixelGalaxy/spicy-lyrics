@@ -13,6 +13,7 @@ import {
   addLinesEvListener,
   isRomanized,
   removeLinesEvListener,
+  SetLyricsRendererWindow,
   setRomanizedStatus,
 } from "../../utils/Lyrics/lyrics.ts";
 import {
@@ -310,6 +311,7 @@ async function OpenPage(
   }
 
   addLinesEvListener();
+  SetLyricsRendererWindow(targetDocument.defaultView);
 
   elem.querySelector<HTMLButtonElement>("#ScrollToActiveLyric")?.addEventListener("click", () => {
     ScrollToCurrentActiveLine();
@@ -416,6 +418,8 @@ async function DestroyPage() {
   if (!PageView.IsOpened) return;
   pageLogger.debug("Destroying page");
 
+  // Return the persistent renderer loop before an auxiliary page window closes.
+  SetLyricsRendererWindow(window);
   cleanupApplyLyricsAbortController();
 
   if (Fullscreen.IsOpen) await Fullscreen.Close();

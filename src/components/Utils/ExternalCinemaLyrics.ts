@@ -7,7 +7,6 @@ import Session from "../Global/Session.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import { IsPlaying } from "../../utils/Addons.ts";
-import { TickLyricsRenderer } from "../../utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
@@ -47,7 +46,6 @@ function getExternalPlayerPosition(): number {
 function startExternalRenderLoop(targetWindow: Window) {
   stopExternalRenderLoop();
   const renderLoop = () => {
-    TickLyricsRenderer();
     KawarpMap.forEach((kawarpInstance) => {
       kawarpInstance.renderFrame();
     });

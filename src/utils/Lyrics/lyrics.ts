@@ -191,6 +191,30 @@ export const TickLyricsRenderer = () => {
   }
 };
 
+let lyricsRenderWindow: Window = window;
+let lyricsRenderFrame: number | null = null;
+
+/**
+ * Keep one lyrics frame loop alive while the page moves between documents.
+ * Closing an external Cinema window must hand the loop back to the host window
+ * before its pending frame is discarded with the window.
+ */
+export function SetLyricsRendererWindow(nextWindow: Window | null | undefined): void {
+  const targetWindow = nextWindow && !nextWindow.closed ? nextWindow : window;
+  if (lyricsRenderWindow === targetWindow && lyricsRenderFrame !== null) return;
+
+  if (lyricsRenderFrame !== null) {
+    try {
+      lyricsRenderWindow.cancelAnimationFrame(lyricsRenderFrame);
+    } catch {
+      // A closing auxiliary window can reject cancellation. Its frame is gone.
+    }
+  }
+
+  lyricsRenderWindow = targetWindow;
+  lyricsRenderFrame = targetWindow.requestAnimationFrame(LyricsInterval);
+}
+
 const LyricsInterval = () => {
   /* { // Logging Line part
     const currentLyrics = storage.get("currentLyricsData") as string;
@@ -233,11 +257,10 @@ const LyricsInterval = () => {
   } */
 
   TickLyricsRenderer();
-  const lyricsWindow = PageContainer?.ownerDocument?.defaultView ?? window;
-  lyricsWindow.requestAnimationFrame(LyricsInterval);
+  lyricsRenderFrame = lyricsRenderWindow.requestAnimationFrame(LyricsInterval);
 };
 
-LyricsInterval();
+SetLyricsRendererWindow(window);
 
 // Define proper types for event listener variables
 let LinesEvListenerMaid: Maid | null = null;

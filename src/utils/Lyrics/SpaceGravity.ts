@@ -52,9 +52,15 @@ type ObstacleExit = "Left" | "Right" | "Top" | "Bottom";
 const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
 const MAX_SPEED = 16;
-const SOFT_AVOID_RADIUS = 96;
-const SOFT_AVOID_ACCELERATION = 5;
+const HIGH_SPEED_DRAG = 1.7;
+const WINDOW_VELOCITY_SMOOTHING = 0.18;
+const WINDOW_IMPULSE = 0.65;
+const BOUNCE_RESTITUTION = 0.82;
+const SOFT_SEPARATION_GAP = 10;
+const SOFT_SEPARATION_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
+const UPRIGHT_TORQUE = 1.5;
+const ANGULAR_DAMPING = 0.18;
 const MAX_VISIBLE_LEAD_WORDS = 50;
 const MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION = 25;
 const LINE_GAP_CQW = 1;
@@ -95,6 +101,7 @@ let stageBounds: Bounds | null = null;
 let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
 let windowPosition: WindowPosition | null = null;
+let windowVelocity: WindowPosition = { X: 0, Y: 0 };
 let windowPositionDocument: Document | null = null;
 let windowPositionVisibilityListener: (() => void) | null = null;
 let lastTick = performance.now();
@@ -130,31 +137,32 @@ function getWindowPosition(): WindowPosition | null {
   return { X: ownerWindow.screenX, Y: ownerWindow.screenY };
 }
 
-function syncWindowPosition(): void {
+function resetWindowMotion(): void {
   windowPosition = getWindowPosition();
+  windowVelocity = { X: 0, Y: 0 };
 }
 
-function applyWindowGravity(width: number, height: number): void {
+function applyWindowGravity(delta: number): void {
   const nextPosition = getWindowPosition();
   if (!nextPosition) return;
   const previousPosition = windowPosition;
   windowPosition = nextPosition;
   if (!previousPosition || reducedMotion || stage?.ownerDocument.visibilityState !== "visible") return;
-  const deltaX = nextPosition.X - previousPosition.X;
-  const deltaY = nextPosition.Y - previousPosition.Y;
-  if (deltaX === 0 && deltaY === 0) return;
+  const sampledX = (nextPosition.X - previousPosition.X) / Math.max(delta, 0.001);
+  const sampledY = (nextPosition.Y - previousPosition.Y) / Math.max(delta, 0.001);
+  windowVelocity.X += (sampledX - windowVelocity.X) * WINDOW_VELOCITY_SMOOTHING;
+  windowVelocity.Y += (sampledY - windowVelocity.Y) * WINDOW_VELOCITY_SMOOTHING;
+  if (windowVelocity.X === 0 && windowVelocity.Y === 0) return;
 
   for (const body of activeBodies) {
     if (!body.Spawned) continue;
-    body.X -= deltaX;
-    body.Y -= deltaY;
+    body.VX -= windowVelocity.X * WINDOW_IMPULSE * delta;
+    body.VY -= windowVelocity.Y * WINDOW_IMPULSE * delta;
   }
   for (const body of exitingBodies) {
     if (!body.Spawned) continue;
-    body.X -= deltaX;
-    body.Y -= deltaY;
-    resolveBodyConstraints(body, width, height);
-    renderBody(body);
+    body.VX -= windowVelocity.X * WINDOW_IMPULSE * delta;
+    body.VY -= windowVelocity.Y * WINDOW_IMPULSE * delta;
   }
 }
 
@@ -186,7 +194,7 @@ function updateBounds(refreshBodies = true): void {
   coverBounds = coverRect && coverRect.width > 0 && coverRect.height > 0
     ? { Left: coverRect.left - stageRect.left - COVER_CLEARANCE, Top: coverRect.top - stageRect.top - COVER_CLEARANCE, Right: coverRect.right - stageRect.left + COVER_CLEARANCE, Bottom: coverRect.bottom - stageRect.top + COVER_CLEARANCE }
     : null;
-  if (resized) syncWindowPosition();
+  if (resized) resetWindowMotion();
   if (!refreshBodies) return;
   for (const body of activeBodies) {
     if (resized && body.Spawned) {
@@ -220,10 +228,10 @@ function constrainToStage(body: GravityBody, width: number, height: number): boo
   const minY = EDGE_PADDING + body.Radius;
   const maxY = Math.max(minY, height - EDGE_PADDING - body.Radius);
   let changed = false;
-  if (body.X < minX) { body.X = minX; body.VX = Math.abs(body.VX); changed = true; }
-  else if (body.X > maxX) { body.X = maxX; body.VX = -Math.abs(body.VX); changed = true; }
-  if (body.Y < minY) { body.Y = minY; body.VY = Math.abs(body.VY); changed = true; }
-  else if (body.Y > maxY) { body.Y = maxY; body.VY = -Math.abs(body.VY); changed = true; }
+  if (body.X < minX) { body.X = minX; if (body.VX < 0) body.VX = -body.VX * BOUNCE_RESTITUTION; changed = true; }
+  else if (body.X > maxX) { body.X = maxX; if (body.VX > 0) body.VX = -body.VX * BOUNCE_RESTITUTION; changed = true; }
+  if (body.Y < minY) { body.Y = minY; if (body.VY < 0) body.VY = -body.VY * BOUNCE_RESTITUTION; changed = true; }
+  else if (body.Y > maxY) { body.Y = maxY; if (body.VY > 0) body.VY = -body.VY * BOUNCE_RESTITUTION; changed = true; }
   return changed;
 }
 
@@ -250,10 +258,10 @@ function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | nul
   const candidate = candidates.reduce((nearest, next) => Math.hypot(next.X - body.X, next.Y - body.Y) < Math.hypot(nearest.X - body.X, nearest.Y - body.Y) ? next : nearest);
   body.X = candidate.X;
   body.Y = candidate.Y;
-  if (candidate.Exit === "Left") body.VX = -Math.abs(body.VX);
-  else if (candidate.Exit === "Right") body.VX = Math.abs(body.VX);
-  else if (candidate.Exit === "Top") body.VY = -Math.abs(body.VY);
-  else body.VY = Math.abs(body.VY);
+  if (candidate.Exit === "Left" && body.VX > 0) body.VX = -body.VX * BOUNCE_RESTITUTION;
+  else if (candidate.Exit === "Right" && body.VX < 0) body.VX = -body.VX * BOUNCE_RESTITUTION;
+  else if (candidate.Exit === "Top" && body.VY > 0) body.VY = -body.VY * BOUNCE_RESTITUTION;
+  else if (candidate.Exit === "Bottom" && body.VY < 0) body.VY = -body.VY * BOUNCE_RESTITUTION;
   return true;
 }
 
@@ -686,25 +694,19 @@ function applyStaticLayout(width: number, height: number): void {
 }
 
 function applySoftAvoidance(delta: number): void {
-  const buckets = new Map<number, GravityBody[]>();
-  for (const body of activeBodies) {
-    const cellX = Math.floor(body.X / SOFT_AVOID_RADIUS);
-    const cellY = Math.floor(body.Y / SOFT_AVOID_RADIUS);
-    for (let x = cellX - 1; x <= cellX + 1; x += 1) for (let y = cellY - 1; y <= cellY + 1; y += 1) for (const other of buckets.get(x * 65536 + y) ?? []) {
-      const dx = body.X - other.X;
-      const dy = body.Y - other.Y;
-      const distance = Math.hypot(dx, dy) || 0.001;
-      if (distance >= SOFT_AVOID_RADIUS) continue;
-      const nudge = ((SOFT_AVOID_RADIUS - distance) / SOFT_AVOID_RADIUS) * SOFT_AVOID_ACCELERATION * delta;
-      body.VX += dx / distance * nudge;
-      body.VY += dy / distance * nudge;
-      other.VX -= dx / distance * nudge;
-      other.VY -= dy / distance * nudge;
-    }
-    const key = cellX * 65536 + cellY;
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(body);
-    buckets.set(key, bucket);
+  for (let index = 0; index < activeBodies.length; index += 1) for (let otherIndex = 0; otherIndex < index; otherIndex += 1) {
+    const body = activeBodies[index];
+    const other = activeBodies[otherIndex];
+    const dx = body.X - other.X;
+    const dy = body.Y - other.Y;
+    const distance = Math.hypot(dx, dy) || 0.001;
+    const influence = body.Radius + other.Radius + SOFT_SEPARATION_GAP;
+    if (distance >= influence) continue;
+    const nudge = ((influence - distance) / influence) * SOFT_SEPARATION_ACCELERATION * delta;
+    body.VX += dx / distance * nudge;
+    body.VY += dy / distance * nudge;
+    other.VX -= dx / distance * nudge;
+    other.VY -= dy / distance * nudge;
   }
 }
 
@@ -741,14 +743,14 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   dotLines = lines.filter((line) => line.DotLine).sort((a, b) => a.StartTime - b.StartTime);
   updateReducedMotion();
   windowPositionDocument = nextStage.ownerDocument;
-  windowPositionVisibilityListener = () => syncWindowPosition();
+  windowPositionVisibilityListener = () => resetWindowMotion();
   windowPositionDocument.addEventListener("visibilitychange", windowPositionVisibilityListener);
   resizeObserver = new ResizeObserver(() => updateBounds());
   resizeObserver.observe(nextStage);
   resizeObserver.observe(nextViewport);
   resizeObserver.observe(nextFooter);
   updateBounds();
-  syncWindowPosition();
+  resetWindowMotion();
   const layoutRoot = nextViewport.closest(".ContentBox")?.parentElement;
   if (layoutRoot) {
     layoutObserver = new MutationObserver((records) => {
@@ -771,7 +773,7 @@ export function tickSpaceGravity(position: number): void {
   settleBodyPresence(now);
   const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
-  applyWindowGravity(stageBounds.Width, stageBounds.Height);
+  applyWindowGravity(delta);
   if (reducedMotion) {
     if (staticLayoutDirty) {
       applyStaticLayout(stageBounds.Width, stageBounds.Height);
@@ -782,11 +784,18 @@ export function tickSpaceGravity(position: number): void {
   applySoftAvoidance(delta);
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);
-    if (speed > MAX_SPEED) { body.VX = body.VX / speed * MAX_SPEED; body.VY = body.VY / speed * MAX_SPEED; }
+    if (speed > MAX_SPEED) {
+      const drag = Math.exp(-HIGH_SPEED_DRAG * delta);
+      const nextSpeed = MAX_SPEED + (speed - MAX_SPEED) * drag;
+      body.VX = body.VX / speed * nextSpeed;
+      body.VY = body.VY / speed * nextSpeed;
+    }
     body.VY -= UPWARD_ACCELERATION * Math.max(0, (body.Y / stageBounds.Height - 0.45) / 0.55) * delta;
     body.X += body.VX * delta;
     body.Y += body.VY * delta;
-    body.Angle += body.AngularVelocity * delta;
+    body.AngularVelocity += -Math.sin(body.Angle * Math.PI / 180) * UPRIGHT_TORQUE * delta;
+    body.AngularVelocity *= Math.exp(-ANGULAR_DAMPING * delta);
+    body.Angle = ((body.Angle + body.AngularVelocity * delta + 180) % 360 + 360) % 360 - 180;
     resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
     renderBody(body);
   }
@@ -874,6 +883,7 @@ export function destroySpaceGravity(): void {
   footerBounds = null;
   coverBounds = null;
   windowPosition = null;
+  windowVelocity = { X: 0, Y: 0 };
   lastTick = performance.now();
   renderFrame = 0;
 }

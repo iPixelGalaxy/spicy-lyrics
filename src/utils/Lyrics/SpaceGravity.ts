@@ -66,7 +66,6 @@ const MAX_BOUNCE_SPEED = MAX_SPEED * MAX_BOUNCE_RESTITUTION;
 const SOFT_SEPARATION_GAP = 10;
 const SOFT_SEPARATION_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
-const UPRIGHT_TORQUE = 0.225;
 const ANGULAR_DAMPING = 0.18;
 const MIN_VISIBLE_LEAD_WORDS = 6;
 const MAX_VISIBLE_LEAD_WORDS = 120;
@@ -962,7 +961,6 @@ export function tickSpaceGravity(position: number): void {
     body.VY -= UPWARD_ACCELERATION * Math.max(0, (body.Y / stageBounds.Height - 0.45) / 0.55) * delta;
     body.X += body.VX * delta;
     body.Y += body.VY * delta;
-    body.AngularVelocity += -Math.sin(body.Angle * Math.PI / 180) * UPRIGHT_TORQUE * delta;
     body.AngularVelocity *= Math.exp(-ANGULAR_DAMPING * delta);
     body.Angle = ((body.Angle + body.AngularVelocity * delta + 180) % 360 + 360) % 360 - 180;
     resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);

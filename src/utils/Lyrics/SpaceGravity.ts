@@ -55,6 +55,7 @@ type CollisionAxis = "X" | "Y";
 
 const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
+const WORD_VISUAL_OVERHANG = 0.3;
 const MAX_SPEED = 16;
 const HIGH_SPEED_DRAG = 0.6;
 const WINDOW_VELOCITY_SMOOTHING = 0.18;
@@ -234,21 +235,7 @@ function updateBounds(refreshBodies = true): void {
   const scaleY = previousBounds ? height / previousBounds.Height : 1;
   layoutDirty = true;
   staticLayoutDirty = true;
-  const stageRect = stage.getBoundingClientRect();
-  const nextCover = viewport.closest(".ContentBox")?.querySelector<HTMLElement>(".NowBar .MediaImageContainer") ?? null;
-  if (cover !== nextCover) {
-    if (cover) resizeObserver?.unobserve(cover);
-    cover = nextCover;
-    if (cover) resizeObserver?.observe(cover);
-  }
-  const footerRect = footer?.getBoundingClientRect();
-  footerBounds = footerRect && footerRect.width > 0 && footerRect.height > 0
-    ? { Left: footerRect.left - stageRect.left, Top: footerRect.top - stageRect.top, Right: footerRect.right - stageRect.left, Bottom: footerRect.bottom - stageRect.top }
-    : null;
-  const coverRect = cover?.getBoundingClientRect();
-  coverBounds = coverRect && coverRect.width > 0 && coverRect.height > 0
-    ? { Left: coverRect.left - stageRect.left, Top: coverRect.top - stageRect.top, Right: coverRect.right - stageRect.left, Bottom: coverRect.bottom - stageRect.top }
-    : null;
+  updateObstacleBounds();
   if (previousBounds === null || resized) visibleLeadWordCount = calculateVisibleLeadWordCount(width, height);
   if (resized) resetWindowMotion();
   if (!refreshBodies) return;
@@ -277,8 +264,48 @@ function updateBounds(refreshBodies = true): void {
 function measureBody(body: GravityBody): void {
   body.Width = body.Element.offsetWidth;
   body.Height = body.Element.offsetHeight;
-  body.BaseRadius = Math.max(14, Math.hypot(body.Width, body.Height) / 2);
+  body.BaseRadius = Math.max(14, Math.hypot(body.Width, body.Height) / 2 + body.Height * WORD_VISUAL_OVERHANG);
   body.Radius = body.BaseRadius * body.Scale;
+}
+
+function getRelativeBounds(rect: DOMRect | undefined, stageRect: DOMRect): RectBounds | null {
+  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+  return { Left: rect.left - stageRect.left, Top: rect.top - stageRect.top, Right: rect.right - stageRect.left, Bottom: rect.bottom - stageRect.top };
+}
+
+function boundsEqual(left: RectBounds | null, right: RectBounds | null): boolean {
+  if (left === null || right === null) return left === right;
+  return Math.abs(left.Left - right.Left) < 0.01 && Math.abs(left.Top - right.Top) < 0.01 && Math.abs(left.Right - right.Right) < 0.01 && Math.abs(left.Bottom - right.Bottom) < 0.01;
+}
+
+function updateCoverElement(): void {
+  const nextCover = viewport?.closest(".ContentBox")?.querySelector<HTMLElement>(".NowBar .MediaImageContainer") ?? null;
+  if (cover === nextCover) return;
+  if (cover) resizeObserver?.unobserve(cover);
+  cover = nextCover;
+  if (cover) resizeObserver?.observe(cover);
+}
+
+function updateObstacleBounds(): boolean {
+  if (!stage) return false;
+  updateCoverElement();
+  const stageRect = stage.getBoundingClientRect();
+  const nextFooterBounds = getRelativeBounds(footer?.getBoundingClientRect(), stageRect);
+  const nextCoverBounds = getRelativeBounds(cover?.getBoundingClientRect(), stageRect);
+  const changed = !boundsEqual(footerBounds, nextFooterBounds) || !boundsEqual(coverBounds, nextCoverBounds);
+  footerBounds = nextFooterBounds;
+  coverBounds = nextCoverBounds;
+  return changed;
+}
+
+function syncObstacleBounds(): void {
+  if (!stageBounds || !updateObstacleBounds()) return;
+  const bodies = new Set([...activeBodies, ...exitingBodies]);
+  for (const body of bodies) {
+    if (!body.Spawned) continue;
+    resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
+    renderBody(body);
+  }
 }
 
 function setBodyScale(body: GravityBody, scale: number): void {
@@ -903,7 +930,9 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
 }
 
 export function tickSpaceGravity(position: number): void {
-  if (!stage || !stageBounds) return;
+  if (!stage || !viewport || !stageBounds) return;
+  if (stage.clientWidth !== stageBounds.Width || viewport.clientHeight !== stageBounds.Height) updateBounds();
+  else syncObstacleBounds();
   renderFrame += 1;
   updateVisibleBodies(position);
   updateBodyRoles(position);

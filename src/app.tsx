@@ -409,13 +409,15 @@ async function main() {
       if (popupLyricsAllowed && !isPopupButtonRegistered) {
         popupButton.register();
         if (popupButtonEntry) popupButtonEntry.Registered = true;
-      } else if (!popupLyricsAllowed && isPopupButtonRegistered) {
+      } else if (!popupLyricsAllowed) {
         popupButton.deregister();
         if (popupButtonEntry) popupButtonEntry.Registered = false;
       }
     }
 
-    document.querySelector<HTMLElement>("#SpicyLyrics_PopupLyricsButton")?.classList.toggle("disabled", !popupLyricsAllowed);
+    if (!popupLyricsAllowed) {
+      document.querySelectorAll<HTMLElement>("#SpicyLyrics_PopupLyricsButton").forEach((element) => element.remove());
+    }
 
     const spotifyPipButton = document.querySelector<HTMLElement>('[data-testid="pip-toggle-button"]');
     if (spotifyPipButton) {

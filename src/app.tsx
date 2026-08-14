@@ -402,15 +402,14 @@ async function main() {
   const syncPopupLyricsButtonVisibility = () => {
     const popupButtonEntry = ButtonList?.[2];
     const popupButton = popupButtonEntry?.Button;
-    const popupButtonElement = popupButton?.element as HTMLElement | undefined;
     const popupLyricsAllowed = $popupLyricsAllowed.get();
-    const isPopupButtonConnected = !!popupButtonElement?.isConnected;
+    const isPopupButtonRegistered = Boolean(popupButtonEntry?.Registered);
 
     if (popupButton) {
-      if (popupLyricsAllowed && !isPopupButtonConnected) {
+      if (popupLyricsAllowed && !isPopupButtonRegistered) {
         popupButton.register();
         if (popupButtonEntry) popupButtonEntry.Registered = true;
-      } else if (!popupLyricsAllowed && isPopupButtonConnected) {
+      } else if (!popupLyricsAllowed && isPopupButtonRegistered) {
         popupButton.deregister();
         if (popupButtonEntry) popupButtonEntry.Registered = false;
       }

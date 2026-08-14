@@ -55,6 +55,7 @@ const SOFT_AVOID_RADIUS = 96;
 const SOFT_AVOID_ACCELERATION = 5;
 const UPWARD_ACCELERATION = 0.4;
 const MAX_VISIBLE_LEAD_WORDS = 50;
+const MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION = 25;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
 const WORD_PRESENCE_FADE_MS = 180;
@@ -74,6 +75,7 @@ let dotLines: GravityLine[] = [];
 let leadLineIndexes = new Map<GravityLine, number>();
 let leadWordStarts = new Map<GravityLine, number>();
 let leadWordCounts = new Map<GravityLine, number>();
+let leadEntityTexts: string[] = [];
 let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
 let exitingBodies = new Set<GravityBody>();
@@ -261,14 +263,35 @@ function getEntities(line: GravityLine): HTMLElement[] {
     .flatMap((child) => child.classList.contains("word-group") ? splitDashedGroup(child) : [child]);
 }
 
-function getEntityCount(line: GravityLine): number {
+function getEntityTexts(line: GravityLine): string[] {
   const children = Array.from(line.HTMLElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-  return Math.max(1, children.reduce((count, child) => {
-    if (!child.classList.contains("word-group")) return count + 1;
+  const texts = children.flatMap((child) => {
+    if (!child.classList.contains("word-group")) return [child.textContent ?? ""];
     const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
-    if (parts.length < 2) return count + 1;
-    return count + 1 + parts.slice(0, -1).filter((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1])).length;
-  }, 0));
+    if (parts.length < 2) return [child.textContent ?? ""];
+    const boundaries = parts.slice(0, -1).some((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1]));
+    if (!boundaries) return [child.textContent ?? ""];
+    const entities: string[] = [];
+    let entityText = "";
+    for (const [index, part] of parts.entries()) {
+      entityText += part.textContent ?? "";
+      if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
+        entities.push(entityText);
+        entityText = "";
+      }
+    }
+    entities.push(entityText);
+    return entities;
+  });
+  return texts.length > 0 ? texts : [""];
+}
+
+function isCjkEntity(text: string): boolean {
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
+}
+
+function getDisplayCharacterCount(text: string): number {
+  return Math.max(1, Array.from(text.replace(/\s/g, "")).length);
 }
 
 function prepareLines(nextLines: GravityLine[]): void {
@@ -435,6 +458,25 @@ function getLeadWindow(firstWord: number, lastWord: number): GravityLine[] {
 function getLeadWordRange(anchor: number): { First: number; Last: number } | undefined {
   const total = Array.from(leadWordCounts.values()).reduce((sum, count) => sum + count, 0);
   if (total === 0 || Number.isNaN(anchor)) return undefined;
+  if (isCjkEntity(leadEntityTexts[anchor] ?? "")) {
+    let first = anchor;
+    let last = anchor;
+    let beforeCharacters = 0;
+    let afterCharacters = 0;
+    while (first > 0) {
+      const count = getDisplayCharacterCount(leadEntityTexts[first - 1] ?? "");
+      if (beforeCharacters + count > MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION) break;
+      beforeCharacters += count;
+      first -= 1;
+    }
+    while (last < total - 1) {
+      const count = getDisplayCharacterCount(leadEntityTexts[last + 1] ?? "");
+      if (afterCharacters + count > MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION) break;
+      afterCharacters += count;
+      last += 1;
+    }
+    return { First: first, Last: last };
+  }
   const count = Math.min(MAX_VISIBLE_LEAD_WORDS, total);
   const first = Math.max(0, Math.min(anchor - Math.floor((count - 1) / 2), total - count));
   return { First: first, Last: first + count - 1 };
@@ -618,11 +660,14 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
     .reduce((end, line) => Math.max(end, ...(line.Syllables?.Lead.filter((word) => !word.Dot).map((word) => word.EndTime) ?? [line.EndTime])), Number.NEGATIVE_INFINITY);
   leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
   let wordStart = 0;
+  leadEntityTexts = [];
   for (const [index, line] of leadLines.entries()) {
     leadLineIndexes.set(line, index);
     leadWordStarts.set(line, wordStart);
-    const count = getEntityCount(line);
+    const entityTexts = getEntityTexts(line);
+    const count = entityTexts.length;
     leadWordCounts.set(line, count);
+    leadEntityTexts.push(...entityTexts);
     wordStart += count;
   }
   for (const line of lines) {
@@ -744,6 +789,7 @@ export function destroySpaceGravity(): void {
   leadLineIndexes = new Map();
   leadWordStarts = new Map();
   leadWordCounts = new Map();
+  leadEntityTexts = [];
   preparedLines = new Set();
   activeBodies = [];
   exitingBodies = new Set();

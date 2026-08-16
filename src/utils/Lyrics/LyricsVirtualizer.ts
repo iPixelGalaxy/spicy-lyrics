@@ -157,7 +157,12 @@ class LyricsVirtualizer {
     const scrollContainer = virtualContainer.parentElement;
     const lyricsContent = scrollContainer?.closest<HTMLElement>(".LyricsContent");
     const page = lyricsContent?.closest<HTMLElement>("#SpicyLyricsPage");
-    if (!scrollContainer || !lyricsContent || !page?.classList.contains("Exp_PinLyricsFooter")) {
+    if (
+      !scrollContainer ||
+      !lyricsContent ||
+      !page?.classList.contains("Exp_PinLyricsFooter") ||
+      page.classList.contains("CardMode")
+    ) {
       scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");
       lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
       return;

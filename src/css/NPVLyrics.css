@@ -263,7 +263,7 @@
   #SpicyLyricsPage.CardMode
   .LyricsContainer
   .LyricsContent
-  .SpicyLyricsScrollContainer {
+  .SpicyLyricsScrollContainer:not(.SpaceGravityStage) {
   padding-top: 26.7cqh !important;
 }
 
@@ -318,7 +318,7 @@
   #SpicyLyricsPage.CardMode
   .LyricsContainer
   .LyricsContent
-  .SpicyLyricsScrollContainer {
+  .SpicyLyricsScrollContainer:not(.SpaceGravityStage) {
   margin-top: 0 !important;
   padding-top: 24px !important;
 }

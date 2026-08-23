@@ -176,13 +176,23 @@ export function parseLyricsfileToLyrics(content: string | LyricsfileDocument): a
 }
 
 function getSingerIdentifier(line: LyricsfileLine): string | number | undefined {
-  return (
-    line.singer ??
-    line.voice ??
-    line.agent ??
-    line.artist ??
-    (line.side ? String(line.side) : undefined)
-  );
+  if (line.singer !== undefined && line.singer !== null) return line.singer;
+  if (line.voice !== undefined && line.voice !== null) return line.voice;
+  if (line.agent !== undefined && line.agent !== null) return line.agent;
+  if (line.vocal !== undefined && line.vocal !== null) return line.vocal;
+  if (line.vocalist !== undefined && line.vocalist !== null) return line.vocalist;
+  if (line.artist !== undefined && line.artist !== null) return line.artist;
+  if (line.side !== undefined && line.side !== null) return String(line.side);
+
+  if (Array.isArray(line.words) && line.words.length > 0) {
+    const w = line.words[0];
+    if (w.singer !== undefined && w.singer !== null) return w.singer;
+    if (w.voice !== undefined && w.voice !== null) return w.voice;
+    if (w.agent !== undefined && w.agent !== null) return w.agent;
+    if (w.side !== undefined && w.side !== null) return String(w.side);
+  }
+
+  return undefined;
 }
 
 function isOppositeSinger(
@@ -191,6 +201,19 @@ function isOppositeSinger(
 ): boolean {
   if (line.opposite_aligned === true || line.oppositeAligned === true) return true;
   if (line.side === "right" || line.side === "secondary") return true;
+
+  if (
+    Array.isArray(line.words) &&
+    line.words.some(
+      (w) =>
+        w.opposite_aligned === true ||
+        w.oppositeAligned === true ||
+        w.side === "right" ||
+        w.side === "secondary"
+    )
+  ) {
+    return true;
+  }
 
   const singer = getSingerIdentifier(line);
   if (singer !== undefined && singer !== null) {
@@ -235,6 +258,67 @@ function buildSingerMap(lines: LyricsfileLine[]): Map<string | number, boolean> 
   return map;
 }
 
+function computeLineAlignments(lines: LyricsfileLine[]): boolean[] {
+  const singerMap = buildSingerMap(lines);
+  const hasExplicitSingers =
+    singerMap.size > 1 ||
+    lines.some(
+      (l) =>
+        l.opposite_aligned !== undefined ||
+        l.oppositeAligned !== undefined ||
+        l.side !== undefined ||
+        l.singer !== undefined ||
+        l.voice !== undefined ||
+        l.agent !== undefined ||
+        l.vocal !== undefined ||
+        l.vocalist !== undefined ||
+        (Array.isArray(l.words) &&
+          l.words.some(
+            (w) =>
+              w.opposite_aligned !== undefined ||
+              w.oppositeAligned !== undefined ||
+              w.side !== undefined ||
+              w.singer !== undefined ||
+              w.voice !== undefined ||
+              w.agent !== undefined
+          ))
+    );
+
+  if (hasExplicitSingers) {
+    return lines.map((line) => isOppositeSinger(line, singerMap));
+  }
+
+  // Two-voice stream allocator based on temporal overlap
+  const alignments: boolean[] = new Array(lines.length).fill(false);
+  let voice0End = -Infinity;
+  let voice1End = -Infinity;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const start = line.start_ms ?? 0;
+    const end = line.end_ms ?? (start + 3000);
+
+    const overlapsVoice0 = start < voice0End - 50;
+    const overlapsVoice1 = start < voice1End - 50;
+
+    if (overlapsVoice0 && !overlapsVoice1) {
+      alignments[i] = true;
+      voice1End = Math.max(voice1End, end);
+    } else if (!overlapsVoice0 && overlapsVoice1) {
+      alignments[i] = false;
+      voice0End = Math.max(voice0End, end);
+    } else if (overlapsVoice0 && overlapsVoice1) {
+      alignments[i] = true;
+      voice1End = Math.max(voice1End, end);
+    } else {
+      alignments[i] = false;
+      voice0End = Math.max(voice0End, end);
+    }
+  }
+
+  return alignments;
+}
+
 function isBackgroundEntry(item: { background?: boolean; role?: string; text?: string }): boolean {
   if (item.background === true) return true;
   const role = (item.role || "").toLowerCase().trim();
@@ -245,7 +329,7 @@ function isBackgroundEntry(item: { background?: boolean; role?: string; text?: s
 const BG_BRACKET_REGEX = /^[([{\uFF08【](.*)[)\]}\uFF09】]$/;
 
 function buildSyllableLyrics(lines: LyricsfileLine[], songwriters: string[]) {
-  const singerMap = buildSingerMap(lines);
+  const alignments = computeLineAlignments(lines);
   const content: any[] = [];
 
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
@@ -271,7 +355,7 @@ function buildSyllableLyrics(lines: LyricsfileLine[], songwriters: string[]) {
       lineEndSec = lineStartSec;
     }
 
-    const oppositeAligned = isOppositeSinger(line, singerMap);
+    const oppositeAligned = alignments[lineIndex] ?? false;
     const isLineWholeBg = isBackgroundEntry(line) || BG_BRACKET_REGEX.test((line.text || "").trim());
 
     let syllables: Array<{
@@ -450,7 +534,7 @@ function mapWordsToSyllables(
 }
 
 function buildLineLyrics(lines: LyricsfileLine[], songwriters: string[]) {
-  const singerMap = buildSingerMap(lines);
+  const alignments = computeLineAlignments(lines);
 
   const content = lines.map((line, index, arr) => {
     const lineStartSec = (line.start_ms ?? 0) / 1000;
@@ -469,7 +553,7 @@ function buildLineLyrics(lines: LyricsfileLine[], songwriters: string[]) {
       lineEndSec = lineStartSec;
     }
 
-    const oppositeAligned = isOppositeSinger(line, singerMap);
+    const oppositeAligned = alignments[index] ?? false;
 
     return {
       Type: "Vocal",

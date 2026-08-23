@@ -149,8 +149,8 @@ lines:
 version: '1.0'
 
 metadata:
-  title: 'Two Voices'
-  artist: 'Example Duo'
+  title: 'Solo Song'
+  artist: 'Solo Artist'
   language: 'en'
 
 lines:
@@ -158,8 +158,8 @@ lines:
     start_ms: 10000
     end_ms: 15000
   - text: 'Follow the river home'
-    start_ms: 12500
-    end_ms: 16500
+    start_ms: 15500
+    end_ms: 19500
 `;
 
     const result = parseLyricsfileToLyrics(yaml);
@@ -178,8 +178,8 @@ lines:
     expect(result.Content[1]).toEqual({
       Type: "Vocal",
       Text: "Follow the river home",
-      StartTime: 12.5,
-      EndTime: 16.5,
+      StartTime: 15.5,
+      EndTime: 19.5,
       OppositeAligned: false,
     });
   });
@@ -309,6 +309,32 @@ lines:
     expect(result.Content[0].Background[0].Syllables[0].Text).toBe("backing");
     expect(result.Content[0].Background[0].OppositeAligned).toBe(true);
   });
+
+  it("detects duets from overlapping lines time intervals (overlapping-vocals spec example)", () => {
+    const yaml = `
+version: '1.0'
+
+metadata:
+  title: 'Two Voices'
+  artist: 'Example Duo'
+  language: 'en'
+
+lines:
+  - text: 'I will follow the river'
+    start_ms: 10000
+    end_ms: 15000
+  - text: 'Follow the river home'
+    start_ms: 12500
+    end_ms: 16500
+`;
+
+    const result = parseLyricsfileToLyrics(yaml);
+    expect(result.Type).toBe("Line");
+    expect(result.Content.length).toBe(2);
+    expect(result.Content[0].OppositeAligned).toBe(false);
+    expect(result.Content[1].OppositeAligned).toBe(true);
+  });
 });
+
 
 

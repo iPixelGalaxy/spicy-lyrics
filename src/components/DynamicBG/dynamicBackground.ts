@@ -139,7 +139,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     bg.remove();
   };
 
-  if (staticBgMode === "legacy") {
+  if (staticBgMode === "legacy" || SpotifyPlayer.IsDJ()) {
     if (IsEpisode || !currentImgCover) return;
 
     element

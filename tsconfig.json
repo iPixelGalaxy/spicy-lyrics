@@ -9,7 +9,7 @@
     "allowJs": true,
 
     // Avoid Node types
-    "types": [],
+    "types": ["bun-types"],
 
     // Use bundler or browser-friendly module resolution
     "moduleResolution": "bundler",

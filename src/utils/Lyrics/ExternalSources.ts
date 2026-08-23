@@ -8,6 +8,7 @@ import { $customServers } from "../stores.ts";
 import type { LyricsSourceProviderId } from "./LyricsSourcePreferences.ts";
 import { resolveLyricsSourceLabel } from "./LyricsSourcePreferences.ts";
 import parseTTMLToLyrics from "./ParseTTML.ts";
+import { isLyricsfile, parseLyricsfileToLyrics } from "./ParseLyricsfile.ts";
 
 type TrackLyricsInfo = {
   uri: string;
@@ -1216,7 +1217,36 @@ async function fetchLRCLIBLyrics(
       };
     }
 
+    const rawLyricsFile = body?.lyricsFile ?? body?.lyricsfile ?? body?.lyrics_file;
+    if (typeof rawLyricsFile === "string" && isLyricsfile(rawLyricsFile)) {
+      const parsedLyrics = parseLyricsfileToLyrics(rawLyricsFile);
+      if (parsedLyrics) {
+        return {
+          lyrics: {
+            ...parsedLyrics,
+            fetchProvider: "lrclib",
+            sourceDisplayName: "LRCLIB",
+          },
+          status: 200,
+        };
+      }
+    }
+
     if (typeof body?.syncedLyrics === "string") {
+      if (isLyricsfile(body.syncedLyrics)) {
+        const parsedLyrics = parseLyricsfileToLyrics(body.syncedLyrics);
+        if (parsedLyrics) {
+          return {
+            lyrics: {
+              ...parsedLyrics,
+              fetchProvider: "lrclib",
+              sourceDisplayName: "LRCLIB",
+            },
+            status: 200,
+          };
+        }
+      }
+
       const parsed = parseLRCLikeLyrics(body.syncedLyrics);
       if (parsed.synced) {
         const lineLyrics = buildLineLyrics(
@@ -1418,8 +1448,21 @@ async function fetchMyCustomServerLyrics(
 
     const textData = await response.text(); 
     
-    if (textData.trim().startsWith("<tt")) {
+    const trimmed = textData.trim();
+    if (trimmed.startsWith("<tt") || trimmed.startsWith("<?xml")) {
       const parsedLyrics = parseTTMLToLyrics(textData);
+      if (parsedLyrics) {
+        return {
+          lyrics: {
+            ...parsedLyrics,
+            fetchProvider: serverId,
+            sourceDisplayName: resolveLyricsSourceLabel(serverId, serverName),
+          },
+          status: 200,
+        };
+      }
+    } else if (isLyricsfile(textData)) {
+      const parsedLyrics = parseLyricsfileToLyrics(textData);
       if (parsedLyrics) {
         return {
           lyrics: {

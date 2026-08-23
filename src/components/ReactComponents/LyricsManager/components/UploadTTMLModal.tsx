@@ -77,31 +77,31 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
 
     const reader = new FileReader();
     reader.onerror = () => {
-      toast.error("Error reading TTML file.", { duration: 5000 });
+      toast.error("Error reading lyrics file.", { duration: 5000 });
       setUploading(false);
     };
     reader.onload = async (e) => {
       try {
-        const ttml = e.target?.result as string;
+        const rawContent = e.target?.result as string;
 
         const songKey = getSongKey(uri);
         const lyricsId = uri.startsWith("spotify:local:") ? songKey : SpotifyPlayer.GetId();
 
         if (mode === "persistent") {
-          await LocalLyricsManager.put(uri, ttml);
+          await LocalLyricsManager.put(uri, rawContent);
           $lastFetchedUri.set(null);
           $currentLyricsData.set("");
           setTimeout(() => {
             fetchLyrics(uri)
               .then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics))
           }, 25);
-          toast.success("TTML saved to Local DB!", { duration: 5000 });
+          toast.success("Lyrics saved to Local DB!", { duration: 5000 });
           onDone("persistent");
         } else {
-          toast("Found TTML, Parsing...", { duration: 3000 });
-          const result = await ParseTTML(ttml);
+          toast("Found lyrics file, Parsing...", { duration: 3000 });
+          const result = await ParseTTML(rawContent);
           if (!result) {
-            toast.error("Failed to parse TTML.", { duration: 5000 });
+            toast.error("Failed to parse lyrics file (TTML / Lyricsfile).", { duration: 5000 });
             setUploading(false);
             return;
           }
@@ -169,7 +169,7 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
       <input
         ref={fileInputRef}
         type="file"
-        accept=".ttml"
+        accept=".ttml,.yaml,.yml,.lyricsfile.yaml,.lyricsfile"
         id="sl-ldb-file-input"
         className="sl-ldb-file-input"
         onChange={handleFileChange}

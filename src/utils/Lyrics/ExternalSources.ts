@@ -1547,6 +1547,13 @@ export async function fetchLyricsFromProviders(
     return spicyRawPromise;
   };
 
+  let customServers: { id: string, name: string, url: string }[] = [];
+  try {
+    customServers = JSON.parse($customServers.get());
+  } catch (e) {
+    customServers = [];
+  }
+
   // Start every enabled provider now. Results are still consumed in configured
   // order below, so this removes serial fallback wait without changing source
   // preference or quality selection.
@@ -1557,19 +1564,29 @@ export async function fetchLyricsFromProviders(
   let firstLyricsDelivered = false;
   for (const provider of order) {
     const request =
-      provider === "spicy"
-        ? fetchSpicyLyrics(getSpicyRaw())
-        : provider === "musixmatch"
-          ? fetchMusixmatchLyrics(trackInfo, getSpicyRaw)
-          : provider === "apple"
-            ? fetchAppleMusicLyrics(getSpicyRaw())
-            : provider === "spotify"
-              ? fetchSpotifyLyrics(trackInfo)
-              : provider === "lrclib"
-                ? withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                : provider === "netease"
-                  ? withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                  : Promise.resolve(null);
+      provider.startsWith("custom_")
+        ? (() => {
+            const customServer = customServers.find((s) => s.id === provider);
+            return customServer
+              ? withProviderTimeout(
+                  fetchMyCustomServerLyrics(trackInfo, customServer.url, customServer.name, customServer.id),
+                  FALLBACK_PROVIDER_TIMEOUT_MS
+                )
+              : Promise.resolve(null);
+          })()
+        : provider === "spicy"
+          ? fetchSpicyLyrics(getSpicyRaw())
+          : provider === "musixmatch"
+            ? fetchMusixmatchLyrics(trackInfo, getSpicyRaw)
+            : provider === "apple"
+              ? fetchAppleMusicLyrics(getSpicyRaw())
+              : provider === "spotify"
+                ? fetchSpotifyLyrics(trackInfo)
+                : provider === "lrclib"
+                  ? withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                  : provider === "netease"
+                    ? withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
+                    : Promise.resolve(null);
     providerRequests.set(provider, request);
     void request
       .then((result) => {
@@ -1586,13 +1603,6 @@ export async function fetchLyricsFromProviders(
   let appleResult: ExternalLyricsResult | null = null;
   let appleScore = 0;
   let appleTried = false;
-  
-  let customServers: { id: string, name: string, url: string }[] = [];
-  try {
-    customServers = JSON.parse($customServers.get());
-  } catch (e) {
-    customServers = [];
-  }
 
   for (const provider of order) {
     // If a preferred source (spicy/musixmatch) already gave us something,
@@ -1601,32 +1611,7 @@ export async function fetchLyricsFromProviders(
       continue;
     }
 
-    let result: ExternalLyricsResult | null = null;
-
-    if (provider.startsWith("custom_")) {
-      const customServer = customServers.find((s) => s.id === provider);
-      if (customServer) {
-        result = await withProviderTimeout(
-          fetchMyCustomServerLyrics(trackInfo, customServer.url, customServer.name, customServer.id),
-          FALLBACK_PROVIDER_TIMEOUT_MS
-        );
-      }
-    } else {
-      result =
-        provider === "spicy"
-          ? await fetchSpicyLyrics(trackInfo.id)
-          : provider === "musixmatch"
-            ? await fetchMusixmatchLyrics(trackInfo)
-            : provider === "apple"
-              ? await fetchAppleMusicLyrics(trackInfo.id)
-              : provider === "spotify"
-                ? await fetchSpotifyLyrics(trackInfo)
-                : provider === "lrclib"
-                  ? await withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                  : provider === "netease"
-                    ? await withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)
-                    : null;
-    }
+    const result: ExternalLyricsResult | null = await (providerRequests.get(provider) ?? Promise.resolve(null));
 
     if (provider === "apple") {
       appleTried = true;

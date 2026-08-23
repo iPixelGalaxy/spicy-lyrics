@@ -81,6 +81,7 @@ import {
   normalizeLyricsCacheAction,
   RunLyricsCacheAction,
 } from "../../utils/LyricsCacheTools.ts";
+import { downloadCurrentLyricsAsTTML } from "../../utils/Lyrics/downloadLyrics.ts";
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
@@ -99,6 +100,7 @@ export const Tooltips: {
   LyricsManager: TippyInstance | null;
   Settings: TippyInstance | null;
   CacheAction: TippyInstance | null;
+  DownloadLyrics: TippyInstance | null;
 } = {
   Close: null,
   NowBarToggle: null,
@@ -108,6 +110,7 @@ export const Tooltips: {
   LyricsManager: null,
   Settings: null,
   CacheAction: null,
+  DownloadLyrics: null,
 };
 
 let cacheActionRunning = false;

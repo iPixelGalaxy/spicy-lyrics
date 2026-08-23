@@ -1,3 +1,17 @@
+## v100.10.37
+
+- **Space Gravity Mode**
+  Refined word physics, pacing, rotation, density, cover-art avoidance, control clearance, lyric seeking, credits, and overlapping-line highlighting.
+
+- **Better word handling**
+  Space Gravity now preserves generated-word, CJK, and TTML word boundaries. Fixed missing characters and romanization alignment.
+
+- **DJ cover colours**
+  Now Playing and fullscreen lyrics use DJ cover-art colours without canvas rendering. Fixed DJ release-year display.
+
+- **Cinema and popup fixes**
+  Cinema settings now close correctly. Stale popup buttons no longer remain after startup.
+
 ## v100.10.36
 
 - **Space Gravity Mode**

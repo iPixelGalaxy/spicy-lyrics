@@ -4,6 +4,10 @@ export interface LyricsfileWord {
   text: string;
   start_ms: number;
   end_ms?: number;
+  background?: boolean;
+  role?: string;
+  singer?: string | number;
+  [key: string]: any;
 }
 
 export interface LyricsfileLine {
@@ -11,6 +15,16 @@ export interface LyricsfileLine {
   start_ms: number;
   end_ms?: number;
   words?: LyricsfileWord[];
+  singer?: string | number;
+  voice?: string | number;
+  agent?: string | number;
+  artist?: string;
+  side?: string;
+  opposite_aligned?: boolean;
+  oppositeAligned?: boolean;
+  background?: boolean;
+  role?: string;
+  [key: string]: any;
 }
 
 export interface LyricsfileMetadata {
@@ -161,10 +175,83 @@ export function parseLyricsfileToLyrics(content: string | LyricsfileDocument): a
   return buildLineLyrics(sortedLines, songwriters);
 }
 
+function getSingerIdentifier(line: LyricsfileLine): string | number | undefined {
+  return (
+    line.singer ??
+    line.voice ??
+    line.agent ??
+    line.artist ??
+    (line.side ? String(line.side) : undefined)
+  );
+}
+
+function isOppositeSinger(
+  line: LyricsfileLine,
+  singerMap?: Map<string | number, boolean>
+): boolean {
+  if (line.opposite_aligned === true || line.oppositeAligned === true) return true;
+  if (line.side === "right" || line.side === "secondary") return true;
+
+  const singer = getSingerIdentifier(line);
+  if (singer !== undefined && singer !== null) {
+    if (singerMap && singerMap.has(singer)) {
+      return singerMap.get(singer) === true;
+    }
+    const str = String(singer).toLowerCase().trim();
+    return (
+      str === "2" ||
+      str === "v2" ||
+      str === "v2000" ||
+      str === "right" ||
+      str === "secondary" ||
+      str.includes("v2") ||
+      str.includes("secondary") ||
+      str.includes("right") ||
+      str.endsWith("2")
+    );
+  }
+
+  return false;
+}
+
+function buildSingerMap(lines: LyricsfileLine[]): Map<string | number, boolean> {
+  const map = new Map<string | number, boolean>();
+  const seenSingers: Array<string | number> = [];
+
+  for (const line of lines) {
+    const singer = getSingerIdentifier(line);
+    if (singer !== undefined && singer !== null && !seenSingers.includes(singer)) {
+      seenSingers.push(singer);
+    }
+  }
+
+  if (seenSingers.length > 1) {
+    seenSingers.forEach((singer, index) => {
+      const explicitOpposite = isOppositeSinger({ singer } as LyricsfileLine);
+      map.set(singer, explicitOpposite || index === 1);
+    });
+  }
+
+  return map;
+}
+
+function isBackgroundEntry(item: { background?: boolean; role?: string; text?: string }): boolean {
+  if (item.background === true) return true;
+  const role = (item.role || "").toLowerCase().trim();
+  if (role === "background" || role === "x-bg" || role === "bg" || role === "x-background") return true;
+  return false;
+}
+
+const BG_BRACKET_REGEX = /^[([{\uFF08【](.*)[)\]}\uFF09】]$/;
+
 function buildSyllableLyrics(lines: LyricsfileLine[], songwriters: string[]) {
-  const content = lines.map((line, lineIndex, arr) => {
+  const singerMap = buildSingerMap(lines);
+  const content: any[] = [];
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex];
     const lineStartSec = (line.start_ms ?? 0) / 1000;
-    const nextLineStartSec = arr[lineIndex + 1] ? (arr[lineIndex + 1].start_ms ?? 0) / 1000 : null;
+    const nextLineStartSec = lines[lineIndex + 1] ? (lines[lineIndex + 1].start_ms ?? 0) / 1000 : null;
 
     let lineEndSec: number;
     if (line.end_ms !== undefined && line.end_ms !== null) {
@@ -180,10 +267,12 @@ function buildSyllableLyrics(lines: LyricsfileLine[], songwriters: string[]) {
       lineEndSec = lineStartSec + 3;
     }
 
-    // Ensure lineEndSec >= lineStartSec
     if (lineEndSec < lineStartSec) {
       lineEndSec = lineStartSec;
     }
+
+    const oppositeAligned = isOppositeSinger(line, singerMap);
+    const isLineWholeBg = isBackgroundEntry(line) || BG_BRACKET_REGEX.test((line.text || "").trim());
 
     let syllables: Array<{
       Text: string;
@@ -192,73 +281,107 @@ function buildSyllableLyrics(lines: LyricsfileLine[], songwriters: string[]) {
       IsPartOfWord: boolean;
     }> = [];
 
+    const backgroundGroups: Array<{
+      StartTime: number;
+      EndTime: number;
+      Syllables: Array<{
+        Text: string;
+        StartTime: number;
+        EndTime: number;
+        IsPartOfWord: boolean;
+      }>;
+      OppositeAligned?: boolean;
+    }> = [];
+
     if (Array.isArray(line.words) && line.words.length > 0) {
       const sortedWords = [...line.words].sort((a, b) => (a.start_ms ?? 0) - (b.start_ms ?? 0));
+      const leadWords: any[] = [];
+      let currentBgWordList: any[] = [];
 
-      syllables = sortedWords.map((word, wordIndex, wordsArr) => {
-        const rawText = word.text ?? "";
-        const wordStartSec = (word.start_ms ?? line.start_ms ?? 0) / 1000;
-        const nextWord = wordsArr[wordIndex + 1];
-
-        let wordEndSec: number;
-        if (word.end_ms !== undefined && word.end_ms !== null) {
-          wordEndSec = word.end_ms / 1000;
-        } else if (nextWord && (nextWord.start_ms ?? 0) > (word.start_ms ?? 0)) {
-          wordEndSec = (nextWord.start_ms ?? 0) / 1000;
+      sortedWords.forEach((word) => {
+        const isWordBg = isLineWholeBg || isBackgroundEntry(word) || /^[([{\uFF08【]/.test(word.text || "");
+        if (isWordBg) {
+          currentBgWordList.push(word);
         } else {
-          wordEndSec = Math.max(wordStartSec + 0.25, lineEndSec);
+          if (currentBgWordList.length > 0) {
+            const bgSyllables = mapWordsToSyllables(currentBgWordList, lineStartSec, lineEndSec);
+            if (bgSyllables.length > 0) {
+              backgroundGroups.push({
+                StartTime: bgSyllables[0].StartTime,
+                EndTime: bgSyllables[bgSyllables.length - 1].EndTime,
+                Syllables: bgSyllables,
+                ...(oppositeAligned ? { OppositeAligned: true } : {}),
+              });
+            }
+            currentBgWordList = [];
+          }
+          leadWords.push(word);
         }
-
-        if (wordEndSec < wordStartSec) {
-          wordEndSec = wordStartSec;
-        }
-
-        const isLastWord = wordIndex === wordsArr.length - 1;
-        const hasTrailingSpace = /\s$/.test(rawText);
-        const hasLeadingSpace = /^\s/.test(rawText);
-        const nextHasLeadingSpace = nextWord ? /^\s/.test(nextWord.text ?? "") : false;
-
-        let isPartOfWord = false;
-        if (isLastWord) {
-          isPartOfWord = false;
-        } else if (hasTrailingSpace || hasLeadingSpace || nextHasLeadingSpace) {
-          isPartOfWord = false;
-        } else if (CJK_REGEX.test(rawText)) {
-          isPartOfWord = false;
-        } else {
-          isPartOfWord = true;
-        }
-
-        const cleanText = rawText.trim();
-
-        return {
-          Text: cleanText || rawText,
-          StartTime: wordStartSec,
-          EndTime: wordEndSec,
-          IsPartOfWord: isPartOfWord,
-        };
       });
+
+      if (currentBgWordList.length > 0) {
+        const bgSyllables = mapWordsToSyllables(currentBgWordList, lineStartSec, lineEndSec);
+        if (bgSyllables.length > 0) {
+          backgroundGroups.push({
+            StartTime: bgSyllables[0].StartTime,
+            EndTime: bgSyllables[bgSyllables.length - 1].EndTime,
+            Syllables: bgSyllables,
+            ...(oppositeAligned ? { OppositeAligned: true } : {}),
+          });
+        }
+      }
+
+      syllables = mapWordsToSyllables(leadWords, lineStartSec, lineEndSec);
     } else {
-      syllables = [
-        {
-          Text: line.text ?? "",
+      const cleanText = (line.text ?? "").trim();
+      const strippedText = cleanText.replace(/^[([{\uFF08【]\s*/, "").replace(/\s*[)\]}\uFF09】]$/, "");
+
+      if (isLineWholeBg) {
+        backgroundGroups.push({
           StartTime: lineStartSec,
           EndTime: lineEndSec,
-          IsPartOfWord: false,
-        },
-      ];
+          Syllables: [
+            {
+              Text: strippedText || cleanText,
+              StartTime: lineStartSec,
+              EndTime: lineEndSec,
+              IsPartOfWord: false,
+            },
+          ],
+          ...(oppositeAligned ? { OppositeAligned: true } : {}),
+        });
+      } else {
+        syllables = [
+          {
+            Text: cleanText,
+            StartTime: lineStartSec,
+            EndTime: lineEndSec,
+            IsPartOfWord: false,
+          },
+        ];
+      }
     }
 
-    return {
+    // If this line is pure background and we have a preceding vocal line, merge into its background
+    if (syllables.length === 0 && backgroundGroups.length > 0 && content.length > 0) {
+      const prev = content[content.length - 1];
+      if (prev?.Type === "Vocal") {
+        prev.Background = [...(prev.Background ?? []), ...backgroundGroups];
+        continue;
+      }
+    }
+
+    content.push({
       Type: "Vocal",
-      OppositeAligned: false,
+      OppositeAligned: oppositeAligned,
       Lead: {
-        StartTime: lineStartSec,
-        EndTime: lineEndSec,
-        Syllables: syllables,
+        StartTime: syllables[0]?.StartTime ?? lineStartSec,
+        EndTime: syllables[syllables.length - 1]?.EndTime ?? lineEndSec,
+        Syllables: syllables.length > 0 ? syllables : (backgroundGroups[0]?.Syllables ?? []),
       },
-    };
-  });
+      ...(backgroundGroups.length > 0 && syllables.length > 0 ? { Background: backgroundGroups } : {}),
+    });
+  }
 
   return {
     Type: "Syllable",
@@ -268,7 +391,67 @@ function buildSyllableLyrics(lines: LyricsfileLine[], songwriters: string[]) {
   };
 }
 
+function mapWordsToSyllables(
+  wordsArr: LyricsfileWord[],
+  lineStartSec: number,
+  lineEndSec: number
+): Array<{
+  Text: string;
+  StartTime: number;
+  EndTime: number;
+  IsPartOfWord: boolean;
+}> {
+  return wordsArr.map((word, wordIndex) => {
+    const rawText = word.text ?? "";
+    const wordStartSec = (word.start_ms ?? 0) / 1000;
+    const nextWord = wordsArr[wordIndex + 1];
+
+    let wordEndSec: number;
+    if (word.end_ms !== undefined && word.end_ms !== null) {
+      wordEndSec = word.end_ms / 1000;
+    } else if (nextWord && (nextWord.start_ms ?? 0) > (word.start_ms ?? 0)) {
+      wordEndSec = (nextWord.start_ms ?? 0) / 1000;
+    } else {
+      wordEndSec = Math.max(wordStartSec + 0.25, lineEndSec);
+    }
+
+    if (wordEndSec < wordStartSec) {
+      wordEndSec = wordStartSec;
+    }
+
+    const isLastWord = wordIndex === wordsArr.length - 1;
+    const hasTrailingSpace = /\s$/.test(rawText);
+    const hasLeadingSpace = /^\s/.test(rawText);
+    const nextHasLeadingSpace = nextWord ? /^\s/.test(nextWord.text ?? "") : false;
+
+    let isPartOfWord = false;
+    if (isLastWord) {
+      isPartOfWord = false;
+    } else if (hasTrailingSpace || hasLeadingSpace || nextHasLeadingSpace) {
+      isPartOfWord = false;
+    } else if (CJK_REGEX.test(rawText)) {
+      isPartOfWord = false;
+    } else {
+      isPartOfWord = true;
+    }
+
+    const cleanText = rawText
+      .replace(/^[([{\uFF08【]\s*/, "")
+      .replace(/\s*[)\]}\uFF09】]$/, "")
+      .trim();
+
+    return {
+      Text: cleanText || rawText.trim(),
+      StartTime: wordStartSec,
+      EndTime: wordEndSec,
+      IsPartOfWord: isPartOfWord,
+    };
+  });
+}
+
 function buildLineLyrics(lines: LyricsfileLine[], songwriters: string[]) {
+  const singerMap = buildSingerMap(lines);
+
   const content = lines.map((line, index, arr) => {
     const lineStartSec = (line.start_ms ?? 0) / 1000;
     const nextLine = arr[index + 1];
@@ -286,12 +469,14 @@ function buildLineLyrics(lines: LyricsfileLine[], songwriters: string[]) {
       lineEndSec = lineStartSec;
     }
 
+    const oppositeAligned = isOppositeSinger(line, singerMap);
+
     return {
       Type: "Vocal",
       Text: line.text ?? "",
       StartTime: lineStartSec,
       EndTime: lineEndSec,
-      OppositeAligned: false,
+      OppositeAligned: oppositeAligned,
     };
   });
 
@@ -304,3 +489,4 @@ function buildLineLyrics(lines: LyricsfileLine[], songwriters: string[]) {
 }
 
 export default parseLyricsfileToLyrics;
+

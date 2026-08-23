@@ -232,14 +232,35 @@ function parseSongwriters(root: Element): string[] {
   return Array.from(writers.values());
 }
 
+function isOppositeAgent(agentId: string | null | undefined, oppositeAgents?: Map<string, boolean>): boolean {
+  if (!agentId) return false;
+  if (oppositeAgents && oppositeAgents.has(agentId)) {
+    return oppositeAgents.get(agentId) === true;
+  }
+  const clean = agentId.toLowerCase().trim();
+  return (
+    clean === "v2" ||
+    clean === "v2000" ||
+    clean === "2" ||
+    clean === "right" ||
+    clean === "secondary" ||
+    clean.includes("v2") ||
+    clean.includes("secondary") ||
+    clean.includes("right") ||
+    clean.endsWith("2")
+  );
+}
+
 function parseAgents(root: Element): Map<string, boolean> {
   const agents = new Map<string, boolean>();
-
-  for (const agent of findElements(root, "ttm:agent", "agent")) {
+  const agentElements = findElements(root, "ttm:agent", "agent");
+  agentElements.forEach((agent, index) => {
     const id = getAttr(agent, "xml:id", "id");
-    if (!id) continue;
-    agents.set(id, id === "v2" || id === "v2000");
-  }
+    if (!id) return;
+    const isExplicitV2 = isOppositeAgent(id);
+    const isSecondAgent = agentElements.length > 1 && index === 1;
+    agents.set(id, isExplicitV2 || isSecondAgent);
+  });
 
   return agents;
 }
@@ -296,7 +317,7 @@ function parseSyllableNodes(nodes: ChildNode[], lineStart: number, lineEnd: numb
     const text = element.textContent ?? "";
     if (!text.trim()) return;
 
-    const role = getAttr(element, "ttm:role", "role");
+    const role = getAttr(element, "ttm:role", "role")?.toLowerCase();
     if (role === "x-translation" || role === "x-roman") return;
 
     const startTime = parseTimestamp(getAttr(element, "begin")) ?? lineStart;
@@ -313,19 +334,53 @@ function parseSyllableNodes(nodes: ChildNode[], lineStart: number, lineEnd: numb
   return syllables;
 }
 
-function parseBackground(element: Element, lineStart: number, lineEnd: number): BackgroundEntry | null {
+function isBackgroundRole(role: string | null | undefined): boolean {
+  if (!role) return false;
+  const clean = role.toLowerCase().trim();
+  return clean === "x-bg" || clean === "bg" || clean === "background" || clean === "x-background";
+}
+
+function parseBackground(
+  element: Element,
+  lineStart: number,
+  lineEnd: number,
+  oppositeAgents?: Map<string, boolean>
+): BackgroundEntry | null {
   const childNodes = Array.from(element.childNodes).filter((node) => !isSkippableWhitespace(node));
-  const syllables = parseSyllableNodes(childNodes, lineStart, lineEnd);
+  let syllables = parseSyllableNodes(childNodes, lineStart, lineEnd);
+
+  const bgStart = parseTimestamp(getAttr(element, "begin")) ?? lineStart;
+  const bgEnd = parseTimestamp(getAttr(element, "end")) ?? lineEnd;
+
+  if (syllables.length === 0) {
+    const rawText = element.textContent?.trim() ?? "";
+    if (!rawText) return null;
+    syllables = [
+      {
+        Text: rawText,
+        StartTime: bgStart,
+        EndTime: bgEnd,
+        IsPartOfWord: false,
+      },
+    ];
+  }
+
   if (syllables.length === 0) return null;
 
   syllables[0].Text = syllables[0].Text.replace(LEADING_BG_BRACKET, "");
   const lastSyllable = syllables[syllables.length - 1];
   lastSyllable.Text = lastSyllable.Text.replace(TRAILING_BG_BRACKET, "");
 
+  const bgAgent =
+    getAttr(element, "ttm:agent", "itunes:agent", "amll:agent", "agent", "singer", "voice") ??
+    getAttr(element.parentElement, "ttm:agent", "itunes:agent", "amll:agent", "agent", "singer", "voice");
+  const isOpposite = isOppositeAgent(bgAgent, oppositeAgents);
+
   return {
-    StartTime: syllables[0].StartTime,
-    EndTime: syllables[syllables.length - 1].EndTime,
+    StartTime: syllables[0].StartTime ?? bgStart,
+    EndTime: syllables[syllables.length - 1].EndTime ?? bgEnd,
     Syllables: syllables,
+    ...(isOpposite ? { OppositeAligned: true } : {}),
   };
 }
 
@@ -340,68 +395,76 @@ function parseParagraph(
   const paragraphStart = parseTimestamp(getAttr(paragraph, "begin")) ?? 0;
   const paragraphEnd = parseTimestamp(getAttr(paragraph, "end")) ?? paragraphStart;
   const agentId =
-    getAttr(paragraph, "ttm:agent", "agent") ??
-    getAttr(div, "ttm:agent", "agent") ??
-    getAttr(body, "ttm:agent", "agent");
-  const oppositeAligned = agentId ? oppositeAgents.get(agentId) === true : false;
+    getAttr(paragraph, "ttm:agent", "itunes:agent", "amll:agent", "agent", "singer", "voice") ??
+    getAttr(div, "ttm:agent", "itunes:agent", "amll:agent", "agent", "singer", "voice") ??
+    getAttr(body, "ttm:agent", "itunes:agent", "amll:agent", "agent", "singer", "voice");
+  const oppositeAligned = isOppositeAgent(agentId, oppositeAgents);
   const lineKey = getAttr(paragraph, "itunes:key");
 
   let leadTransliteratedText = lineKey ? transliterations.get(lineKey) : undefined;
+
+  const paragraphRole = getAttr(paragraph, "ttm:role", "role");
+  const isParagraphWholeBg = isBackgroundRole(paragraphRole);
 
   const childNodes = Array.from(paragraph.childNodes).filter((node) => !isSkippableWhitespace(node));
   const leadSyllables: SyllableEntry[] = [];
   const plainNodes: ChildNode[] = [];
   const background: BackgroundEntry[] = [];
 
-  childNodes.forEach((node, index) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      if ((node.textContent ?? "").trim()) {
-        plainNodes.push(node);
+  if (isParagraphWholeBg) {
+    const bg = parseBackground(paragraph, paragraphStart, paragraphEnd, oppositeAgents);
+    if (bg) background.push(bg);
+  } else {
+    childNodes.forEach((node, index) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        if ((node.textContent ?? "").trim()) {
+          plainNodes.push(node);
+        }
+        return;
       }
-      return;
-    }
 
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
 
-    const element = node as Element;
-    if (element.tagName !== "span") {
+      const element = node as Element;
+      if (element.tagName !== "span") {
+        plainNodes.push(node);
+        return;
+      }
+
+      const role = getAttr(element, "ttm:role", "role")?.toLowerCase();
+      const text = element.textContent?.trim() ?? "";
+
+      if (role === "x-translation") {
+        return;
+      }
+
+      if (role === "x-roman") {
+        if (!leadTransliteratedText && text) leadTransliteratedText = text;
+        return;
+      }
+
+      if (isBackgroundRole(role)) {
+        const bg = parseBackground(element, paragraphStart, paragraphEnd, oppositeAgents);
+        if (bg) background.push(bg);
+        return;
+      }
+
+      const startTime = parseTimestamp(getAttr(element, "begin"));
+      const endTime = parseTimestamp(getAttr(element, "end"));
+
+      if (startTime !== null || endTime !== null) {
+        leadSyllables.push({
+          Text: text,
+          StartTime: startTime ?? paragraphStart,
+          EndTime: endTime ?? paragraphEnd,
+          IsPartOfWord: isPartOfWord(childNodes, index),
+        });
+        return;
+      }
+
       plainNodes.push(node);
-      return;
-    }
-
-    const role = getAttr(element, "ttm:role", "role");
-    const text = element.textContent?.trim() ?? "";
-
-    if (role === "x-translation") {
-      return;
-    }
-
-    if (role === "x-roman") {
-      if (!leadTransliteratedText && text) leadTransliteratedText = text;
-      return;
-    }
-
-    if (role === "x-bg") {
-      const bg = parseBackground(element, paragraphStart, paragraphEnd);
-      if (bg) background.push(bg);
-      return;
-    }
-
-    const startTime = parseTimestamp(getAttr(element, "begin"));
-    const endTime = parseTimestamp(getAttr(element, "end"));
-
-    if (startTime !== null || endTime !== null) {
-      leadSyllables.push({
-        Text: text,
-        StartTime: startTime ?? paragraphStart,
-        EndTime: endTime ?? paragraphEnd,
-        IsPartOfWord: isPartOfWord(childNodes, index),
-      });
-      return;
-    }
-
-    plainNodes.push(node);
-  });
+    });
+  }
 
   applyRomanizedPieces(leadSyllables, lineKey ? transliterationPieces.get(lineKey) : undefined);
 
@@ -522,6 +585,21 @@ export default function parseTTMLToLyrics(ttml: string) {
     throw new Error("Invalid TTML: missing <body>");
   }
 
+  // If no agents declared in head, collect unique agent IDs across body
+  if (oppositeAgents.size === 0) {
+    const seenAgents = new Set<string>();
+    for (const el of findElements(body, "p", "div", "span")) {
+      const a = getAttr(el, "ttm:agent", "itunes:agent", "amll:agent", "agent", "singer", "voice");
+      if (a) seenAgents.add(a);
+    }
+    const agentList = Array.from(seenAgents);
+    if (agentList.length > 1) {
+      agentList.forEach((id, idx) => {
+        oppositeAgents.set(id, isOppositeAgent(id) || idx === 1);
+      });
+    }
+  }
+
   const parsedLines: ParsedLine[] = [];
   const divs = Array.from(body.children).filter((child) => child.tagName === "div");
   const containers = divs.length > 0 ? divs : [body];
@@ -538,6 +616,15 @@ export default function parseTTMLToLyrics(ttml: string) {
         transliterationPieces
       );
       if (parsed) {
+        // If this parsed line is pure background (no lead text/syllables) and follows a line,
+        // attach it to the previous line's background
+        if (!parsed.leadText && parsed.leadSyllables.length === 0 && parsed.background.length > 0) {
+          const prev = parsedLines[parsedLines.length - 1];
+          if (prev) {
+            prev.background.push(...parsed.background);
+            continue;
+          }
+        }
         parsedLines.push(parsed);
       }
     }

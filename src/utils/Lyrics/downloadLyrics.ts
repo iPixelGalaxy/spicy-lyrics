@@ -84,19 +84,22 @@ export function generateTTMLFromLyricsData(data: any, forceLine: boolean = false
             const prevSyllable = index > 0 ? bg.Syllables[index - 1] : null;
             const prefix = (prevSyllable && !prevSyllable.IsPartOfWord) ? " " : "";
             const sText = escapeXml(s.Text || "");
-            if (bg.Syllables.length === 1 && sBegin === formatTime(bg.StartTime ?? 0) && sEnd === formatTime(bg.EndTime ?? 0)) {
-              return `${prefix}<span begin="${sBegin}" end="${sEnd}">${sText}</span>`;
-            }
             return `${prefix}<span begin="${sBegin}" end="${sEnd}">${sText}</span>`;
           }).join("");
-          return bgSyllables;
+          const bgAgent = bg.OppositeAligned ? ' ttm:agent="v2"' : "";
+          return ` <span ttm:role="x-bg"${bgAgent}>${bgSyllables}</span>`;
         }).join("");
-        bgMarkup = ` <span ttm:role="x-bg">${bgSpans}</span>`;
+        bgMarkup = bgSpans;
       }
 
       return `      <p begin="${begin}" end="${end}"${line.OppositeAligned ? ' ttm:agent="v2"' : ""}>${leadSpans}${bgMarkup}</p>`;
     }).filter(Boolean).join("\n");
   }
+
+  const hasDuet = (data.Content || []).some((item: any) => item.OppositeAligned || item.Background?.some((bg: any) => bg.OppositeAligned));
+  const agentsBlock = hasDuet
+    ? `\n      <ttm:agent xml:id="v1" type="person" />\n      <ttm:agent xml:id="v2" type="person" />`
+    : "";
 
   const writers = (data.SongWriters || []).map((writer: string) => {
     return `      <amll:meta key="songwriter" value="${escapeXml(writer)}" />`;
@@ -106,7 +109,7 @@ export function generateTTMLFromLyricsData(data: any, forceLine: boolean = false
   return `<?xml version="1.0" encoding="utf-8"?>
 <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" xmlns:amll="http://www.apple.com/apple-music/line-level">
   <head>
-    <metadata>
+    <metadata>${agentsBlock}
       <ttm:title>${escapeXml(data.title || "Lyrics")}</ttm:title>${writersBlock}
     </metadata>
   </head>
@@ -183,11 +186,13 @@ export function generateLyricsfileFromLyricsData(data: any): string {
         text: line.Text || "",
         start_ms: Math.round((line.StartTime ?? 0) * 1000),
         end_ms: Math.round((line.EndTime ?? 0) * 1000),
+        ...(line.OppositeAligned ? { singer: 2 } : {}),
       }));
   } else if (data.Type === "Syllable") {
-    doc.lines = (data.Content || [])
+    const docLines: any[] = [];
+    (data.Content || [])
       .filter((item: any) => item.Type === "Vocal" && item.Lead)
-      .map((line: any) => {
+      .forEach((line: any) => {
         const lead = line.Lead;
         const lineText = (lead.Syllables || [])
           .map((s: any, idx: number) => {
@@ -206,13 +211,45 @@ export function generateLyricsfileFromLyricsData(data: any): string {
           };
         });
 
-        return {
+        docLines.push({
           text: lineText,
           start_ms: Math.round((lead.StartTime ?? 0) * 1000),
           end_ms: Math.round((lead.EndTime ?? 0) * 1000),
+          ...(line.OppositeAligned ? { singer: 2 } : {}),
           words,
-        };
+        });
+
+        if (Array.isArray(line.Background)) {
+          line.Background.forEach((bg: any) => {
+            const bgText = (bg.Syllables || [])
+              .map((s: any, idx: number) => {
+                const next = bg.Syllables[idx + 1];
+                return s.Text + (s.IsPartOfWord || !next ? "" : " ");
+              })
+              .join("");
+
+            const bgWords = (bg.Syllables || []).map((s: any, idx: number) => {
+              const next = bg.Syllables[idx + 1];
+              const hasSpace = !s.IsPartOfWord && next;
+              return {
+                text: s.Text + (hasSpace ? " " : ""),
+                start_ms: Math.round((s.StartTime ?? 0) * 1000),
+                end_ms: Math.round((s.EndTime ?? 0) * 1000),
+              };
+            });
+
+            docLines.push({
+              text: `(${bgText})`,
+              start_ms: Math.round((bg.StartTime ?? 0) * 1000),
+              end_ms: Math.round((bg.EndTime ?? 0) * 1000),
+              background: true,
+              ...(bg.OppositeAligned || line.OppositeAligned ? { singer: 2 } : {}),
+              words: bgWords,
+            });
+          });
+        }
       });
+    doc.lines = docLines;
   }
 
   return YAML.stringify(doc);

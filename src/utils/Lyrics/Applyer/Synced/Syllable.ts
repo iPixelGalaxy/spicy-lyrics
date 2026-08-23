@@ -64,6 +64,7 @@ interface BackgroundData {
   StartTime: number;
   EndTime: number;
   Syllables: SyllableData[];
+  OppositeAligned?: boolean;
 }
 
 interface LineData {
@@ -328,7 +329,9 @@ export function ApplySyllableLyrics(
     return;
   }
 
-  const hasOppositeAligned = data.Content.some(item => item.OppositeAligned === true);
+  const hasOppositeAligned = data.Content.some(
+    (item) => item.OppositeAligned === true || item.Background?.some((bg) => bg.OppositeAligned === true)
+  );
   LyricsContainer.classList.toggle("HasDuetLines", hasOppositeAligned);
   const hasRtlLines = data.Content.some(line =>
     line.Lead.Syllables.some(syllable => isRtl(syllable.Text)) ||
@@ -595,7 +598,8 @@ export function ApplySyllableLyrics(
         });
         SetWordArrayInCurentLine();
 
-        if (line.OppositeAligned) {
+        const isBGOpposite = bg.OppositeAligned !== undefined ? bg.OppositeAligned : line.OppositeAligned;
+        if (isBGOpposite) {
           lineE.classList.add("OppositeAligned");
         }
         lineElements.push(lineE);

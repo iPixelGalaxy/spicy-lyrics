@@ -245,5 +245,70 @@ lines:
     expect(result.Content[0].Lead.EndTime).toBeGreaterThanOrEqual(1.5);
     expect(result.Content[1].Lead.StartTime).toBe(3);
   });
+
+  it("parses duets correctly with singer / opposite_aligned properties", () => {
+    const yaml = `
+version: '1.0'
+metadata:
+  title: 'Duet Song'
+  artist: 'Duo'
+lines:
+  - text: 'Left vocal'
+    start_ms: 1000
+    end_ms: 3000
+    singer: 'Singer 1'
+  - text: 'Right vocal'
+    start_ms: 3500
+    end_ms: 6000
+    singer: 'Singer 2'
+`;
+
+    const result = parseLyricsfileToLyrics(yaml);
+    expect(result.Type).toBe("Line");
+    expect(result.Content[0].OppositeAligned).toBe(false);
+    expect(result.Content[1].OppositeAligned).toBe(true);
+  });
+
+  it("parses background vocals and merges into previous lead line", () => {
+    const yaml = `
+version: '1.0'
+metadata:
+  title: 'Backing Vocals'
+  artist: 'Artist'
+lines:
+  - text: 'Lead melody'
+    start_ms: 2000
+    end_ms: 5000
+    words:
+      - text: 'Lead '
+        start_ms: 2000
+        end_ms: 3000
+      - text: 'melody'
+        start_ms: 3000
+        end_ms: 5000
+  - text: '(backing harmony)'
+    start_ms: 3500
+    end_ms: 5500
+    background: true
+    singer: 'v2'
+    words:
+      - text: 'backing '
+        start_ms: 3500
+        end_ms: 4500
+      - text: 'harmony'
+        start_ms: 4500
+        end_ms: 5500
+`;
+
+    const result = parseLyricsfileToLyrics(yaml);
+    expect(result.Type).toBe("Syllable");
+    expect(result.Content.length).toBe(1);
+    expect(result.Content[0].Lead.Syllables[0].Text).toBe("Lead");
+    expect(result.Content[0].Background).toBeDefined();
+    expect(result.Content[0].Background.length).toBe(1);
+    expect(result.Content[0].Background[0].Syllables[0].Text).toBe("backing");
+    expect(result.Content[0].Background[0].OppositeAligned).toBe(true);
+  });
 });
+
 

@@ -907,7 +907,7 @@ async function main() {
 
     async function applyDynamicBackgroundToNowPlayingBar(coverUrl: string | undefined) {
       if (!$showNpvDynamicBg.get()) return;
-      if (SpotifyPlayer.GetContentType() === "unknown" || SpotifyPlayer.IsDJ()) return;
+      if (SpotifyPlayer.GetContentType() === "unknown" && !SpotifyPlayer.IsDJ()) return;
       if (!coverUrl) return;
       const nowPlayingBar = getNowPlayingBarElement();
       const topContainer = getTopContainerElement();

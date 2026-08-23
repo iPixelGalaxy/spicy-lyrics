@@ -65,7 +65,9 @@ const getRenderedNowBarCover = (): string => {
 };
 
 const getDynamicBackgroundCover = (): string => {
-  const renderedCover = SpotifyPlayer.IsLocalTrack() ? getRenderedNowBarCover() : "";
+  const renderedCover = SpotifyPlayer.IsLocalTrack() || SpotifyPlayer.IsDJ()
+    ? getRenderedNowBarCover()
+    : "";
   return normalizeCoverUrl(renderedCover || SpotifyPlayer.GetCover("large"));
 };
 
@@ -454,7 +456,7 @@ const reapplyPageBackground = () => {
 $staticBackgroundMode.listen(reapplyPageBackground);
 
 Global.Event.listen("nowbar:cover-art", () => {
-  if (!SpotifyPlayer.IsLocalTrack()) return;
+  if (!SpotifyPlayer.IsLocalTrack() && !SpotifyPlayer.IsDJ()) return;
   if ($staticBackgroundMode.get() !== "off" && $staticBackgroundMode.get() !== "default") return;
 
   const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");

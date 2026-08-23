@@ -947,6 +947,10 @@ async function main() {
     startNowPlayingBarObserver();
     scheduleNowPlayingBarDynamicBackgroundApply();
 
+    Global.Event.listen("nowbar:cover-art", () => {
+      if (SpotifyPlayer.IsDJ()) scheduleNowPlayingBarDynamicBackgroundApply();
+    });
+
     Global.Event.listen("fullscreen:open", () => {
       CleanupNowBarDynamicBgLets()
     });

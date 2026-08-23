@@ -5,6 +5,11 @@ type GravitySyllable = {
   Dot?: boolean;
 };
 
+type SplitElement = {
+  Original: HTMLElement;
+  Entities: HTMLElement[];
+};
+
 type GravityLine = {
   HTMLElement: HTMLElement;
   StartTime: number;
@@ -74,7 +79,6 @@ const ANGULAR_DAMPING = 0.18;
 const MIN_VISIBLE_LEAD_WORDS = 12;
 const MAX_VISIBLE_LEAD_WORDS = 120;
 const VISIBLE_WORD_AREA = 33_334;
-const MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION = 6;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
 const WORD_PRESENCE_FADE_MS = 180;
@@ -90,6 +94,7 @@ let bodiesByLine = new Map<GravityLine, GravityBody[]>();
 let leadLines: GravityLine[] = [];
 let lineLayouts = new Map<GravityLine, { Height: number }>();
 let splitGroups: Array<{ Group: HTMLElement; Entities: HTMLElement[] }> = [];
+let splitElements: SplitElement[] = [];
 let parentLines = new Map<GravityLine, GravityLine>();
 let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
 let dotLines: GravityLine[] = [];
@@ -97,6 +102,7 @@ let leadLineIndexes = new Map<GravityLine, number>();
 let leadWordStarts = new Map<GravityLine, number>();
 let leadWordCounts = new Map<GravityLine, number>();
 let leadEntityTexts: string[] = [];
+let hasCjkLeadEntities = false;
 let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
 let exitingBodies = new Set<GravityBody>();
@@ -508,61 +514,91 @@ function trackCoverTransition(): void {
   coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
 }
 
-function endsWithDash(element: Element): boolean {
-  return /[-‐‑‒–—―]$/u.test(element.textContent?.trim() ?? "");
+function getCjkSegmentationLocale(text: string): "ja" | "ko" | "zh" {
+  if (/\p{Script=Hangul}/u.test(text)) return "ko";
+  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return "ja";
+  return "zh";
 }
 
-function startsWithDash(element: Element): boolean {
-  return /^[-‐‑‒–—―]/u.test(element.textContent?.trim() ?? "");
+function splitGraphemes(text: string): string[] {
+  if (typeof Intl.Segmenter === "function") {
+    return Array.from(
+      new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text),
+      ({ segment }) => segment
+    );
+  }
+  return Array.from(text);
 }
 
-function splitDashedGroup(group: HTMLElement): HTMLElement[] {
+function getGravitySegments(text: string): string[] {
+  if (!isCjkEntity(text)) return [text];
+  const segments = typeof Intl.Segmenter === "function"
+    ? Array.from(
+        new Intl.Segmenter(getCjkSegmentationLocale(text), { granularity: "word" }).segment(text),
+        ({ segment }) => segment
+      ).filter((segment) => segment.trim())
+    : [];
+  return segments.length > 1 ? segments : splitGraphemes(text).filter((segment) => segment.trim());
+}
+
+function splitWordGroup(group: HTMLElement): HTMLElement[] {
   const parts = Array.from(group.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   if (parts.length < 2) return [group];
-  const boundaries = parts.slice(0, -1).some((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1]));
-  if (!boundaries) return [group];
-  const entities: HTMLElement[] = [];
-  let entity = document.createElement("span");
-  entity.classList.add("SpaceGravityEntity");
-  for (const [index, part] of parts.entries()) {
-    entity.appendChild(part);
-    if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
-      entities.push(entity);
-      entity = document.createElement("span");
-      entity.classList.add("SpaceGravityEntity");
-    }
-  }
-  entities.push(entity);
-  group.replaceWith(...entities);
-  splitGroups.push({ Group: group, Entities: entities });
+  group.replaceWith(...parts);
+  splitGroups.push({ Group: group, Entities: parts });
+  return parts;
+}
+
+function getElementTiming(line: GravityLine, element: HTMLElement): { StartTime: number; EndTime: number } {
+  const syllables = line.Syllables?.Lead.filter((syllable) =>
+    syllable.HTMLElement === element || syllable.HTMLElement.contains(element)
+  ) ?? [];
+  if (syllables.length === 0) return { StartTime: line.StartTime, EndTime: line.EndTime };
+  return {
+    StartTime: Math.min(...syllables.map((syllable) => syllable.StartTime)),
+    EndTime: Math.max(...syllables.map((syllable) => syllable.EndTime)),
+  };
+}
+
+function splitCjkElement(line: GravityLine, element: HTMLElement): HTMLElement[] {
+  const segments = getGravitySegments(element.textContent ?? "");
+  if (segments.length < 2) return [element];
+  const { StartTime, EndTime } = getElementTiming(line, element);
+  const weights = segments.map((segment) => Math.max(1, Array.from(segment).length));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  let consumedWeight = 0;
+  const entities = segments.map((segment, index) => {
+    const entity = element.cloneNode(false) as HTMLElement;
+    entity.textContent = segment;
+    const startTime = StartTime + (EndTime - StartTime) * consumedWeight / totalWeight;
+    consumedWeight += weights[index];
+    const endTime = index === segments.length - 1
+      ? EndTime
+      : StartTime + (EndTime - StartTime) * consumedWeight / totalWeight;
+    entity.dataset.spaceGravityStartTime = `${startTime}`;
+    entity.dataset.spaceGravityEndTime = `${endTime}`;
+    return entity;
+  });
+  element.replaceWith(...entities);
+  splitElements.push({ Original: element, Entities: entities });
   return entities;
 }
 
 function getEntities(line: GravityLine): HTMLElement[] {
   return Array.from(line.HTMLElement.children)
     .filter((child): child is HTMLElement => child instanceof HTMLElement)
-    .flatMap((child) => child.classList.contains("word-group") ? splitDashedGroup(child) : [child]);
+    .flatMap((child) => child.classList.contains("word-group") ? splitWordGroup(child) : [child])
+    .flatMap((child) => splitCjkElement(line, child));
 }
 
 function getEntityTexts(line: GravityLine): string[] {
   const children = Array.from(line.HTMLElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   const texts = children.flatMap((child) => {
-    if (!child.classList.contains("word-group")) return [child.textContent ?? ""];
+    if (!child.classList.contains("word-group")) return getGravitySegments(child.textContent ?? "");
     const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
-    if (parts.length < 2) return [child.textContent ?? ""];
-    const boundaries = parts.slice(0, -1).some((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1]));
-    if (!boundaries) return [child.textContent ?? ""];
-    const entities: string[] = [];
-    let entityText = "";
-    for (const [index, part] of parts.entries()) {
-      entityText += part.textContent ?? "";
-      if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
-        entities.push(entityText);
-        entityText = "";
-      }
-    }
-    entities.push(entityText);
-    return entities;
+    return parts.length < 2
+      ? getGravitySegments(child.textContent ?? "")
+      : parts.flatMap((part) => getGravitySegments(part.textContent ?? ""));
   });
   return texts.length > 0 ? texts : [""];
 }
@@ -614,9 +650,11 @@ function prepareLines(nextLines: GravityLine[]): void {
 
   let order = 0;
   for (const { Record: record, Element: bodyElement } of wrappers) {
-    const syllables = record.Line.Syllables?.Lead.filter((syllable) => record.Child === syllable.HTMLElement || record.Child.contains(syllable.HTMLElement)) ?? [];
-    const startTime = syllables.length ? Math.min(...syllables.map((syllable) => syllable.StartTime)) : record.Line.StartTime;
-    const endTime = syllables.length ? Math.max(...syllables.map((syllable) => syllable.EndTime)) : record.Line.EndTime;
+    const splitStartTime = Number(record.Child.dataset.spaceGravityStartTime);
+    const splitEndTime = Number(record.Child.dataset.spaceGravityEndTime);
+    const timing = getElementTiming(record.Line, record.Child);
+    const startTime = Number.isFinite(splitStartTime) ? splitStartTime : timing.StartTime;
+    const endTime = Number.isFinite(splitEndTime) ? splitEndTime : timing.EndTime;
     if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${startTime}`;
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
     const speedMultiplier = lineSpeedMultipliers.get(record.Line) ?? 1;
@@ -760,22 +798,22 @@ function calculateVisibleLeadWordCount(width: number, height: number): number {
 function getLeadWordRange(anchor: number): { First: number; Last: number } | undefined {
   const total = Array.from(leadWordCounts.values()).reduce((sum, count) => sum + count, 0);
   if (total === 0 || Number.isNaN(anchor)) return undefined;
-  if (isCjkEntity(leadEntityTexts[anchor] ?? "")) {
+  if (hasCjkLeadEntities) {
     let first = anchor;
     let last = anchor;
-    let beforeCharacters = 0;
-    let afterCharacters = 0;
-    while (first > 0) {
-      const count = getDisplayCharacterCount(leadEntityTexts[first - 1] ?? "");
-      if (beforeCharacters + count > MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION) break;
-      beforeCharacters += count;
-      first -= 1;
-    }
-    while (last < total - 1) {
-      const count = getDisplayCharacterCount(leadEntityTexts[last + 1] ?? "");
-      if (afterCharacters + count > MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION) break;
-      afterCharacters += count;
-      last += 1;
+    const budget = visibleLeadWordCount;
+    let remaining = Math.max(0, budget - getDisplayCharacterCount(leadEntityTexts[anchor] ?? ""));
+    let preferBefore = true;
+    while (remaining > 0 && (first > 0 || last < total - 1)) {
+      const beforeCount = first > 0 ? getDisplayCharacterCount(leadEntityTexts[first - 1] ?? "") : Number.POSITIVE_INFINITY;
+      const afterCount = last < total - 1 ? getDisplayCharacterCount(leadEntityTexts[last + 1] ?? "") : Number.POSITIVE_INFINITY;
+      const useBefore = (preferBefore && beforeCount <= remaining) || afterCount > remaining;
+      const count = useBefore ? beforeCount : afterCount;
+      if (count > remaining || !Number.isFinite(count)) break;
+      if (useBefore) first -= 1;
+      else last += 1;
+      remaining -= count;
+      preferBefore = !preferBefore;
     }
     return { First: first, Last: last };
   }
@@ -965,6 +1003,7 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
     leadEntityTexts.push(...entityTexts);
     wordStart += count;
   }
+  hasCjkLeadEntities = leadEntityTexts.some(isCjkEntity);
   for (const line of lines) {
     if (!line.BGLine || line.SpaceGravityParentLineIndex === undefined) continue;
     const parent = lines[line.SpaceGravityParentLineIndex];
@@ -1052,13 +1091,18 @@ export function restoreSpaceGravity(): GravityLine[] {
     }
   }
 
+  for (const { Original, Entities } of splitElements) {
+    const first = Entities[0];
+    if (!first?.parentElement) continue;
+    first.replaceWith(Original);
+    for (const entity of Entities.slice(1)) entity.remove();
+  }
+
   for (const { Group, Entities } of splitGroups) {
     const first = Entities[0];
     if (!first?.parentElement) continue;
-    const children = Entities.flatMap((entity) => Array.from(entity.childNodes));
-    Group.replaceChildren(...children);
-    first.replaceWith(Group);
-    for (const entity of Entities.slice(1)) entity.remove();
+    first.before(Group);
+    Group.replaceChildren(...Entities);
   }
 
   for (const line of restoredLines) {
@@ -1100,6 +1144,7 @@ export function destroySpaceGravity(): void {
   leadLines = [];
   lineLayouts = new Map();
   splitGroups = [];
+  splitElements = [];
   parentLines = new Map();
   backgroundLinesByParent = new Map();
   dotLines = [];
@@ -1107,6 +1152,7 @@ export function destroySpaceGravity(): void {
   leadWordStarts = new Map();
   leadWordCounts = new Map();
   leadEntityTexts = [];
+  hasCjkLeadEntities = false;
   preparedLines = new Set();
   activeBodies = [];
   exitingBodies = new Set();

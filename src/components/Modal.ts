@@ -15,7 +15,7 @@ type ModalDisplayOptions = {
 };
 
 type ModalTransitionOptions = {
-	title?: string;
+	title?: string | null;
 	content: any;
 	isLarge?: boolean;
 	onClose?: (() => void) | null;
@@ -24,8 +24,6 @@ type ModalTransitionOptions = {
 	contentScrollTop?: number | null;
 	/** Optional class appended to `.sl-modal`. Replaces any previously set modalId class. */
 	modalId?: string | null;
-	/** Optional new header title. Omit to keep the current one. */
-	title?: string | null;
 };
 
 class _HTMLGenericModal extends HTMLElement {

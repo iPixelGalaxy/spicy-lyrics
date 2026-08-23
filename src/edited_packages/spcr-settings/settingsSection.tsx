@@ -75,7 +75,7 @@ class SettingsSection {
       allSettingsContainer.appendChild(pluginSettingsContainer);
     }
 
-    ReactDOM.render(<this.FieldsContainer />, pluginSettingsContainer);
+    (ReactDOM as any).render(<this.FieldsContainer />, pluginSettingsContainer);
   };
 
   addButton = (
@@ -170,7 +170,6 @@ class SettingsSection {
   };
 
   private FieldsContainer = () => {
-    // @ts-expect-error
     const [rerender, setRerender] = useState<number>(0);
     this.setRerender = setRerender;
 

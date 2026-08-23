@@ -9,7 +9,7 @@ class IntervalManager {
   private duration: number; // Duration in milliseconds
   private lastTimestamp: number | null;
   private animationFrameId: number | null;
-  private intervalId: ReturnType<typeof setInterval> | null;
+  private intervalId: number | null;
   private targetWindowProvider: () => Window;
   private activeWindow: Window | null;
   public Running: boolean;

@@ -87,6 +87,8 @@ export interface LyricsSyllable {
   DotLine?: boolean;
   BGLine?: boolean;
   SpaceGravityParentLineIndex?: number;
+  ActivationStartTime?: number;
+  ActivationEndTime?: number;
   AnimatorStore?: LineAnimatorStore;
   SLMAnimated?: boolean;
   PreSLMAnimated?: boolean;
@@ -109,7 +111,7 @@ export interface LyricsStatic {
   HTMLElement: HTMLElement;
 }
 
-export type LyricsType = "Syllable" | "Line" | "Static";
+export type LyricsType = "Syllable" | "Line" | "Static" | "None";
 
 export const LyricsObject = {
   Types: {

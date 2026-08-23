@@ -590,7 +590,7 @@ function AppendViewControls(ReAppend: boolean = false) {
 
   function SetupTippy(elem: HTMLElement) {
     // PiP cannot host Spotify Tippy instances, but Cinema can use its own document.
-    const tippyProps = (target: HTMLElement) => ({
+    const tippyProps = (target: Element) => ({
       ...Spicetify.TippyProps,
       ...(target.ownerDocument === document
         ? {}
@@ -835,6 +835,18 @@ function AppendViewControls(ReAppend: boolean = false) {
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup cache action", err);
+      }
+    }
+    const downloadLyricsBtn = elem.querySelector("#DownloadLyrics");
+    if (downloadLyricsBtn && !IsPIP) {
+      try {
+        Tooltips.DownloadLyrics = Spicetify.Tippy(downloadLyricsBtn, {
+          ...tippyProps(downloadLyricsBtn),
+          content: `Download TTML (Shift for Line-sync)`,
+        });
+        downloadLyricsBtn.addEventListener("click", (e) => downloadCurrentLyricsAsTTML((e as MouseEvent).shiftKey));
+      } catch (err) {
+        controlsLogger.warn("Failed to setup Download Lyrics tooltip", err);
       }
     }
 

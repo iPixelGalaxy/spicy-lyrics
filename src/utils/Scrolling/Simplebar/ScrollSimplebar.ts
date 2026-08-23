@@ -17,7 +17,6 @@ export function MountScrollSimplebar() {
     return;
   }
 
-  // @ts-expect-error abc
   ScrollSimplebar = new SimpleBar(LyricsContainer, { autoHide: false });
 }
 

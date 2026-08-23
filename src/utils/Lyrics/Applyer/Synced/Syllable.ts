@@ -187,6 +187,12 @@ function setSyllableTextVariants(
   element.dataset.lyricsRomanizedText = isGibberish
     ? displayedText
     : syllable.TransliteratedText ?? syllable.Text;
+
+  if (isGibberish) {
+    element.dataset.spaceGravityOriginalWordEnd = `${!syllable.IsPartOfWord}`;
+  } else {
+    delete element.dataset.spaceGravityOriginalWordEnd;
+  }
 }
 
 function replaceLetterGroupText(word: any, text: string): void {

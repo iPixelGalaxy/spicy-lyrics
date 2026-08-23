@@ -26,6 +26,7 @@ type GravityBody = {
   Y: number;
   VX: number;
   VY: number;
+  SpeedMultiplier: number;
   Angle: number;
   AngularVelocity: number;
   BounceCount: number;
@@ -57,6 +58,9 @@ const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
 const WORD_VISUAL_OVERHANG = 0.3;
 const MAX_SPEED = 16;
+const WPM_SPEED_THRESHOLD = 60;
+const WPM_SPEED_MAX = 180;
+const MAX_WPM_SPEED_MULTIPLIER = 1.75;
 const HIGH_SPEED_DRAG = 0.6;
 const WINDOW_VELOCITY_SMOOTHING = 0.18;
 const WINDOW_IMPULSE = 1.1;
@@ -139,6 +143,22 @@ function random(seed: number): number {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 }
 
+function getLineWordsPerMinute(line: GravityLine): number {
+  const starts = [...new Set((line.Syllables?.Lead ?? [])
+    .filter((syllable) => !syllable.Dot)
+    .map((syllable) => syllable.StartTime))]
+    .sort((left, right) => left - right);
+  if (starts.length < 2) return 0;
+  const duration = starts.at(-1)! - starts[0];
+  return duration > 0 ? (starts.length - 1) * 60_000 / duration : 0;
+}
+
+function getWpmSpeedMultiplier(wordsPerMinute: number): number {
+  if (!Number.isFinite(wordsPerMinute) || wordsPerMinute <= WPM_SPEED_THRESHOLD) return 1;
+  const progress = Math.min(1, (wordsPerMinute - WPM_SPEED_THRESHOLD) / (WPM_SPEED_MAX - WPM_SPEED_THRESHOLD));
+  return 1 + progress * (MAX_WPM_SPEED_MULTIPLIER - 1);
+}
+
 function bounce(body: GravityBody, axis: CollisionAxis, direction: -1 | 1, bouncedAxes: Set<CollisionAxis>): void {
   const velocity = axis === "X" ? body.VX : body.VY;
   if (!Number.isFinite(velocity)) {
@@ -157,7 +177,7 @@ function bounce(body: GravityBody, axis: CollisionAxis, direction: -1 | 1, bounc
   bouncedAxes.add(axis);
   // Keep ordinary bounces near existing restitution. Rare hits launch hard.
   const strength = BOUNCE_RESTITUTION + random(hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount++}`)) ** 2 * (MAX_BOUNCE_RESTITUTION - BOUNCE_RESTITUTION);
-  const reboundSpeed = Math.min(MAX_BOUNCE_SPEED, Math.abs(velocity) * strength);
+  const reboundSpeed = Math.min(MAX_BOUNCE_SPEED * body.SpeedMultiplier, Math.abs(velocity) * strength);
   if (axis === "X") body.VX = direction * reboundSpeed;
   else body.VY = direction * reboundSpeed;
 }
@@ -169,7 +189,7 @@ function recoverInvalidBodyMotion(body: GravityBody): void {
   if (positionValid && velocityValid && rotationValid) return;
 
   const seed = hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount}:recovery`);
-  const speed = 4.4 + random(seed) * 5.6;
+  const speed = (4.4 + random(seed) * 5.6) * body.SpeedMultiplier;
   const direction = random(seed + 1) * Math.PI * 2;
   if (!positionValid) {
     body.X = Number.isFinite(body.NaturalX) ? body.NaturalX : 0;
@@ -587,6 +607,11 @@ function prepareLines(nextLines: GravityLine[]): void {
     wrappers.push({ Record: record, Element: bodyElement });
   }
 
+  const lineSpeedMultipliers = new Map<GravityLine, number>();
+  for (const line of nextLines) {
+    lineSpeedMultipliers.set(line, getWpmSpeedMultiplier(getLineWordsPerMinute(line)));
+  }
+
   let order = 0;
   for (const { Record: record, Element: bodyElement } of wrappers) {
     const syllables = record.Line.Syllables?.Lead.filter((syllable) => record.Child === syllable.HTMLElement || record.Child.contains(syllable.HTMLElement)) ?? [];
@@ -594,9 +619,10 @@ function prepareLines(nextLines: GravityLine[]): void {
     const endTime = syllables.length ? Math.max(...syllables.map((syllable) => syllable.EndTime)) : record.Line.EndTime;
     if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${startTime}`;
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
-    const speed = 4.4 + random(seed + 3) * 5.6;
+    const speedMultiplier = lineSpeedMultipliers.get(record.Line) ?? 1;
+    const speed = (4.4 + random(seed + 3) * 5.6) * speedMultiplier;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, SpeedMultiplier: speedMultiplier, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
     measureBody(body);
     const lineBodies = bodiesByLine.get(record.Line) ?? [];
     lineBodies.push(body);
@@ -997,9 +1023,10 @@ export function tickSpaceGravity(position: number): void {
   applySoftAvoidance(delta);
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);
-    if (speed > MAX_SPEED) {
+    const maxSpeed = MAX_SPEED * body.SpeedMultiplier;
+    if (speed > maxSpeed) {
       const drag = Math.exp(-HIGH_SPEED_DRAG * delta);
-      const nextSpeed = MAX_SPEED + (speed - MAX_SPEED) * drag;
+      const nextSpeed = maxSpeed + (speed - maxSpeed) * drag;
       body.VX = body.VX / speed * nextSpeed;
       body.VY = body.VY / speed * nextSpeed;
     }

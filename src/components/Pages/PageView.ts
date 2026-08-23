@@ -81,7 +81,10 @@ import {
   normalizeLyricsCacheAction,
   RunLyricsCacheAction,
 } from "../../utils/LyricsCacheTools.ts";
-import { downloadCurrentLyricsAsTTML } from "../../utils/Lyrics/downloadLyrics.ts";
+import {
+  downloadCurrentLyricsAsTTML,
+  downloadCurrentLyricsAsLyricsfile,
+} from "../../utils/Lyrics/downloadLyrics.ts";
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
@@ -548,6 +551,11 @@ function AppendViewControls(ReAppend: boolean = false) {
         }
         ${
           isTTMLMakerMode && !IsPIP
+            ? `<button id="DownloadLyrics" class="ViewControl">${Icons.DownloadLyrics}</button>`
+            : ""
+        }
+        ${
+          isTTMLMakerMode && !IsPIP
             ? `<button id="LyricsManager" class="ViewControl">${Icons.LoadTTML}</button>`
             : ""
         }
@@ -845,9 +853,16 @@ function AppendViewControls(ReAppend: boolean = false) {
       try {
         Tooltips.DownloadLyrics = Spicetify.Tippy(downloadLyricsBtn, {
           ...tippyProps(downloadLyricsBtn),
-          content: `Download TTML (Shift for Line-sync)`,
+          content: `Download TTML (Shift: Line-sync, Alt: Lyricsfile)`,
         });
-        downloadLyricsBtn.addEventListener("click", (e) => downloadCurrentLyricsAsTTML((e as MouseEvent).shiftKey));
+        downloadLyricsBtn.addEventListener("click", (e) => {
+          const mouseEvent = e as MouseEvent;
+          if (mouseEvent.altKey) {
+            downloadCurrentLyricsAsLyricsfile();
+          } else {
+            downloadCurrentLyricsAsTTML(mouseEvent.shiftKey);
+          }
+        });
       } catch (err) {
         controlsLogger.warn("Failed to setup Download Lyrics tooltip", err);
       }

@@ -649,7 +649,7 @@ function getAnchorIndex(position: number): number {
   return low < leadLines.length ? low : leadLines.length - 1;
 }
 
-function getRole(body: GravityBody, position: number, activeLeadLine: GravityLine | undefined): GravityRole {
+function getRole(body: GravityBody, position: number): GravityRole {
   if (body.Line.DotLine) return "Instrumental";
   if (position >= finalVocalEnd) return "Previous";
   if (body.Line.BGLine) {
@@ -657,9 +657,8 @@ function getRole(body: GravityBody, position: number, activeLeadLine: GravityLin
     if (position < body.EndTime) return "Current";
     return "Previous";
   }
-  const displayLine = body.Line.BGLine ? parentLines.get(body.Line) : body.Line;
-  if (displayLine === activeLeadLine) return "Current";
-  if (displayLine && position < displayLine.StartTime) return "Next";
+  if (position >= body.Line.StartTime && position < body.Line.EndTime) return "Current";
+  if (position < body.Line.StartTime) return "Next";
   return "Previous";
 }
 
@@ -856,7 +855,7 @@ function updateVisibleBodies(position: number): void {
     body.NaturalX = body.StartX + body.Width / 2;
     body.NaturalY = getNaturalLineTop(body.Line, activeLine, stageBounds!.Height) + body.StartY + body.Height / 2;
     if (!body.Spawned) body.NaturalY = getSpawnLineTop(body.Line, stageBounds!.Height) + body.StartY + body.Height / 2;
-    applyBodyRole(body, getRole(body, position, activeLine));
+    applyBodyRole(body, getRole(body, position));
   }
   for (const line of visibleLines) if (!nextLines.has(line)) scheduleLineRemoval(line);
   for (const line of nextLines) {
@@ -870,8 +869,7 @@ function updateVisibleBodies(position: number): void {
 }
 
 function updateBodyRoles(position: number): void {
-  const activeLine = getActiveLeadLine(position, lastAnchor);
-  for (const body of activeBodies) applyBodyRole(body, getRole(body, position, activeLine));
+  for (const body of activeBodies) applyBodyRole(body, getRole(body, position));
 }
 
 function spawnBody(body: GravityBody, width: number, height: number): void {

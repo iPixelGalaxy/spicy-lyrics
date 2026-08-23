@@ -990,6 +990,10 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   viewport = nextViewport;
   footer = nextFooter;
   lines = nextLines;
+  // A Gravity rebuild (for example after romanization changes) restores the
+  // previously visible lines before mounting again. Remove that normal-flow
+  // DOM now; prepareLines reattaches only the selected floating bodies.
+  for (const line of lines) line.HTMLElement.remove();
   finalVocalEnd = lines
     .filter((line) => !line.DotLine)
     .reduce((end, line) => Math.max(end, ...(line.Syllables?.Lead.filter((word) => !word.Dot).map((word) => word.EndTime) ?? [line.EndTime])), Number.NEGATIVE_INFINITY);

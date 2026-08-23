@@ -95,7 +95,7 @@ let lines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
 let leadLines: GravityLine[] = [];
 let lineLayouts = new Map<GravityLine, { Height: number }>();
-let splitGroups: Array<{ Group: HTMLElement; Entities: HTMLElement[] }> = [];
+let splitGroups: Array<{ Group: HTMLElement; Entities: HTMLElement[]; RestoreChildren?: boolean }> = [];
 let splitElements: SplitElement[] = [];
 let parentLines = new Map<GravityLine, GravityLine>();
 let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
@@ -545,9 +545,41 @@ function hasAuthoredSyllableSplits(line: GravityLine): boolean {
   return (line.Syllables?.Lead.filter((syllable) => !syllable.Dot).length ?? 0) > 1;
 }
 
+function endsWithDash(element: Element): boolean {
+  return /[-‐‑‒–—―]$/u.test(element.textContent?.trim() ?? "");
+}
+
+function startsWithDash(element: Element): boolean {
+  return /^[-‐‑‒–—―]/u.test(element.textContent?.trim() ?? "");
+}
+
 function splitWordGroup(group: HTMLElement): HTMLElement[] {
   const parts = Array.from(group.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   if (parts.length < 2) return [group];
+
+  if (!isCjkEntity(group.textContent ?? "")) {
+    const boundaries = parts.slice(0, -1).some((part, index) =>
+      endsWithDash(part) || startsWithDash(parts[index + 1])
+    );
+    if (!boundaries) return [group];
+
+    const entities: HTMLElement[] = [];
+    let entity = document.createElement("span");
+    entity.classList.add("SpaceGravityEntity");
+    for (const [index, part] of parts.entries()) {
+      entity.appendChild(part);
+      if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
+        entities.push(entity);
+        entity = document.createElement("span");
+        entity.classList.add("SpaceGravityEntity");
+      }
+    }
+    entities.push(entity);
+    group.replaceWith(...entities);
+    splitGroups.push({ Group: group, Entities: entities, RestoreChildren: true });
+    return entities;
+  }
+
   group.replaceWith(...parts);
   splitGroups.push({ Group: group, Entities: parts });
   return parts;
@@ -627,6 +659,23 @@ function getEntityTexts(line: GravityLine): string[] {
     }
     const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
     if (preserveAuthoredSplits) return parts.length < 2 ? [child.textContent ?? ""] : parts.map((part) => part.textContent ?? "");
+    if (!isCjkEntity(child.textContent ?? "")) {
+      const boundaries = parts.slice(0, -1).some((part, index) =>
+        endsWithDash(part) || startsWithDash(parts[index + 1])
+      );
+      if (!boundaries) return [child.textContent ?? ""];
+      const texts: string[] = [];
+      let text = "";
+      for (const [index, part] of parts.entries()) {
+        text += part.textContent ?? "";
+        if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
+          texts.push(text);
+          text = "";
+        }
+      }
+      texts.push(text);
+      return texts;
+    }
     return parts.length < 2
       ? getGravitySegments(child.textContent ?? "")
       : parts.flatMap((part) => getGravitySegments(part.textContent ?? ""));
@@ -1117,11 +1166,12 @@ export function restoreSpaceGravity(): GravityLine[] {
     }
   }
 
-  for (const { Group, Entities } of splitGroups) {
+  for (const { Group, Entities, RestoreChildren } of splitGroups) {
     const first = Entities[0];
     if (!first?.parentElement) continue;
     first.before(Group);
-    Group.replaceChildren(...Entities);
+    Group.replaceChildren(...(RestoreChildren ? Entities.flatMap((entity) => Array.from(entity.childNodes)) : Entities));
+    for (const entity of Entities) entity.remove();
   }
 
   for (const line of restoredLines) {

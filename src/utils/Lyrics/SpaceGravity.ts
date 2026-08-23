@@ -541,6 +541,10 @@ function getGravitySegments(text: string): string[] {
   return segments.filter((segment) => segment.trim()).length > 1 ? segments : splitGraphemes(text);
 }
 
+function hasAuthoredSyllableSplits(line: GravityLine): boolean {
+  return (line.Syllables?.Lead.filter((syllable) => !syllable.Dot).length ?? 0) > 1;
+}
+
 function splitWordGroup(group: HTMLElement): HTMLElement[] {
   const parts = Array.from(group.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   if (parts.length < 2) return [group];
@@ -606,17 +610,23 @@ function splitCjkElement(line: GravityLine, element: HTMLElement): HTMLElement[]
 }
 
 function getEntities(line: GravityLine): HTMLElement[] {
+  const preserveAuthoredSplits = hasAuthoredSyllableSplits(line);
   return Array.from(line.HTMLElement.children)
     .filter((child): child is HTMLElement => child instanceof HTMLElement)
     .flatMap((child) => child.classList.contains("word-group") ? splitWordGroup(child) : [child])
-    .flatMap((child) => splitCjkElement(line, child));
+    .flatMap((child) => preserveAuthoredSplits ? [child] : splitCjkElement(line, child));
 }
 
 function getEntityTexts(line: GravityLine): string[] {
+  const preserveAuthoredSplits = hasAuthoredSyllableSplits(line);
   const children = Array.from(line.HTMLElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   const texts = children.flatMap((child) => {
-    if (!child.classList.contains("word-group")) return getGravitySegments(child.textContent ?? "");
+    if (!child.classList.contains("word-group")) {
+      const text = child.textContent ?? "";
+      return preserveAuthoredSplits ? [text] : getGravitySegments(text);
+    }
     const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
+    if (preserveAuthoredSplits) return parts.length < 2 ? [child.textContent ?? ""] : parts.map((part) => part.textContent ?? "");
     return parts.length < 2
       ? getGravitySegments(child.textContent ?? "")
       : parts.flatMap((part) => getGravitySegments(part.textContent ?? ""));

@@ -388,9 +388,9 @@ export function addLinesEvListener() {
 
   LinesEvListenerMaid = new Maid();
 
-  const el = PageContainer?.querySelector<HTMLElement>(
-    ".LyricsContainer .LyricsContent"
-  );
+  // Gravity words may extend beyond LyricsContent. Listen on page so their
+  // clicks still bubble through when they overhang normal lyrics bounds.
+  const el = PageContainer;
   if (!el) return;
 
   // Add event listener and store a reference to the handler function
@@ -406,9 +406,7 @@ export function removeLinesEvListener() {
   if (!LinesEvListenerExists) return;
   LinesEvListenerExists = false;
 
-  const el = PageContainer?.querySelector<HTMLElement>(
-    ".LyricsContainer .LyricsContent"
-  );
+  const el = PageContainer;
   if (!el) return;
 
   el.removeEventListener("click", LinesEvListener);

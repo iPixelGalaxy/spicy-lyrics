@@ -402,21 +402,22 @@ async function main() {
   const syncPopupLyricsButtonVisibility = () => {
     const popupButtonEntry = ButtonList?.[2];
     const popupButton = popupButtonEntry?.Button;
-    const popupButtonElement = popupButton?.element as HTMLElement | undefined;
     const popupLyricsAllowed = $popupLyricsAllowed.get();
-    const isPopupButtonConnected = !!popupButtonElement?.isConnected;
+    const isPopupButtonRegistered = Boolean(popupButtonEntry?.Registered);
 
     if (popupButton) {
-      if (popupLyricsAllowed && !isPopupButtonConnected) {
+      if (popupLyricsAllowed && !isPopupButtonRegistered) {
         popupButton.register();
         if (popupButtonEntry) popupButtonEntry.Registered = true;
-      } else if (!popupLyricsAllowed && isPopupButtonConnected) {
+      } else if (!popupLyricsAllowed) {
         popupButton.deregister();
         if (popupButtonEntry) popupButtonEntry.Registered = false;
       }
     }
 
-    document.querySelector<HTMLElement>("#SpicyLyrics_PopupLyricsButton")?.classList.toggle("disabled", !popupLyricsAllowed);
+    if (!popupLyricsAllowed) {
+      document.querySelectorAll<HTMLElement>("#SpicyLyrics_PopupLyricsButton").forEach((element) => element.remove());
+    }
 
     const spotifyPipButton = document.querySelector<HTMLElement>('[data-testid="pip-toggle-button"]');
     if (spotifyPipButton) {

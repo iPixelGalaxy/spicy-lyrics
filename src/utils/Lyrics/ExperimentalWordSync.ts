@@ -79,6 +79,8 @@ const OPEN_BRACKET_REGEX = /[([\{\uFF08【]/g;
 const CLOSE_BRACKET_REGEX = /[)\]\}\uFF09】]/g;
 const BRACKET_CHARACTER_REGEX = /[\[\](){}\uFF08\uFF09【】]/g;
 const SUSPICIOUS_LINE_END_EPSILON = 0.05;
+const CJK_CHARACTER_REGEX = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+const HANGUL_ONLY_REGEX = /^\p{Script=Hangul}+$/u;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -178,15 +180,48 @@ function splitTokenIntoWordUnits(token: string): WordUnit[] {
       ];
 }
 
-function splitWords(text: string): WordUnit[] {
-  return normalizeText(text)
+function getCjkSegmentationLocale(text: string): "ja" | "ko" | "zh" {
+  if (/\p{Script=Hangul}/u.test(text)) return "ko";
+  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return "ja";
+  return "zh";
+}
+
+function splitConnectedCjkToken(token: string, splitHangulGraphemes: boolean): WordUnit[] {
+  if (!CJK_CHARACTER_REGEX.test(token)) return splitTokenIntoWordUnits(token);
+
+  const segments = typeof Intl.Segmenter === "function"
+    ? Array.from(
+        new Intl.Segmenter(getCjkSegmentationLocale(token), { granularity: "word" }).segment(token),
+        ({ segment }) => segment
+      )
+    : Array.from(token);
+  const units = segments.flatMap((segment) =>
+    splitHangulGraphemes && HANGUL_ONLY_REGEX.test(segment) ? Array.from(segment) : [segment]
+  ).filter(Boolean);
+
+  return units.map((text, index) => ({
+    text,
+    isPartOfWord: index < units.length - 1,
+  }));
+}
+
+function splitWords(text: string, splitConnectedCjk = true): WordUnit[] {
+  const normalized = normalizeText(text);
+  if (!normalized) return [];
+
+  const hasWhitespace = /\s/.test(normalized);
+  return normalized
     .split(/\s+/)
-    .flatMap((token) => splitTokenIntoWordUnits(token))
+    .flatMap((token) =>
+      splitConnectedCjk
+        ? splitConnectedCjkToken(token, !hasWhitespace)
+        : splitTokenIntoWordUnits(token)
+    )
     .filter((unit) => !!unit.text);
 }
 
-function splitWordTexts(text: string): string[] {
-  return splitWords(text).map((unit) => unit.text);
+function splitWordTexts(text: string, splitConnectedCjk = true): string[] {
+  return splitWords(text, splitConnectedCjk).map((unit) => unit.text);
 }
 
 function capitalizeLeadingLetter(text: string | undefined): string | undefined {
@@ -357,8 +392,13 @@ function assignWordText(
   });
 }
 
-function buildWords(text: string, startTime: number, endTime: number): GeneratedWord[] {
-  const wordUnits = splitWords(text);
+function buildWords(
+  text: string,
+  startTime: number,
+  endTime: number,
+  splitConnectedCjk = true
+): GeneratedWord[] {
+  const wordUnits = splitWords(text, splitConnectedCjk);
   if (!wordUnits.length) return [];
 
   const ranges = distributeRanges(
@@ -1286,7 +1326,7 @@ function splitAppleSyllables(syllables: GeneratedWord[]): {
   const splitSyllables: GeneratedWord[] = [];
 
   syllables.forEach((syllable) => {
-    const words = splitWords(syllable.Text);
+    const words = splitWords(syllable.Text, false);
     if (words.length <= 1) {
       splitSyllables.push(syllable);
       return;
@@ -1295,7 +1335,8 @@ function splitAppleSyllables(syllables: GeneratedWord[]): {
     const generatedWords = buildWords(
       syllable.Text,
       syllable.StartTime,
-      syllable.EndTime
+      syllable.EndTime,
+      false
     );
     assignWordText(generatedWords, "TransliteratedText", syllable.TransliteratedText);
     assignWordText(generatedWords, "GibberishText", syllable.GibberishText);

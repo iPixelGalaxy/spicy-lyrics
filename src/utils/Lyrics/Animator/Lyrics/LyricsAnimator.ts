@@ -922,7 +922,8 @@ export function Animate(position: number): void {
                         dotGroup.HTMLElement.style.opacity = currentOpacity.toString();
                       } */
 
-            // Refactored Dot Animation using Springs
+            // Dots must land on their timeline boundary. Springs lag behind the
+            // final target, which cut off the third dot before it could finish.
             if (!word.AnimatorStore) {
               word.AnimatorStore = createDotSprings();
               word.AnimatorStore.Scale.SetGoal(DotScaleSpline.at(0), true);
@@ -1691,7 +1692,8 @@ export function Animate(position: number): void {
               dot.EndTime
             );
 
-            // Refactored Dot Animation using Springs for Line Type
+            // Keep dots in lockstep with their assigned timing. Spring settling
+            // made short final dot intervals end before their visual peak.
             if (!dot.AnimatorStore) {
               dot.AnimatorStore = createDotSprings();
               dot.AnimatorStore.Scale.SetGoal(DotScaleSpline.at(0), true);

@@ -8,8 +8,8 @@ function getModalScrollTop() {
   return Math.max(0, ...Array.from(PopupModal.querySelectorAll<HTMLElement>("*")).map((el) => el.scrollTop ?? 0));
 }
 
-export function OpenLyricsDBPanel() {
-  _openUpload();
+export function OpenLyricsDBPanel(targetDocument: Document = document) {
+  _openUpload(targetDocument);
 }
 
 export function OpenTTMLDatabasePanel() {
@@ -73,8 +73,8 @@ function _openDB(onBack = _openUpload, modalId: string | null = null) {
   });
 }
 
-function _openUpload() {
-  const container = PopupModal.ownerDocument.createElement("div");
+function _openUpload(targetDocument: Document = PopupModal.ownerDocument) {
+  const container = targetDocument.createElement("div");
   const root = ReactDOM.createRoot(container);
 
   flushSync(() => {
@@ -96,6 +96,6 @@ function _openUpload() {
   if (PopupModal.isConnected) {
     PopupModal.transition(options);
   } else {
-    PopupModal.display(options);
+    PopupModal.display({ ...options, targetDocument });
   }
 }

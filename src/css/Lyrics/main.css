@@ -53,18 +53,21 @@
     transparent
   );
 
-  -webkit-mask-image: var(--ImageMask);
-  mask-image: var(--ImageMask);
   container-type: size;
   opacity: 1;
   transition: opacity 0.25s, --SL-LyricsContent_MaskTopPadding 0.5s;
+}
+
+#SpicyLyricsPage .LyricsContainer .LyricsContent .simplebar-content-wrapper {
+  -webkit-mask-image: var(--ImageMask);
+  mask-image: var(--ImageMask);
 }
 
 #SpicyLyricsPage:not(.Fullscreen):has(.ViewControls .ViewControl:hover) .LyricsContainer .LyricsContent {
   --SL-LyricsContent_MaskTopPadding: 32px;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent:has(.LyricsNotice) {
+.spicy-pip-wrapper #SpicyLyricsPage .LyricsContainer .LyricsContent:has(.LyricsNotice) .simplebar-content-wrapper {
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -124,7 +127,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   display: none;
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsPinnedFooter {
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsPinnedFooter {
   --DefaultLyricsSize: clamp(1.85rem, calc(1cqw * 7), 3.5rem);
   position: absolute;
   z-index: 10;
@@ -137,13 +140,17 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   font-weight: 700;
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent {
-  --SL-LyricsContent_MaskBottomFadeStart: 296px;
-  --SL-LyricsContent_MaskBottomFadeEnd: 216px;
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
+  --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 32px);
+  --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) - 16px);
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
-  margin-bottom: calc(8cqh + 98px);
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+  margin-bottom: var(--SL-PinnedFooterBottomMargin, calc(8cqh + 98px));
+}
+
+#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .simplebar-track.simplebar-vertical {
+  bottom: var(--SL-PinnedFooterTrackBottom, 0px);
 }
 
 #SpicyLyricsPage .ContentBox .NowBar.Active:is(.RightSide) + .LyricsContainer .LyricsPinnedFooter {
@@ -151,7 +158,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   left: calc(var(--LyricsRightSidePadding) * 1.45);
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode) .LyricsContainer .LyricsPinnedFooter {
+.spicy-pip-wrapper #SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsPinnedFooter {
   --DefaultLyricsSize: clamp(1.7rem, calc(1cqw * 5.5), 2.6rem);
 }
 
@@ -170,6 +177,10 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   touch-action: none;
 }
 
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .simplebar-track {
+  display: none;
+}
+
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .VirtualLyricsContainer {
   overflow: hidden;
   container-type: normal;
@@ -184,6 +195,10 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   opacity: 0;
   pointer-events: none;
   transition: opacity 180ms ease;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityVisible {
+  opacity: 1;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityMeasure {
@@ -202,43 +217,38 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   left: calc(var(--LyricsRightSidePadding) * 1.45);
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent {
-  opacity: 1 !important;
-  pointer-events: none;
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent {
+  --space-gravity-role-opacity: 1;
+  pointer-events: auto;
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNext {
-  opacity: 1 !important;
-  pointer-events: none;
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityNext {
+  --space-gravity-role-opacity: 0.34;
+  pointer-events: auto;
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNearby {
-  opacity: 1 !important;
-  pointer-events: none;
-}
-
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNext .SpaceGravityWord {
-  opacity: 0.34;
-}
-
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityNearby .SpaceGravityWord {
-  opacity: 0.22;
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityNearby {
+  --space-gravity-role-opacity: 0.22;
+  pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
+  --space-gravity-role-opacity: 1;
+  --space-gravity-presence-opacity: 1;
+  opacity: calc(var(--space-gravity-role-opacity) * var(--space-gravity-presence-opacity)) !important;
   pointer-events: auto;
   transition: opacity 180ms ease;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord:hover {
-  opacity: 1 !important;
+  --space-gravity-role-opacity: 1;
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent:not(.SpaceGravityDot) .SpaceGravityWord:hover {
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent:not(.SpaceGravityDot):hover {
   filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
 }
 
-#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.SpaceGravityCurrent.OppositeAligned:not(.SpaceGravityDot) .SpaceGravityWord:hover {
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord.SpaceGravityCurrent:not(.SpaceGravityDot):hover {
   filter: drop-shadow(0 0 10px rgba(255, 140, 168, 0.85));
 }
 
@@ -247,10 +257,11 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup, .word-group) {
+  --gradient-rgb: 255, 140, 168;
   background-image: linear-gradient(
     var(--gradient-degrees),
-    rgba(255, 140, 168, var(--gradient-alpha)) var(--gradient-position),
-    rgba(255, 140, 168, var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
+    rgba(var(--gradient-rgb), var(--gradient-alpha)) var(--gradient-position),
+    rgba(var(--gradient-rgb), var(--gradient-alpha-end)) calc(var(--gradient-position) + 20% + var(--gradient-offset))
   );
   -webkit-background-clip: text;
   background-clip: text;
@@ -265,11 +276,19 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   position: absolute;
   display: inline-block;
   transform-origin: center;
-  will-change: translate, rotate;
+  will-change: transform;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityUnspawned {
   visibility: hidden;
+  --space-gravity-presence-opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityExiting {
+  --space-gravity-presence-opacity: 0;
+  pointer-events: none;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord > :is(.word, .word-group, .letterGroup, .dotGroup) {

@@ -134,6 +134,7 @@ export function UpdateScrollToActiveButton(): void {
 }
 
 export function ScrollToCurrentActiveLine(): void {
+  if (PageContainer?.classList.contains("SpaceGravityMode")) return;
   const container = currentSimpleBarInstance?.getScrollElement() as HTMLElement | undefined;
   const targetLine = getCurrentPlaybackTargetLine();
   if (!container || !targetLine) return;
@@ -336,6 +337,10 @@ export const GetForceScrollingPolicy = () => {
 };
 
 export function ScrollToActiveLine(ScrollSimplebar: any) {
+  if (PageContainer?.classList.contains("SpaceGravityMode")) {
+    hideScrollToActiveButton();
+    return;
+  }
   if ($currentLyricsType.get() === "Static" || $currentLyricsType.get() === "None") {
     hideScrollToActiveButton();
     return;

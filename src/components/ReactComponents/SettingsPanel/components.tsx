@@ -281,15 +281,18 @@ export function FilterDropdown({
     const btn = btnRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
+    const targetWindow = btn.ownerDocument.defaultView ?? window;
     setCoords({
       top: rect.bottom + 6,
-      right: window.innerWidth - rect.right,
+      right: targetWindow.innerWidth - rect.right,
     });
   }, []);
 
   useEffect(() => {
     if (!open) return;
     updateCoords();
+    const targetDocument = btnRef.current?.ownerDocument ?? document;
+    const targetWindow = targetDocument.defaultView ?? window;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (wrapRef.current?.contains(target)) return;
@@ -297,21 +300,21 @@ export function FilterDropdown({
       setOpen(false);
     };
     const onReflow = () => updateCoords();
-    document.addEventListener("mousedown", handler);
-    window.addEventListener("resize", onReflow);
-    window.addEventListener("scroll", onReflow, true);
+    targetDocument.addEventListener("mousedown", handler);
+    targetWindow.addEventListener("resize", onReflow);
+    targetWindow.addEventListener("scroll", onReflow, true);
     return () => {
-      document.removeEventListener("mousedown", handler);
-      window.removeEventListener("resize", onReflow);
-      window.removeEventListener("scroll", onReflow, true);
+      targetDocument.removeEventListener("mousedown", handler);
+      targetWindow.removeEventListener("resize", onReflow);
+      targetWindow.removeEventListener("scroll", onReflow, true);
     };
   }, [open, updateCoords]);
 
   const allOptions = ["All", ...sections];
 
   const portalTarget =
-    open && typeof document !== "undefined"
-      ? (document.querySelector(
+    open && btnRef.current
+      ? (btnRef.current.ownerDocument.querySelector(
           "sl-generic-modal.SpicyLyricsModal .sl-modal-overlay"
         ) as HTMLElement | null)
       : null;

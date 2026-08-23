@@ -7,7 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
-import { AdoptReappliedScrollPosition } from "../../../Scrolling/ScrollToActiveLine.ts";
+import { AdoptReappliedScrollPosition, QueueForceScroll } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
@@ -22,8 +22,17 @@ import {
   setRomanizedStatus,
 } from "../../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
-import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
-import { mountSpaceGravity } from "../../SpaceGravity.ts";
+import {
+  destroyLyricsVirtualizer,
+  initLyricsVirtualizer,
+  releaseLyricsVirtualizerElements,
+  type LyricsViewportAnchor,
+} from "../../LyricsVirtualizer.ts";
+import {
+  mountSpaceGravity,
+  restoreSpaceGravity,
+  tickSpaceGravity,
+} from "../../SpaceGravity.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -31,7 +40,7 @@ import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
-import { CreateLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
+import { CreateLyricsFooter, PlaceLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../../components/Global/Defaults.ts";
 import { SpotifyPlayer } from "../../../../components/Global/SpotifyPlayer.ts";
 
@@ -73,6 +82,7 @@ interface LyricsData {
   fetchProvider?: string;
   userUploaded?: boolean;
   experimentalWordSync?: boolean;
+  experimentalWordSyncReason?: "SpaceGravity" | string;
   classes?: string;
   styles?: Record<string, string>;
 }
@@ -239,6 +249,63 @@ function shouldJoinSyllableToNext(syllable: SyllableData, isLastInLine: boolean)
   );
 }
 
+type SyllableRenderSession = {
+  Host: HTMLElement;
+  Container: HTMLElement;
+  VirtualContainer: HTMLElement;
+  Lines: typeof LyricsObject.Types.Syllable.Lines;
+  LineElements: HTMLElement[];
+  Footer: HTMLElement;
+  SpaceGravity: boolean;
+};
+
+let syllableRenderSession: SyllableRenderSession | null = null;
+
+export function ClearSyllableRenderSession(): void {
+  syllableRenderSession = null;
+}
+
+/** Switch layouts without rebuilding words, letters, credits, or lyric data. */
+export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
+  const session = syllableRenderSession;
+  if (!session || !session.Container.isConnected || session.SpaceGravity === enabled) return false;
+
+  if (enabled) {
+    PageContainer?.classList.add("SpaceGravityMode");
+    const released = releaseLyricsVirtualizerElements();
+    destroyLyricsVirtualizer();
+    if (released.length > 0) session.LineElements = released;
+    ClearScrollSimplebar();
+    // SimpleBar keeps an internal wrapper/mask/content tree. Gravity's stage
+    // is sized against the real LyricsContent host, exactly like first render;
+    // leaving it in that shell defers a usable size until the page is hidden.
+    session.Host.replaceChildren(session.Container);
+    session.VirtualContainer.style.removeProperty("height");
+    PlaceLyricsFooter(session.Footer, session.Container, session.Host, true);
+    session.Container.classList.add("SpaceGravityStage");
+    mountSpaceGravity(session.VirtualContainer, session.Lines, session.Container, session.Footer);
+    tickSpaceGravity(SpotifyPlayer.GetPosition());
+  } else {
+    const restoredLines = restoreSpaceGravity();
+    session.Lines = restoredLines as typeof LyricsObject.Types.Syllable.Lines;
+    session.LineElements = restoredLines.map((line) => line.HTMLElement);
+    session.Container.classList.remove("SpaceGravityStage");
+    session.VirtualContainer.replaceChildren();
+    PageContainer?.classList.remove("SpaceGravityMode");
+    // Fresh normal mode owns a fresh SimpleBar tree. This also fixes pages
+    // opened in gravity mode, where no scroll instance exists yet.
+    session.Host.replaceChildren(session.Container);
+    PlaceLyricsFooter(session.Footer, session.Container, session.Host);
+    MountScrollSimplebar();
+    const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
+    if (scrollEl) initLyricsVirtualizer(scrollEl, session.VirtualContainer, session.LineElements);
+    QueueForceScroll();
+  }
+
+  session.SpaceGravity = enabled;
+  return true;
+}
+
 export function ApplySyllableLyrics(
   data: LyricsData,
   UseRomanized: boolean = false,
@@ -248,6 +315,7 @@ export function ApplySyllableLyrics(
   EmitNotApplyed();
 
   DestroyAllLyricsContainers();
+  ClearSyllableRenderSession();
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
@@ -283,16 +351,20 @@ export function ApplySyllableLyrics(
   const spaceGravityMode = $spaceGravityMode.get();
   const syllableMode = "Default";
   const allowLetterEmphasis = !data.experimentalWordSync;
+  const firstVocalStartTime = Math.min(
+    data.Content[0].Lead.StartTime,
+    ...(data.Content[0].Background?.map((background) => background.StartTime) ?? [])
+  );
 
-  if (data.StartTime >= getLyricsBetweenShow()) {
+  if (firstVocalStartTime >= getLyricsBetweenShow()) {
     const musicalLine = document.createElement("div");
     musicalLine.classList.add("line");
     musicalLine.classList.add("musical-line");
     LyricsObject.Types.Syllable.Lines.push({
       HTMLElement: musicalLine,
       StartTime: 0,
-      EndTime: ConvertTime(data.StartTime),
-      TotalTime: ConvertTime(data.StartTime),
+      EndTime: ConvertTime(firstVocalStartTime),
+      TotalTime: ConvertTime(firstVocalStartTime),
       DotLine: true,
     });
 
@@ -309,7 +381,7 @@ export function ApplySyllableLyrics(
     const musicalDots2 = document.createElement("span");
     const musicalDots3 = document.createElement("span");
 
-    const totalTime = ConvertTime(data.StartTime);
+    const totalTime = ConvertTime(firstVocalStartTime);
     const baseDotTime = totalTime / 3;
     const dotPadding = getInterludeTimePadding() / 3;
     const dot1EndTime = Math.max(0, baseDotTime + dotPadding);
@@ -378,20 +450,26 @@ export function ApplySyllableLyrics(
     const lineElem = document.createElement("div");
     lineElem.classList.add("line");
 
+    const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
+    const primaryLineEndTime = line.Background?.length && processedLeadSyllables.length
+      ? Math.max(...processedLeadSyllables.map((syllable) => syllable.EndTime))
+      : line.Lead.EndTime;
     const nextLineStartTime = arr[index + 1]?.Lead.StartTime ?? 0;
 
     const lineEndTimeAndNextLineStartTimeDistance =
-      nextLineStartTime !== 0 ? nextLineStartTime - line.Lead.EndTime : 0;
+      nextLineStartTime !== 0 ? nextLineStartTime - primaryLineEndTime : 0;
 
     const lineEndTime =
-      $minimalLyricsMode.get()
+      line.Background?.length
+        ? primaryLineEndTime
+        : $minimalLyricsMode.get()
         ? nextLineStartTime === 0
-          ? line.Lead.EndTime
+          ? primaryLineEndTime
           : lineEndTimeAndNextLineStartTimeDistance < getLyricsBetweenShow() &&
-              nextLineStartTime > line.Lead.EndTime
+              nextLineStartTime > primaryLineEndTime
             ? nextLineStartTime
-            : line.Lead.EndTime
-        : line.Lead.EndTime;
+            : primaryLineEndTime
+        : primaryLineEndTime;
 
     LyricsObject.Types.Syllable.Lines.push({
       HTMLElement: lineElem,
@@ -410,7 +488,6 @@ export function ApplySyllableLyrics(
 
     let currentWordGroup: HTMLSpanElement | null = null;
 
-    const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
     processedLeadSyllables.forEach((lead, iL, aL) => {
       let word = document.createElement("span");
       const isLastInLine = iL === aL.length - 1;
@@ -500,6 +577,7 @@ export function ApplySyllableLyrics(
       }
     });
 
+    const parentLineIndex = LyricsObject.Types.Syllable.Lines.length - 1;
     if (line.Background) {
       line.Background.forEach((bg) => {
         const lineE = document.createElement("div");
@@ -511,6 +589,7 @@ export function ApplySyllableLyrics(
           EndTime: ConvertTime(bg.EndTime),
           TotalTime: ConvertTime(bg.EndTime) - ConvertTime(bg.StartTime),
           BGLine: true,
+          SpaceGravityParentLineIndex: parentLineIndex,
           ActivationStartTime: ConvertTime(line.Lead.StartTime),
           ActivationEndTime: ConvertTime(line.Lead.EndTime),
         });
@@ -617,6 +696,10 @@ export function ApplySyllableLyrics(
         });
       });
     }
+    const lastVocalEndTime = Math.max(
+      line.Lead.EndTime,
+      ...(line.Background?.map((background) => background.EndTime) ?? [])
+    );
     const nextLine = arr[index + 1];
     const nextVocalStart = nextLine
       ? Math.min(
@@ -624,18 +707,18 @@ export function ApplySyllableLyrics(
           ...(nextLine.Background?.map((background) => background.StartTime) ?? [])
         )
       : undefined;
-    if (nextLine && nextVocalStart! - line.Lead.EndTime >= getLyricsBetweenShow()) {
+    if (nextLine && nextVocalStart! - lastVocalEndTime >= getLyricsBetweenShow()) {
       const musicalLine = document.createElement("div");
       musicalLine.classList.add("line");
       musicalLine.classList.add("musical-line");
 
       LyricsObject.Types.Syllable.Lines.push({
         HTMLElement: musicalLine,
-        StartTime: ConvertTime(line.Lead.EndTime),
+        StartTime: ConvertTime(lastVocalEndTime),
         EndTime: ConvertTime(nextVocalStart!),
         TotalTime:
           ConvertTime(nextVocalStart!) -
-          ConvertTime(line.Lead.EndTime),
+          ConvertTime(lastVocalEndTime),
         DotLine: true,
       });
 
@@ -652,7 +735,7 @@ export function ApplySyllableLyrics(
       const musicalDots2 = document.createElement("span");
       const musicalDots3 = document.createElement("span");
 
-      const gapStartTime = ConvertTime(line.Lead.EndTime);
+      const gapStartTime = ConvertTime(lastVocalEndTime);
       const totalTime = ConvertTime(nextVocalStart!) - gapStartTime;
       const baseDotTime = totalTime / 3;
       const dotPadding = getInterludeTimePadding() / 3;
@@ -761,8 +844,7 @@ export function ApplySyllableLyrics(
       virtualContainer,
       LyricsObject.Types.Syllable.Lines,
       LyricsContainer,
-      footer,
-      SpotifyPlayer.GetPosition()
+      footer
     );
   } else {
     if (ScrollSimplebar) RecalculateScrollSimplebar();
@@ -771,6 +853,16 @@ export function ApplySyllableLyrics(
     const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
     if (scrollEl) initLyricsVirtualizer(scrollEl, virtualContainer, lineElements, viewportAnchor);
   }
+
+  syllableRenderSession = {
+    Host: LyricsContainerParent!,
+    Container: LyricsContainer,
+    VirtualContainer: virtualContainer,
+    Lines: LyricsObject.Types.Syllable.Lines,
+    LineElements: lineElements,
+    Footer: footer,
+    SpaceGravity: spaceGravityMode,
+  };
 
   EmitApply(data.Type, data.Content);
 

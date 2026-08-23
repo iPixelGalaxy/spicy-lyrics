@@ -12,6 +12,7 @@ import Logger from "../Logger.ts";
 // different trailing gaps without any virtualizer-level workaround.
 const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
+const PINNED_FOOTER_BOTTOM_OFFSET = 64;
 
 const ESTIMATE: Record<string, number> = {
   // Inactive musical-lines have line-height: 0 → measured height ~0.
@@ -72,6 +73,8 @@ class LyricsVirtualizer {
 
   // MutationObserver that watches class attribute changes on musical-line elements.
   private _classObserver: MutationObserver | null = null;
+
+  private _pinnedFooterObserver: ResizeObserver | null = null;
 
   // Permanent spacer appended after the virtual container so the last item can
   // always be scrolled to center without temporarily inflating container height.
@@ -145,6 +148,58 @@ class LyricsVirtualizer {
 
   private _bottomSpacerHeight(clientHeight: number): number {
     return Math.min(24, Math.max(8, clientHeight * 0.03));
+  }
+
+  private _updatePinnedFooterLayout(): void {
+    const virtualContainer = this._virtualContainer;
+    if (!virtualContainer) return;
+
+    const scrollContainer = virtualContainer.parentElement;
+    const lyricsContent = scrollContainer?.closest<HTMLElement>(".LyricsContent");
+    const page = lyricsContent?.closest<HTMLElement>("#SpicyLyricsPage");
+    if (
+      !scrollContainer ||
+      !lyricsContent ||
+      !page?.classList.contains("Exp_PinLyricsFooter") ||
+      page.classList.contains("CardMode")
+    ) {
+      scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");
+      lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
+      return;
+    }
+
+    const footerLayer = lyricsContent.parentElement?.querySelector<HTMLElement>(
+      ".LyricsPinnedFooter"
+    );
+    if (!footerLayer) return;
+
+    const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
+    lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+
+    const scrollEl = this._scrollEl;
+    const lastMeasurement = this._virtualizer?.measurementsCache[
+      this._allElements.length - 1
+    ] as { end: number } | undefined;
+    if (!scrollEl || !lastMeasurement) return;
+
+    const scrollRect = scrollEl.getBoundingClientRect();
+    const containerOffset =
+      virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
+    const terminalBottomAtMaxScroll =
+      scrollRect.top + containerOffset + lastMeasurement.end -
+      Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - 32;
+
+    const currentMargin = parseFloat(getComputedStyle(scrollContainer).marginBottom);
+    if (!Number.isFinite(currentMargin)) return;
+    const requiredMargin = Math.max(
+      0,
+      currentMargin + terminalBottomAtMaxScroll - terminalOpaqueBoundary
+    );
+    scrollContainer.style.setProperty(
+      "--SL-PinnedFooterBottomMargin",
+      `${Math.ceil(requiredMargin)}px`
+    );
   }
 
   private _remeasureVisible(): void {
@@ -442,6 +497,16 @@ class LyricsVirtualizer {
       attributeFilter: ["class"],
     });
 
+    const footerLayer = virtualContainer
+      .closest<HTMLElement>(".LyricsContent")
+      ?.parentElement?.querySelector<HTMLElement>(".LyricsPinnedFooter");
+    if (footerLayer) {
+      this._pinnedFooterObserver = this._maid!.Give(new ResizeObserver(() => {
+        this._updatePinnedFooterLayout();
+      }));
+      this._pinnedFooterObserver.observe(footerLayer);
+    }
+
     this._virtualizer = new Virtualizer<HTMLElement, HTMLElement>({
       count: lineElements.length,
       getScrollElement: () => scrollEl,
@@ -463,6 +528,7 @@ class LyricsVirtualizer {
       virtualizerLogger.debug("Scroll position reset to top during init");
     }
     this._virtualizer._willUpdate();
+    this._updatePinnedFooterLayout();
 
     if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
@@ -735,10 +801,25 @@ class LyricsVirtualizer {
         }
       });
     }
+    this._updatePinnedFooterLayout();
   }
 
   getVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {
     return this._virtualizer;
+  }
+
+  /**
+   * Detach every lyric line before shutting down the virtualizer. Another
+   * renderer can reuse the existing DOM without mounting a whole song at once.
+   */
+  releaseElements(): HTMLElement[] {
+    const container = this._virtualContainer;
+    if (!container) return [];
+
+    const fragment = document.createDocumentFragment();
+    for (const element of this._allElements) fragment.appendChild(element);
+    container.replaceChildren();
+    return this._allElements;
   }
 
   /**
@@ -1019,6 +1100,7 @@ class LyricsVirtualizer {
     this._containerWidth = 0;
     this._containerHeight = 0;
     this._classObserver = null;
+    this._pinnedFooterObserver = null;
     this._spacer = null;
 
     try {
@@ -1076,6 +1158,10 @@ export function scrollLyricsToIndex(
 
 export function destroyLyricsVirtualizer(): void {
   lyricsVirtualizer.destroy();
+}
+
+export function releaseLyricsVirtualizerElements(): HTMLElement[] {
+  return lyricsVirtualizer.releaseElements();
 }
 
 export function setOnNewElementMounted(cb: (() => void) | null): void {

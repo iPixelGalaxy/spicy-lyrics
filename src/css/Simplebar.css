@@ -220,7 +220,7 @@
 
 #SpicyLyricsPage .ScrollbarScrollable .simplebar-track {
   transition: opacity 0.2s linear !important;
-  opacity: 1;
+  opacity: 0;
 }
 
 #SpicyLyricsPage .ScrollbarScrollable .simplebar-track.simplebar-vertical {
@@ -231,8 +231,16 @@
   bottom: 5px;
 }
 
-#SpicyLyricsPage .ScrollbarScrollable.hide-scrollbar .simplebar-track {
-  opacity: 0;
+#SpicyLyricsPage .ScrollbarScrollable:hover .simplebar-track,
+#SpicyLyricsPage .ScrollbarScrollable.simplebar-dragging .simplebar-track {
+  opacity: 1;
+}
+
+#SpicyLyricsPage .ScrollbarScrollable:hover .simplebar-scrollbar:before,
+#SpicyLyricsPage .ScrollbarScrollable.simplebar-dragging .simplebar-scrollbar:before {
+  opacity: 0.5 !important;
+  transition-delay: 0s !important;
+  transition-duration: 0s !important;
 }
 
 #SpicyLyricsPage [data-simplebar]:not(.simplebar-dragging) .simplebar-content-wrapper {

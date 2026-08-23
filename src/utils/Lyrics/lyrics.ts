@@ -86,6 +86,7 @@ export interface LyricsSyllable {
   };
   DotLine?: boolean;
   BGLine?: boolean;
+  SpaceGravityParentLineIndex?: number;
   AnimatorStore?: LineAnimatorStore;
   SLMAnimated?: boolean;
   PreSLMAnimated?: boolean;
@@ -185,10 +186,34 @@ export const TickLyricsRenderer = () => {
   if ($lyricsContainerExists.get() && !$lyricsRendererPaused.get()) {
     const progress = SpotifyPlayer.GetPosition();
     Lyrics.TimeSetter(progress);
-    Lyrics.Animate(progress);
     tickSpaceGravity(progress);
+    Lyrics.Animate(progress);
   }
 };
+
+let lyricsRenderWindow: Window = window;
+let lyricsRenderFrame: number | null = null;
+
+/**
+ * Keep one lyrics frame loop alive while the page moves between documents.
+ * Closing an external Cinema window must hand the loop back to the host window
+ * before its pending frame is discarded with the window.
+ */
+export function SetLyricsRendererWindow(nextWindow: Window | null | undefined): void {
+  const targetWindow = nextWindow && !nextWindow.closed ? nextWindow : window;
+  if (lyricsRenderWindow === targetWindow && lyricsRenderFrame !== null) return;
+
+  if (lyricsRenderFrame !== null) {
+    try {
+      lyricsRenderWindow.cancelAnimationFrame(lyricsRenderFrame);
+    } catch {
+      // A closing auxiliary window can reject cancellation. Its frame is gone.
+    }
+  }
+
+  lyricsRenderWindow = targetWindow;
+  lyricsRenderFrame = targetWindow.requestAnimationFrame(LyricsInterval);
+}
 
 const LyricsInterval = () => {
   /* { // Logging Line part
@@ -232,11 +257,10 @@ const LyricsInterval = () => {
   } */
 
   TickLyricsRenderer();
-  const lyricsWindow = PageContainer?.ownerDocument?.defaultView ?? window;
-  lyricsWindow.requestAnimationFrame(LyricsInterval);
+  lyricsRenderFrame = lyricsRenderWindow.requestAnimationFrame(LyricsInterval);
 };
 
-LyricsInterval();
+SetLyricsRendererWindow(window);
 
 // Define proper types for event listener variables
 let LinesEvListenerMaid: Maid | null = null;
@@ -260,9 +284,8 @@ function shouldBlockSeekForCurrentTrack() {
 }
 
 function seekToLyric(startTime: number): void {
-  const targetTime = Math.max(0, startTime - 400);
-  SpotifyPlayer.Seek(targetTime);
-  Global.Event.evoke("song:seek", targetTime);
+  SpotifyPlayer.Seek(startTime);
+  Global.Event.evoke("song:seek", startTime);
 }
 
 // Define proper type for event parameter

@@ -31,12 +31,39 @@ type ModalTransitionOptions = {
 class _HTMLGenericModal extends HTMLElement {
 	private _onClose: (() => void) | null;
 	private _currentModalId: string | null;
+	private _closeKeyDocument: Document | null;
+	private _closeKeyListener: ((event: KeyboardEvent) => void) | null;
 
 	constructor() {
 		super();
 		this.classList.add("SpicyLyricsModal");
 		this._onClose = null;
 		this._currentModalId = null;
+		this._closeKeyDocument = null;
+		this._closeKeyListener = null;
+	}
+
+	private _getWindow(): Window {
+		return this.ownerDocument.defaultView ?? window;
+	}
+
+	private _clearCloseKeyListener(): void {
+		if (this._closeKeyDocument && this._closeKeyListener) {
+			this._closeKeyDocument.removeEventListener("keydown", this._closeKeyListener);
+		}
+		this._closeKeyDocument = null;
+		this._closeKeyListener = null;
+	}
+
+	private _setCloseHandler(closeHandler: () => void): void {
+		this._clearCloseKeyListener();
+		this._closeKeyDocument = this.ownerDocument;
+		this._closeKeyListener = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) return;
+			event.preventDefault();
+			closeHandler();
+		};
+		this._closeKeyDocument.addEventListener("keydown", this._closeKeyListener);
 	}
 
 	private _applyModalId(modalId: string | null | undefined): void {
@@ -53,10 +80,12 @@ class _HTMLGenericModal extends HTMLElement {
 
 	hide(): void {
         const capturedOnClose = this._onClose;
+		const targetWindow = this._getWindow();
         this._onClose = null;
         this._currentModalId = null;
+		this._clearCloseKeyListener();
         const _removeFromDom = (timeoutDuration: number) => {
-            setTimeout(() => {
+            targetWindow.setTimeout(() => {
                 this?.remove();
                 if (typeof capturedOnClose === "function") {
                     capturedOnClose();
@@ -91,6 +120,7 @@ class _HTMLGenericModal extends HTMLElement {
 	}
 
 	private _restoreContentScroll(scrollTop: number): void {
+		const targetWindow = this._getWindow();
 		const scrollTargets = Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm"));
 
 		const applyScroll = () => {
@@ -100,9 +130,9 @@ class _HTMLGenericModal extends HTMLElement {
 		};
 
 		applyScroll();
-		requestAnimationFrame(applyScroll);
-		setTimeout(applyScroll, 0);
-		setTimeout(applyScroll, 50);
+		targetWindow.requestAnimationFrame(applyScroll);
+		targetWindow.setTimeout(applyScroll, 0);
+		targetWindow.setTimeout(applyScroll, 50);
 	}
 
 	private _resetContentScroll(): void {
@@ -114,10 +144,12 @@ class _HTMLGenericModal extends HTMLElement {
 	transition({ title, content, isLarge, onClose = null, closeHandler = null, headerLeft = null, contentScrollTop = null, modalId = null }: ModalTransitionOptions): void {
 		const previousOnClose = this._onClose;
 		this._onClose = onClose;
+		const hidePopup = closeHandler ?? this.hide.bind(this);
 		const closeButton = this.querySelector(".sl-modal-close-btn");
 		if (closeButton) {
-			(closeButton as HTMLButtonElement).onclick = closeHandler ?? this.hide.bind(this);
+			(closeButton as HTMLButtonElement).onclick = hidePopup;
 		}
+		this._setCloseHandler(hidePopup);
 		if (title) {
 			const modal = this.querySelector(".sl-modal");
 			const modalTitle = this.querySelector(".sl-modal-title");
@@ -160,6 +192,7 @@ class _HTMLGenericModal extends HTMLElement {
 	 */
 	display({ title, content, isLarge = false, onClose = null, closeBtn = true, closeOnOutsideClick = true, closeHandler = null, headerLeft = null, modalId = null, targetDocument = null }: ModalDisplayOptions): void {
 		// If a previous onClose exists, call it before displaying a new popup
+		this._clearCloseKeyListener();
 		if (typeof this._onClose === "function") {
 			this._onClose();
 		}
@@ -181,15 +214,14 @@ class _HTMLGenericModal extends HTMLElement {
 	</div>
 </div>`;
 
+		const hidePopup = closeHandler ?? this.hide.bind(this);
 		const closeButton = this.querySelector("button");
 		if (closeButton) {
-			(closeButton as HTMLButtonElement).onclick = closeHandler ?? this.hide.bind(this);
+			(closeButton as HTMLButtonElement).onclick = hidePopup;
 		}
 		this._applyHeaderLeft(headerLeft);
 		this._applyModalId(modalId);
 		const main = this.querySelector("main");
-		const hidePopup = closeHandler ?? this.hide.bind(this);
-
 		// Listen for click events on Overlay
 		const overlay = this.querySelector(".sl-modal-overlay");
 		if (overlay) {
@@ -209,8 +241,9 @@ class _HTMLGenericModal extends HTMLElement {
 			this._resetContentScroll();
 		}
 		(targetDocument ?? this.ownerDocument).body.append(this);
+		this._setCloseHandler(hidePopup);
 
-        setTimeout(() => {
+        this._getWindow().setTimeout(() => {
             const genericModal = this.querySelector(".sl-modal-overlay-animated");
             if (genericModal) genericModal.classList.add("Active");
         }, 50);

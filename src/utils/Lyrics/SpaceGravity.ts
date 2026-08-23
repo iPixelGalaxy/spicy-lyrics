@@ -79,6 +79,8 @@ let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
 let footer: HTMLElement | null = null;
 let cover: HTMLElement | null = null;
+let nowBarHeader: HTMLElement | null = null;
+let viewControls: HTMLElement | null = null;
 let lines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
 let leadLines: GravityLine[] = [];
@@ -108,6 +110,8 @@ let coverTrackingUntil = 0;
 let stageBounds: Bounds | null = null;
 let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
+let nowBarHeaderBounds: RectBounds | null = null;
+let viewControlsBounds: RectBounds | null = null;
 let windowPosition: WindowPosition | null = null;
 let windowVelocity: WindowPosition = { X: 0, Y: 0 };
 let windowPositionDocument: Document | null = null;
@@ -277,6 +281,11 @@ function boundsEqual(left: RectBounds | null, right: RectBounds | null): boolean
   return Math.abs(left.Left - right.Left) < 0.01 && Math.abs(left.Top - right.Top) < 0.01 && Math.abs(left.Right - right.Right) < 0.01 && Math.abs(left.Bottom - right.Bottom) < 0.01;
 }
 
+function boundsContain(outer: RectBounds | null, inner: RectBounds | null): boolean {
+  if (!outer || !inner) return false;
+  return outer.Left <= inner.Left && outer.Top <= inner.Top && outer.Right >= inner.Right && outer.Bottom >= inner.Bottom;
+}
+
 function updateCoverElement(): void {
   const nextCover = viewport?.closest(".ContentBox")?.querySelector<HTMLElement>(".NowBar .MediaImageContainer") ?? null;
   if (cover === nextCover) return;
@@ -285,15 +294,45 @@ function updateCoverElement(): void {
   if (cover) resizeObserver?.observe(cover);
 }
 
+function updateUiElements(): void {
+  const contentBox = viewport?.closest(".ContentBox");
+  const nextNowBarHeader = contentBox?.querySelector<HTMLElement>(".NowBar.Active .Header") ?? null;
+  const nextViewControls = contentBox?.querySelector<HTMLElement>(".ViewControls") ?? null;
+
+  if (nowBarHeader !== nextNowBarHeader) {
+    if (nowBarHeader) resizeObserver?.unobserve(nowBarHeader);
+    nowBarHeader = nextNowBarHeader;
+    if (nowBarHeader) resizeObserver?.observe(nowBarHeader);
+  }
+
+  if (viewControls !== nextViewControls) {
+    if (viewControls) resizeObserver?.unobserve(viewControls);
+    viewControls = nextViewControls;
+    if (viewControls) resizeObserver?.observe(viewControls);
+  }
+}
+
 function updateObstacleBounds(): boolean {
   if (!stage) return false;
   updateCoverElement();
+  updateUiElements();
   const stageRect = stage.getBoundingClientRect();
   const nextFooterBounds = getRelativeBounds(footer?.getBoundingClientRect(), stageRect);
   const nextCoverBounds = getRelativeBounds(cover?.getBoundingClientRect(), stageRect);
-  const changed = !boundsEqual(footerBounds, nextFooterBounds) || !boundsEqual(coverBounds, nextCoverBounds);
+  const nextNowBarHeaderBounds = getRelativeBounds(nowBarHeader?.getBoundingClientRect(), stageRect);
+  const rawViewControlsBounds = getRelativeBounds(viewControls?.getBoundingClientRect(), stageRect);
+  const nextViewControlsBounds = boundsContain(nextNowBarHeaderBounds, rawViewControlsBounds)
+    ? null
+    : rawViewControlsBounds;
+  const changed =
+    !boundsEqual(footerBounds, nextFooterBounds) ||
+    !boundsEqual(coverBounds, nextCoverBounds) ||
+    !boundsEqual(nowBarHeaderBounds, nextNowBarHeaderBounds) ||
+    !boundsEqual(viewControlsBounds, nextViewControlsBounds);
   footerBounds = nextFooterBounds;
   coverBounds = nextCoverBounds;
+  nowBarHeaderBounds = nextNowBarHeaderBounds;
+  viewControlsBounds = nextViewControlsBounds;
   return changed;
 }
 
@@ -393,14 +432,18 @@ function fitBodyAroundCover(body: GravityBody, width: number, height: number): v
 function resolveBodyConstraints(body: GravityBody, width: number, height: number): void {
   fitBodyAroundCover(body, width, height);
   const paddedCover = expandBounds(coverBounds, COVER_CLEARANCE);
+  const paddedNowBarHeader = expandBounds(nowBarHeaderBounds, COVER_CLEARANCE);
+  const paddedViewControls = expandBounds(viewControlsBounds, COVER_CLEARANCE);
   const bouncedAxes = new Set<CollisionAxis>();
   for (let pass = 0; pass < 4; pass += 1) {
     const clamped = constrainToStage(body, width, height, bouncedAxes);
     const coverResolved = resolveRectangleCollision(body, paddedCover, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
+    const nowBarHeaderResolved = resolveRectangleCollision(body, paddedNowBarHeader, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
+    const viewControlsResolved = resolveRectangleCollision(body, paddedViewControls, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
     const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"], bouncedAxes);
-    if (!clamped && !coverResolved && !footerResolved) return;
+    if (!clamped && !coverResolved && !nowBarHeaderResolved && !viewControlsResolved && !footerResolved) return;
   }
-  if (!intersectsRectangle(body, coverBounds)) {
+  if (!intersectsRectangle(body, coverBounds) && !intersectsRectangle(body, nowBarHeaderBounds) && !intersectsRectangle(body, viewControlsBounds)) {
     constrainToStage(body, width, height, bouncedAxes);
     return;
   }
@@ -409,8 +452,10 @@ function resolveBodyConstraints(body: GravityBody, width: number, height: number
   for (let pass = 0; pass < 4; pass += 1) {
     const clamped = constrainToStage(body, width, height, bouncedAxes, 0);
     const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
+    const nowBarHeaderResolved = resolveRectangleCollision(body, nowBarHeaderBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
+    const viewControlsResolved = resolveRectangleCollision(body, viewControlsBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
     const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"], bouncedAxes);
-    if (!clamped && !coverResolved && !footerResolved) break;
+    if (!clamped && !coverResolved && !nowBarHeaderResolved && !viewControlsResolved && !footerResolved) break;
   }
   constrainToStage(body, width, height, bouncedAxes, 0);
 }
@@ -1023,6 +1068,8 @@ export function destroySpaceGravity(): void {
   viewport = null;
   footer = null;
   cover = null;
+  nowBarHeader = null;
+  viewControls = null;
   lines = [];
   bodiesByLine = new Map();
   leadLines = [];
@@ -1050,6 +1097,8 @@ export function destroySpaceGravity(): void {
   stageBounds = null;
   footerBounds = null;
   coverBounds = null;
+  nowBarHeaderBounds = null;
+  viewControlsBounds = null;
   windowPosition = null;
   windowVelocity = { X: 0, Y: 0 };
   lastTick = performance.now();

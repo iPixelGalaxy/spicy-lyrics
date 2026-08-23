@@ -1180,7 +1180,15 @@ async function fetchLRCLIBLyrics(
   trackInfo: TrackLyricsInfo
 ): Promise<ExternalLyricsResult | null> {
   try {
-    const finalURL = `https://lrclib.net/api/get?${[
+    const headers = {
+      "x-user-agent": `spicetify v${Spicetify.Config?.version || "1.0.0"} (https://github.com/spicetify/cli)`,
+    };
+
+    const cleanTitle = removeExtraInfo(removeSongFeat(normalizeText(trackInfo.title)));
+    const cleanArtist = normalizeText(trackInfo.artist);
+
+    // 1. Try exact /api/get with all metadata
+    const exactGetUrl = `https://lrclib.net/api/get?${[
       ["track_name", trackInfo.title],
       ["artist_name", trackInfo.artist],
       ["album_name", trackInfo.album],
@@ -1189,17 +1197,49 @@ async function fetchLRCLIBLyrics(
       .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
       .join("&")}`;
 
-    const response = await fetch(finalURL, {
-      headers: {
-        "x-user-agent": `spicetify v${Spicetify.Config.version} (https://github.com/spicetify/cli)`,
-      },
-    });
+    let body: any = null;
+    let response = await fetch(exactGetUrl, { headers });
 
-    if (!response.ok) {
-      return null;
+    if (response.ok) {
+      body = await response.json();
+    } else {
+      // 2. Try relaxed /api/get with track_name and artist_name
+      const relaxedGetUrl = `https://lrclib.net/api/get?track_name=${encodeURIComponent(
+        cleanTitle
+      )}&artist_name=${encodeURIComponent(cleanArtist)}`;
+      response = await fetch(relaxedGetUrl, { headers });
+      if (response.ok) {
+        body = await response.json();
+      } else {
+        // 3. Try /api/search fallback
+        const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(
+          `${cleanTitle} ${cleanArtist}`
+        )}`;
+        response = await fetch(searchUrl, { headers });
+        if (response.ok) {
+          const results = await response.json();
+          if (Array.isArray(results) && results.length > 0) {
+            const trackDurationSec = trackInfo.durationMs / 1000;
+            body =
+              results.find(
+                (item: any) =>
+                  item?.duration &&
+                  Math.abs(Number(item.duration) - trackDurationSec) < 4
+              ) ??
+              results.find(
+                (item: any) =>
+                  normalizeText(item?.trackName) === normalizeText(cleanTitle) &&
+                  normalizeText(item?.artistName) === normalizeText(cleanArtist)
+              ) ??
+              results[0];
+          }
+        }
+      }
     }
 
-    const body = await response.json();
+    if (!body) {
+      return null;
+    }
     if (body?.instrumental) {
       const instrumentalLyrics = buildStaticLyrics(
         ["♪ Instrumental ♪"],
@@ -1605,9 +1645,9 @@ export async function fetchLyricsFromProviders(
   let appleTried = false;
 
   for (const provider of order) {
-    // If a preferred source (spicy/musixmatch) already gave us something,
+    // If a preferred source (spicy/musixmatch) already gave us Syllable lyrics,
     // lrclib and netease are unlikely to improve on it — skip them.
-    if (hadPreferredResult && (provider === "lrclib" || provider === "netease")) {
+    if (hadPreferredResult && bestScore >= 3 && (provider === "lrclib" || provider === "netease")) {
       continue;
     }
 

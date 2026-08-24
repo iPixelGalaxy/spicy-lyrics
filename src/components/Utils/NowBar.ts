@@ -1680,14 +1680,17 @@ function UpdateNowBar(force = false) {
       if (!pending) lastDisplayedReleaseYear = releaseYear;
     };
 
+    const isDj = SpotifyPlayer.IsDJ();
     const syncReleaseYear = SpotifyPlayer.GetAlbumReleaseYearSync();
     const albumUri = SpotifyPlayer.GetAlbumUri();
     const trackId = SpotifyPlayer.GetId();
     if (albumUri && syncReleaseYear) releaseYearCache.set(albumUri, syncReleaseYear);
 
     const cachedReleaseYear = albumUri ? releaseYearCache.get(albumUri) : undefined;
-    const releaseYearToRender = syncReleaseYear ?? cachedReleaseYear ?? lastDisplayedReleaseYear;
-    const shouldFetchReleaseYear = !syncReleaseYear && !!albumUri && !cachedReleaseYear;
+    const releaseYearToRender = isDj
+      ? undefined
+      : syncReleaseYear ?? cachedReleaseYear ?? lastDisplayedReleaseYear;
+    const shouldFetchReleaseYear = !isDj && !syncReleaseYear && !!albumUri && !cachedReleaseYear;
     const shouldReserveReleaseYear =
       shouldFetchReleaseYear &&
       Defaults.ReleaseYearPosition !== "Off" &&

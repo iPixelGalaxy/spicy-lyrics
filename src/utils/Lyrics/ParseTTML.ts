@@ -12,6 +12,17 @@ type BackgroundEntry = {
   Syllables: SyllableEntry[];
 };
 
+type RomanizedPiece = {
+  Text: string;
+  StartTime: number | null;
+  EndTime: number | null;
+};
+
+type RomanizationMetadata = {
+  leadPieces: RomanizedPiece[];
+  backgroundPieces: RomanizedPiece[][];
+};
+
 type ParsedLine = {
   leadText: string;
   leadTransliteratedText?: string;
@@ -155,7 +166,7 @@ function isPartOfWord(nodes: ChildNode[], index: number): boolean {
 function readITunesMetadata(root: Element) {
   const translations = new Map<string, string>();
   const transliterations = new Map<string, string>();
-  const transliterationPieces = new Map<string, string[]>();
+  const transliterationPieces = new Map<string, RomanizationMetadata>();
 
   for (const node of findElements(root, "itunesmetadata")) {
     for (const text of findElements(node, "text")) {
@@ -172,17 +183,47 @@ function readITunesMetadata(root: Element) {
       // <transliterations>. Check its ancestors so local uploads retain these
       // supplied syllable-by-syllable romanizations.
       if (hasAncestorNamed(text, "transliterations")) {
-        if (textValue) {
-          transliterations.set(key, textValue);
+        const spans = Array.from(text.children)
+          .filter((child) => child.localName.toLowerCase() === "span")
+          .map((child) => child as Element);
+        const leadPieces = spans
+          .filter((span) => getAttr(span, "ttm:role", "role") !== "x-bg")
+          .map((span) => ({
+            Text: span.textContent?.trim() ?? "",
+            StartTime: parseTimestamp(getAttr(span, "begin")),
+            EndTime: parseTimestamp(getAttr(span, "end")),
+          }))
+          .filter((piece) => piece.Text);
+        const backgroundPieces = spans
+          .filter((span) => getAttr(span, "ttm:role", "role") === "x-bg")
+          .map((background) =>
+            Array.from(background.children)
+              .filter((child) => child.localName.toLowerCase() === "span")
+              .map((child) => child as Element)
+              .filter((span) => getAttr(span, "ttm:role", "role") !== "x-roman")
+              .map((span) => ({
+                Text: span.textContent?.trim() ?? "",
+                StartTime: parseTimestamp(getAttr(span, "begin")),
+                EndTime: parseTimestamp(getAttr(span, "end")),
+              }))
+              .filter((piece) => piece.Text)
+          )
+          .filter((pieces) => pieces.length > 0);
+        const leadText = Array.from(text.childNodes)
+          .filter((child) => {
+            if (child.nodeType !== Node.ELEMENT_NODE) return true;
+            return getAttr(child as Element, "ttm:role", "role") !== "x-bg";
+          })
+          .map(getNodeText)
+          .join("")
+          .trim();
+
+        if (leadText || (spans.length === 0 && textValue)) {
+          transliterations.set(key, leadText || textValue);
         }
 
-        const pieces = Array.from(text.children)
-          .filter((child) => child.localName.toLowerCase() === "span")
-          .map((child) => child.textContent?.trim() ?? "")
-          .filter(Boolean);
-
-        if (pieces.length > 0) {
-          transliterationPieces.set(key, pieces);
+        if (leadPieces.length > 0 || backgroundPieces.length > 0) {
+          transliterationPieces.set(key, { leadPieces, backgroundPieces });
         }
       }
     }
@@ -288,20 +329,88 @@ function buildTextFromSyllables(syllables: SyllableEntry[]): string {
 
 function applyRomanizedPieces(
   syllables: SyllableEntry[],
-  pieces: string[] | undefined
+  pieces: RomanizedPiece[] | undefined
 ): void {
   if (!pieces || pieces.length === 0 || syllables.length === 0) return;
 
-  const finalPieces = [...pieces];
-  if (finalPieces.length > syllables.length) {
-    const overflow = finalPieces.splice(syllables.length - 1).join(" ");
-    finalPieces.push(overflow);
+  const usedPieces = new Set<number>();
+  for (const syllable of syllables) {
+    const pieceIndex = pieces.findIndex(
+      (piece, index) =>
+        !usedPieces.has(index) &&
+        piece.StartTime !== null &&
+        piece.EndTime !== null &&
+        Math.abs(piece.StartTime - syllable.StartTime) < 0.001 &&
+        Math.abs(piece.EndTime - syllable.EndTime) < 0.001
+    );
+    if (pieceIndex === -1) continue;
+
+    syllable.TransliteratedText = pieces[pieceIndex].Text;
+    usedPieces.add(pieceIndex);
   }
 
-  syllables.forEach((syllable, index) => {
-    if (index < finalPieces.length && finalPieces[index]) {
-      syllable.TransliteratedText = finalPieces[index];
+  const remainingSyllables = syllables.filter(
+    (syllable) => syllable.TransliteratedText === undefined
+  );
+  const untimedPieces = pieces.filter(
+    (piece, index) =>
+      !usedPieces.has(index) && piece.StartTime === null && piece.EndTime === null
+  );
+  if (untimedPieces.length !== remainingSyllables.length) return;
+
+  remainingSyllables.forEach((syllable, index) => {
+    syllable.TransliteratedText = untimedPieces[index].Text;
+  });
+}
+
+function stripBackgroundBrackets(pieces: RomanizedPiece[]): RomanizedPiece[] {
+  if (pieces.length === 0) return pieces;
+
+  const stripped = pieces.map((piece) => ({ ...piece }));
+  stripped[0].Text = stripped[0].Text.replace(LEADING_BG_BRACKET, "");
+  stripped[stripped.length - 1].Text = stripped[stripped.length - 1].Text.replace(
+    TRAILING_BG_BRACKET,
+    ""
+  );
+  return stripped;
+}
+
+function applyBackgroundRomanizations(
+  backgrounds: BackgroundEntry[],
+  pieces: RomanizedPiece[][] | undefined
+): void {
+  if (!pieces || pieces.length === 0 || backgrounds.length === 0) return;
+
+  const usedBackgrounds = new Set<number>();
+  const untimedGroups: RomanizedPiece[][] = [];
+  for (const group of pieces) {
+    const first = group[0];
+    const last = group[group.length - 1];
+    if (first.StartTime === null || last.EndTime === null) {
+      untimedGroups.push(group);
+      continue;
     }
+
+    const backgroundIndex = backgrounds.findIndex(
+      (background, index) =>
+        !usedBackgrounds.has(index) &&
+        Math.abs(first.StartTime! - background.StartTime) < 0.001 &&
+        Math.abs(last.EndTime! - background.EndTime) < 0.001
+    );
+    if (backgroundIndex === -1) continue;
+
+    applyRomanizedPieces(
+      backgrounds[backgroundIndex].Syllables,
+      stripBackgroundBrackets(group)
+    );
+    usedBackgrounds.add(backgroundIndex);
+  }
+
+  const remainingBackgrounds = backgrounds.filter((_, index) => !usedBackgrounds.has(index));
+  if (untimedGroups.length !== remainingBackgrounds.length) return;
+
+  remainingBackgrounds.forEach((background, index) => {
+    applyRomanizedPieces(background.Syllables, stripBackgroundBrackets(untimedGroups[index]));
   });
 }
 
@@ -390,7 +499,7 @@ function parseParagraph(
   body: Element,
   oppositeAgents: Map<string, boolean>,
   transliterations: Map<string, string>,
-  transliterationPieces: Map<string, string[]>
+  transliterationPieces: Map<string, RomanizationMetadata>
 ): ParsedLine | null {
   const paragraphStart = parseTimestamp(getAttr(paragraph, "begin")) ?? 0;
   const paragraphEnd = parseTimestamp(getAttr(paragraph, "end")) ?? paragraphStart;
@@ -466,7 +575,9 @@ function parseParagraph(
     });
   }
 
-  applyRomanizedPieces(leadSyllables, lineKey ? transliterationPieces.get(lineKey) : undefined);
+  const romanization = lineKey ? transliterationPieces.get(lineKey) : undefined;
+  applyRomanizedPieces(leadSyllables, romanization?.leadPieces);
+  applyBackgroundRomanizations(background, romanization?.backgroundPieces);
 
   const leadText = leadSyllables.length > 0
     ? buildTextFromSyllables(leadSyllables)

@@ -3,6 +3,13 @@ type GravitySyllable = {
   StartTime: number;
   EndTime: number;
   Dot?: boolean;
+  Letters?: GravitySyllable[];
+};
+
+type SplitElement = {
+  Original: HTMLElement;
+  Entities: HTMLElement[];
+  RestoreChildren?: boolean;
 };
 
 type GravityLine = {
@@ -26,6 +33,7 @@ type GravityBody = {
   Y: number;
   VX: number;
   VY: number;
+  SpeedMultiplier: number;
   Angle: number;
   AngularVelocity: number;
   BounceCount: number;
@@ -57,6 +65,9 @@ const EDGE_PADDING = 18;
 const COVER_CLEARANCE = 12;
 const WORD_VISUAL_OVERHANG = 0.3;
 const MAX_SPEED = 16;
+const WPM_SPEED_THRESHOLD = 60;
+const WPM_SPEED_MAX = 180;
+const MAX_WPM_SPEED_MULTIPLIER = 1.75;
 const HIGH_SPEED_DRAG = 0.6;
 const WINDOW_VELOCITY_SMOOTHING = 0.18;
 const WINDOW_IMPULSE = 1.1;
@@ -70,7 +81,6 @@ const ANGULAR_DAMPING = 0.18;
 const MIN_VISIBLE_LEAD_WORDS = 12;
 const MAX_VISIBLE_LEAD_WORDS = 120;
 const VISIBLE_WORD_AREA = 33_334;
-const MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION = 6;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
 const WORD_PRESENCE_FADE_MS = 180;
@@ -79,18 +89,20 @@ let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
 let footer: HTMLElement | null = null;
 let cover: HTMLElement | null = null;
+let nowBarHeader: HTMLElement | null = null;
+let viewControls: HTMLElement | null = null;
 let lines: GravityLine[] = [];
 let bodiesByLine = new Map<GravityLine, GravityBody[]>();
 let leadLines: GravityLine[] = [];
 let lineLayouts = new Map<GravityLine, { Height: number }>();
-let splitGroups: Array<{ Group: HTMLElement; Entities: HTMLElement[] }> = [];
+let splitGroups: Array<{ Group: HTMLElement; Entities: HTMLElement[]; RestoreChildren?: boolean }> = [];
+let splitElements: SplitElement[] = [];
 let parentLines = new Map<GravityLine, GravityLine>();
 let backgroundLinesByParent = new Map<GravityLine, GravityLine[]>();
 let dotLines: GravityLine[] = [];
 let leadLineIndexes = new Map<GravityLine, number>();
 let leadWordStarts = new Map<GravityLine, number>();
 let leadWordCounts = new Map<GravityLine, number>();
-let leadEntityTexts: string[] = [];
 let preparedLines = new Set<GravityLine>();
 let activeBodies: GravityBody[] = [];
 let exitingBodies = new Set<GravityBody>();
@@ -108,6 +120,8 @@ let coverTrackingUntil = 0;
 let stageBounds: Bounds | null = null;
 let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
+let nowBarHeaderBounds: RectBounds | null = null;
+let viewControlsBounds: RectBounds | null = null;
 let windowPosition: WindowPosition | null = null;
 let windowVelocity: WindowPosition = { X: 0, Y: 0 };
 let windowPositionDocument: Document | null = null;
@@ -135,6 +149,22 @@ function random(seed: number): number {
   return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 }
 
+function getLineWordsPerMinute(line: GravityLine): number {
+  const starts = [...new Set((line.Syllables?.Lead ?? [])
+    .filter((syllable) => !syllable.Dot)
+    .map((syllable) => syllable.StartTime))]
+    .sort((left, right) => left - right);
+  if (starts.length < 2) return 0;
+  const duration = starts.at(-1)! - starts[0];
+  return duration > 0 ? (starts.length - 1) * 60_000 / duration : 0;
+}
+
+function getWpmSpeedMultiplier(wordsPerMinute: number): number {
+  if (!Number.isFinite(wordsPerMinute) || wordsPerMinute <= WPM_SPEED_THRESHOLD) return 1;
+  const progress = Math.min(1, (wordsPerMinute - WPM_SPEED_THRESHOLD) / (WPM_SPEED_MAX - WPM_SPEED_THRESHOLD));
+  return 1 + progress * (MAX_WPM_SPEED_MULTIPLIER - 1);
+}
+
 function bounce(body: GravityBody, axis: CollisionAxis, direction: -1 | 1, bouncedAxes: Set<CollisionAxis>): void {
   const velocity = axis === "X" ? body.VX : body.VY;
   if (!Number.isFinite(velocity)) {
@@ -153,7 +183,7 @@ function bounce(body: GravityBody, axis: CollisionAxis, direction: -1 | 1, bounc
   bouncedAxes.add(axis);
   // Keep ordinary bounces near existing restitution. Rare hits launch hard.
   const strength = BOUNCE_RESTITUTION + random(hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount++}`)) ** 2 * (MAX_BOUNCE_RESTITUTION - BOUNCE_RESTITUTION);
-  const reboundSpeed = Math.min(MAX_BOUNCE_SPEED, Math.abs(velocity) * strength);
+  const reboundSpeed = Math.min(MAX_BOUNCE_SPEED * body.SpeedMultiplier, Math.abs(velocity) * strength);
   if (axis === "X") body.VX = direction * reboundSpeed;
   else body.VY = direction * reboundSpeed;
 }
@@ -165,7 +195,7 @@ function recoverInvalidBodyMotion(body: GravityBody): void {
   if (positionValid && velocityValid && rotationValid) return;
 
   const seed = hash(`${body.Line.StartTime}:${body.Order}:${body.BounceCount}:recovery`);
-  const speed = 4.4 + random(seed) * 5.6;
+  const speed = (4.4 + random(seed) * 5.6) * body.SpeedMultiplier;
   const direction = random(seed + 1) * Math.PI * 2;
   if (!positionValid) {
     body.X = Number.isFinite(body.NaturalX) ? body.NaturalX : 0;
@@ -277,6 +307,11 @@ function boundsEqual(left: RectBounds | null, right: RectBounds | null): boolean
   return Math.abs(left.Left - right.Left) < 0.01 && Math.abs(left.Top - right.Top) < 0.01 && Math.abs(left.Right - right.Right) < 0.01 && Math.abs(left.Bottom - right.Bottom) < 0.01;
 }
 
+function boundsContain(outer: RectBounds | null, inner: RectBounds | null): boolean {
+  if (!outer || !inner) return false;
+  return outer.Left <= inner.Left && outer.Top <= inner.Top && outer.Right >= inner.Right && outer.Bottom >= inner.Bottom;
+}
+
 function updateCoverElement(): void {
   const nextCover = viewport?.closest(".ContentBox")?.querySelector<HTMLElement>(".NowBar .MediaImageContainer") ?? null;
   if (cover === nextCover) return;
@@ -285,15 +320,45 @@ function updateCoverElement(): void {
   if (cover) resizeObserver?.observe(cover);
 }
 
+function updateUiElements(): void {
+  const contentBox = viewport?.closest(".ContentBox");
+  const nextNowBarHeader = contentBox?.querySelector<HTMLElement>(".NowBar.Active .Header") ?? null;
+  const nextViewControls = contentBox?.querySelector<HTMLElement>(".ViewControls") ?? null;
+
+  if (nowBarHeader !== nextNowBarHeader) {
+    if (nowBarHeader) resizeObserver?.unobserve(nowBarHeader);
+    nowBarHeader = nextNowBarHeader;
+    if (nowBarHeader) resizeObserver?.observe(nowBarHeader);
+  }
+
+  if (viewControls !== nextViewControls) {
+    if (viewControls) resizeObserver?.unobserve(viewControls);
+    viewControls = nextViewControls;
+    if (viewControls) resizeObserver?.observe(viewControls);
+  }
+}
+
 function updateObstacleBounds(): boolean {
   if (!stage) return false;
   updateCoverElement();
+  updateUiElements();
   const stageRect = stage.getBoundingClientRect();
   const nextFooterBounds = getRelativeBounds(footer?.getBoundingClientRect(), stageRect);
   const nextCoverBounds = getRelativeBounds(cover?.getBoundingClientRect(), stageRect);
-  const changed = !boundsEqual(footerBounds, nextFooterBounds) || !boundsEqual(coverBounds, nextCoverBounds);
+  const nextNowBarHeaderBounds = getRelativeBounds(nowBarHeader?.getBoundingClientRect(), stageRect);
+  const rawViewControlsBounds = getRelativeBounds(viewControls?.getBoundingClientRect(), stageRect);
+  const nextViewControlsBounds = boundsContain(nextNowBarHeaderBounds, rawViewControlsBounds)
+    ? null
+    : rawViewControlsBounds;
+  const changed =
+    !boundsEqual(footerBounds, nextFooterBounds) ||
+    !boundsEqual(coverBounds, nextCoverBounds) ||
+    !boundsEqual(nowBarHeaderBounds, nextNowBarHeaderBounds) ||
+    !boundsEqual(viewControlsBounds, nextViewControlsBounds);
   footerBounds = nextFooterBounds;
   coverBounds = nextCoverBounds;
+  nowBarHeaderBounds = nextNowBarHeaderBounds;
+  viewControlsBounds = nextViewControlsBounds;
   return changed;
 }
 
@@ -393,14 +458,18 @@ function fitBodyAroundCover(body: GravityBody, width: number, height: number): v
 function resolveBodyConstraints(body: GravityBody, width: number, height: number): void {
   fitBodyAroundCover(body, width, height);
   const paddedCover = expandBounds(coverBounds, COVER_CLEARANCE);
+  const paddedNowBarHeader = expandBounds(nowBarHeaderBounds, COVER_CLEARANCE);
+  const paddedViewControls = expandBounds(viewControlsBounds, COVER_CLEARANCE);
   const bouncedAxes = new Set<CollisionAxis>();
   for (let pass = 0; pass < 4; pass += 1) {
     const clamped = constrainToStage(body, width, height, bouncedAxes);
     const coverResolved = resolveRectangleCollision(body, paddedCover, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
+    const nowBarHeaderResolved = resolveRectangleCollision(body, paddedNowBarHeader, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
+    const viewControlsResolved = resolveRectangleCollision(body, paddedViewControls, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes);
     const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"], bouncedAxes);
-    if (!clamped && !coverResolved && !footerResolved) return;
+    if (!clamped && !coverResolved && !nowBarHeaderResolved && !viewControlsResolved && !footerResolved) return;
   }
-  if (!intersectsRectangle(body, coverBounds)) {
+  if (!intersectsRectangle(body, coverBounds) && !intersectsRectangle(body, nowBarHeaderBounds) && !intersectsRectangle(body, viewControlsBounds)) {
     constrainToStage(body, width, height, bouncedAxes);
     return;
   }
@@ -409,8 +478,10 @@ function resolveBodyConstraints(body: GravityBody, width: number, height: number
   for (let pass = 0; pass < 4; pass += 1) {
     const clamped = constrainToStage(body, width, height, bouncedAxes, 0);
     const coverResolved = resolveRectangleCollision(body, coverBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
+    const nowBarHeaderResolved = resolveRectangleCollision(body, nowBarHeaderBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
+    const viewControlsResolved = resolveRectangleCollision(body, viewControlsBounds, width, height, ["Left", "Right", "Top", "Bottom"], bouncedAxes, 0);
     const footerResolved = resolveRectangleCollision(body, footerBounds, width, height, ["Left", "Right", "Top"], bouncedAxes);
-    if (!clamped && !coverResolved && !footerResolved) break;
+    if (!clamped && !coverResolved && !nowBarHeaderResolved && !viewControlsResolved && !footerResolved) break;
   }
   constrainToStage(body, width, height, bouncedAxes, 0);
 }
@@ -443,6 +514,37 @@ function trackCoverTransition(): void {
   coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
 }
 
+function getCjkSegmentationLocale(text: string): "ja" | "ko" | "zh" {
+  if (/\p{Script=Hangul}/u.test(text)) return "ko";
+  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return "ja";
+  return "zh";
+}
+
+function splitGraphemes(text: string): string[] {
+  if (typeof Intl.Segmenter === "function") {
+    return Array.from(
+      new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text),
+      ({ segment }) => segment
+    );
+  }
+  return Array.from(text);
+}
+
+function getGravitySegments(text: string): string[] {
+  if (!isCjkEntity(text)) return [text];
+  const segments = typeof Intl.Segmenter === "function"
+    ? Array.from(
+        new Intl.Segmenter(getCjkSegmentationLocale(text), { granularity: "word" }).segment(text),
+        ({ segment }) => segment
+      )
+    : [];
+  return segments.filter((segment) => segment.trim()).length > 1 ? segments : splitGraphemes(text);
+}
+
+function hasAuthoredSyllableSplits(line: GravityLine): boolean {
+  return (line.Syllables?.Lead.filter((syllable) => !syllable.Dot).length ?? 0) > 1;
+}
+
 function endsWithDash(element: Element): boolean {
   return /[-‐‑‒–—―]$/u.test(element.textContent?.trim() ?? "");
 }
@@ -451,63 +553,138 @@ function startsWithDash(element: Element): boolean {
   return /^[-‐‑‒–—―]/u.test(element.textContent?.trim() ?? "");
 }
 
-function splitDashedGroup(group: HTMLElement): HTMLElement[] {
+function splitWordGroup(group: HTMLElement): HTMLElement[] {
   const parts = Array.from(group.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   if (parts.length < 2) return [group];
-  const boundaries = parts.slice(0, -1).some((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1]));
-  if (!boundaries) return [group];
-  const entities: HTMLElement[] = [];
-  let entity = document.createElement("span");
-  entity.classList.add("SpaceGravityEntity");
-  for (const [index, part] of parts.entries()) {
-    entity.appendChild(part);
-    if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
-      entities.push(entity);
-      entity = document.createElement("span");
-      entity.classList.add("SpaceGravityEntity");
+
+  if (!isCjkEntity(group.textContent ?? "")) {
+    const boundaries = parts.slice(0, -1).some((part, index) =>
+      endsWithDash(part) || startsWithDash(parts[index + 1])
+    );
+    if (!boundaries) return [group];
+
+    const entities: HTMLElement[] = [];
+    let entity = document.createElement("span");
+    entity.classList.add("SpaceGravityEntity");
+    for (const [index, part] of parts.entries()) {
+      entity.appendChild(part);
+      if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
+        entities.push(entity);
+        entity = document.createElement("span");
+        entity.classList.add("SpaceGravityEntity");
+      }
     }
+    entities.push(entity);
+    group.replaceWith(...entities);
+    splitGroups.push({ Group: group, Entities: entities, RestoreChildren: true });
+    return entities;
   }
-  entities.push(entity);
-  group.replaceWith(...entities);
-  splitGroups.push({ Group: group, Entities: entities });
+
+  group.replaceWith(...parts);
+  splitGroups.push({ Group: group, Entities: parts });
+  return parts;
+}
+
+function getElementTiming(line: GravityLine, element: HTMLElement): { StartTime: number; EndTime: number } {
+  const syllables = (line.Syllables?.Lead ?? [])
+    .flatMap((syllable) => [syllable, ...(syllable.Letters ?? [])])
+    .filter((syllable) =>
+      syllable.HTMLElement === element ||
+      syllable.HTMLElement.contains(element) ||
+      element.contains(syllable.HTMLElement)
+    );
+  if (syllables.length === 0) return { StartTime: line.StartTime, EndTime: line.EndTime };
+  return {
+    StartTime: Math.min(...syllables.map((syllable) => syllable.StartTime)),
+    EndTime: Math.max(...syllables.map((syllable) => syllable.EndTime)),
+  };
+}
+
+function splitCjkElement(line: GravityLine, element: HTMLElement): HTMLElement[] {
+  const segments = getGravitySegments(element.textContent ?? "");
+  if (segments.length < 2) return [element];
+  const letters = Array.from(element.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+  if (element.classList.contains("letterGroup") && letters.length > 0) {
+    let letterIndex = 0;
+    const entities = segments.map((segment) => {
+      const entity = document.createElement("span");
+      entity.classList.add("SpaceGravityEntity");
+      const count = Math.max(1, splitGraphemes(segment).length);
+      entity.append(...letters.slice(letterIndex, letterIndex + count));
+      letterIndex += count;
+      return entity;
+    }).filter((entity) => entity.childNodes.length > 0);
+    if (letterIndex < letters.length && entities.length > 0) entities.at(-1)!.append(...letters.slice(letterIndex));
+    if (entities.length === 0) return [element];
+    element.replaceWith(...entities);
+    splitElements.push({ Original: element, Entities: entities, RestoreChildren: true });
+    return entities;
+  }
+  const { StartTime, EndTime } = getElementTiming(line, element);
+  const weights = segments.map((segment) => Math.max(1, splitGraphemes(segment).length));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  let consumedWeight = 0;
+  const entities = segments.map((segment, index) => {
+    const entity = element.cloneNode(false) as HTMLElement;
+    entity.textContent = segment;
+    const startTime = StartTime + (EndTime - StartTime) * consumedWeight / totalWeight;
+    consumedWeight += weights[index];
+    const endTime = index === segments.length - 1
+      ? EndTime
+      : StartTime + (EndTime - StartTime) * consumedWeight / totalWeight;
+    entity.dataset.spaceGravityStartTime = `${startTime}`;
+    entity.dataset.spaceGravityEndTime = `${endTime}`;
+    return entity;
+  });
+  element.replaceWith(...entities);
+  splitElements.push({ Original: element, Entities: entities });
   return entities;
 }
 
 function getEntities(line: GravityLine): HTMLElement[] {
+  const preserveAuthoredSplits = hasAuthoredSyllableSplits(line);
   return Array.from(line.HTMLElement.children)
     .filter((child): child is HTMLElement => child instanceof HTMLElement)
-    .flatMap((child) => child.classList.contains("word-group") ? splitDashedGroup(child) : [child]);
+    .flatMap((child) => child.classList.contains("word-group") ? splitWordGroup(child) : [child])
+    .flatMap((child) => preserveAuthoredSplits ? [child] : splitCjkElement(line, child));
 }
 
 function getEntityTexts(line: GravityLine): string[] {
+  const preserveAuthoredSplits = hasAuthoredSyllableSplits(line);
   const children = Array.from(line.HTMLElement.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   const texts = children.flatMap((child) => {
-    if (!child.classList.contains("word-group")) return [child.textContent ?? ""];
-    const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
-    if (parts.length < 2) return [child.textContent ?? ""];
-    const boundaries = parts.slice(0, -1).some((part, index) => endsWithDash(part) || startsWithDash(parts[index + 1]));
-    if (!boundaries) return [child.textContent ?? ""];
-    const entities: string[] = [];
-    let entityText = "";
-    for (const [index, part] of parts.entries()) {
-      entityText += part.textContent ?? "";
-      if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
-        entities.push(entityText);
-        entityText = "";
-      }
+    if (!child.classList.contains("word-group")) {
+      const text = child.textContent ?? "";
+      return preserveAuthoredSplits ? [text] : getGravitySegments(text);
     }
-    entities.push(entityText);
-    return entities;
+    const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
+    if (preserveAuthoredSplits) return parts.length < 2 ? [child.textContent ?? ""] : parts.map((part) => part.textContent ?? "");
+    if (!isCjkEntity(child.textContent ?? "")) {
+      const boundaries = parts.slice(0, -1).some((part, index) =>
+        endsWithDash(part) || startsWithDash(parts[index + 1])
+      );
+      if (!boundaries) return [child.textContent ?? ""];
+      const texts: string[] = [];
+      let text = "";
+      for (const [index, part] of parts.entries()) {
+        text += part.textContent ?? "";
+        if (index < parts.length - 1 && (endsWithDash(part) || startsWithDash(parts[index + 1]))) {
+          texts.push(text);
+          text = "";
+        }
+      }
+      texts.push(text);
+      return texts;
+    }
+    return parts.length < 2
+      ? getGravitySegments(child.textContent ?? "")
+      : parts.flatMap((part) => getGravitySegments(part.textContent ?? ""));
   });
   return texts.length > 0 ? texts : [""];
 }
 
 function isCjkEntity(text: string): boolean {
   return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(text);
-}
-
-function getDisplayCharacterCount(text: string): number {
-  return Math.max(1, Array.from(text.replace(/\s/g, "")).length);
 }
 
 function prepareLines(nextLines: GravityLine[]): void {
@@ -542,16 +719,24 @@ function prepareLines(nextLines: GravityLine[]): void {
     wrappers.push({ Record: record, Element: bodyElement });
   }
 
+  const lineSpeedMultipliers = new Map<GravityLine, number>();
+  for (const line of nextLines) {
+    lineSpeedMultipliers.set(line, getWpmSpeedMultiplier(getLineWordsPerMinute(line)));
+  }
+
   let order = 0;
   for (const { Record: record, Element: bodyElement } of wrappers) {
-    const syllables = record.Line.Syllables?.Lead.filter((syllable) => record.Child === syllable.HTMLElement || record.Child.contains(syllable.HTMLElement)) ?? [];
-    const startTime = syllables.length ? Math.min(...syllables.map((syllable) => syllable.StartTime)) : record.Line.StartTime;
-    const endTime = syllables.length ? Math.max(...syllables.map((syllable) => syllable.EndTime)) : record.Line.EndTime;
+    const splitStartTime = Number(record.Child.dataset.spaceGravityStartTime);
+    const splitEndTime = Number(record.Child.dataset.spaceGravityEndTime);
+    const timing = getElementTiming(record.Line, record.Child);
+    const startTime = Number.isFinite(splitStartTime) ? splitStartTime : timing.StartTime;
+    const endTime = Number.isFinite(splitEndTime) ? splitEndTime : timing.EndTime;
     if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${startTime}`;
     const seed = hash(`${record.Line.StartTime}:${record.Line.EndTime}:${record.Child.textContent ?? ""}:${record.Index}`);
-    const speed = 4.4 + random(seed + 3) * 5.6;
+    const speedMultiplier = lineSpeedMultipliers.get(record.Line) ?? 1;
+    const speed = (4.4 + random(seed + 3) * 5.6) * speedMultiplier;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, SpeedMultiplier: speedMultiplier, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
     measureBody(body);
     const lineBodies = bodiesByLine.get(record.Line) ?? [];
     lineBodies.push(body);
@@ -578,7 +763,7 @@ function getAnchorIndex(position: number): number {
   return low < leadLines.length ? low : leadLines.length - 1;
 }
 
-function getRole(body: GravityBody, position: number, activeLeadLine: GravityLine | undefined): GravityRole {
+function getRole(body: GravityBody, position: number): GravityRole {
   if (body.Line.DotLine) return "Instrumental";
   if (position >= finalVocalEnd) return "Previous";
   if (body.Line.BGLine) {
@@ -586,9 +771,8 @@ function getRole(body: GravityBody, position: number, activeLeadLine: GravityLin
     if (position < body.EndTime) return "Current";
     return "Previous";
   }
-  const displayLine = body.Line.BGLine ? parentLines.get(body.Line) : body.Line;
-  if (displayLine === activeLeadLine) return "Current";
-  if (displayLine && position < displayLine.StartTime) return "Next";
+  if (position >= body.Line.StartTime && position < body.Line.EndTime) return "Current";
+  if (position < body.Line.StartTime) return "Next";
   return "Previous";
 }
 
@@ -690,25 +874,6 @@ function calculateVisibleLeadWordCount(width: number, height: number): number {
 function getLeadWordRange(anchor: number): { First: number; Last: number } | undefined {
   const total = Array.from(leadWordCounts.values()).reduce((sum, count) => sum + count, 0);
   if (total === 0 || Number.isNaN(anchor)) return undefined;
-  if (isCjkEntity(leadEntityTexts[anchor] ?? "")) {
-    let first = anchor;
-    let last = anchor;
-    let beforeCharacters = 0;
-    let afterCharacters = 0;
-    while (first > 0) {
-      const count = getDisplayCharacterCount(leadEntityTexts[first - 1] ?? "");
-      if (beforeCharacters + count > MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION) break;
-      beforeCharacters += count;
-      first -= 1;
-    }
-    while (last < total - 1) {
-      const count = getDisplayCharacterCount(leadEntityTexts[last + 1] ?? "");
-      if (afterCharacters + count > MAX_VISIBLE_CJK_CHARACTERS_PER_DIRECTION) break;
-      afterCharacters += count;
-      last += 1;
-    }
-    return { First: first, Last: last };
-  }
   const count = Math.min(visibleLeadWordCount, total);
   const first = Math.max(0, Math.min(anchor - Math.floor((count - 1) / 2), total - count));
   return { First: first, Last: first + count - 1 };
@@ -765,13 +930,17 @@ function updateVisibleBodies(position: number): void {
   const leadWindow = wordRange ? getLeadWindow(wordRange.First, wordRange.Last) : [];
   const selectedParents = new Set<GravityLine>();
   for (const line of leadWindow) selectedParents.add(line);
+  if (anchorLine) selectedParents.add(anchorLine);
   const entering = Array.from(selectedParents).filter((line) => !preparedLines.has(line));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) if (!preparedLines.has(line)) entering.push(line);
   if (activeDotLine && !preparedLines.has(activeDotLine)) entering.push(activeDotLine);
   prepareLines(entering);
   const nextBodies: GravityBody[] = [];
   const nextLines = new Set<GravityLine>();
-  if (wordRange) for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []).filter((body) => body.WordIndex >= wordRange.First && body.WordIndex <= wordRange.Last));
+  if (wordRange) for (const line of leadWindow) nextBodies.push(...(bodiesByLine.get(line) ?? []).filter((body) =>
+    line === anchorLine || (body.WordIndex >= wordRange.First && body.WordIndex <= wordRange.Last)
+  ));
+  if (anchorLine && !leadWindow.includes(anchorLine)) nextBodies.push(...(bodiesByLine.get(anchorLine) ?? []));
   for (const parent of selectedParents) for (const line of backgroundLinesByParent.get(parent) ?? []) nextBodies.push(...(bodiesByLine.get(line) ?? []));
   if (activeDotLine) nextBodies.push(...(bodiesByLine.get(activeDotLine) ?? []));
   for (const body of nextBodies) body.SelectionEpoch = selectionEpoch;
@@ -785,7 +954,7 @@ function updateVisibleBodies(position: number): void {
     body.NaturalX = body.StartX + body.Width / 2;
     body.NaturalY = getNaturalLineTop(body.Line, activeLine, stageBounds!.Height) + body.StartY + body.Height / 2;
     if (!body.Spawned) body.NaturalY = getSpawnLineTop(body.Line, stageBounds!.Height) + body.StartY + body.Height / 2;
-    applyBodyRole(body, getRole(body, position, activeLine));
+    applyBodyRole(body, getRole(body, position));
   }
   for (const line of visibleLines) if (!nextLines.has(line)) scheduleLineRemoval(line);
   for (const line of nextLines) {
@@ -799,8 +968,7 @@ function updateVisibleBodies(position: number): void {
 }
 
 function updateBodyRoles(position: number): void {
-  const activeLine = getActiveLeadLine(position, lastAnchor);
-  for (const body of activeBodies) applyBodyRole(body, getRole(body, position, activeLine));
+  for (const body of activeBodies) applyBodyRole(body, getRole(body, position));
 }
 
 function spawnBody(body: GravityBody, width: number, height: number): void {
@@ -881,19 +1049,21 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   viewport = nextViewport;
   footer = nextFooter;
   lines = nextLines;
+  // A Gravity rebuild (for example after romanization changes) restores the
+  // previously visible lines before mounting again. Remove that normal-flow
+  // DOM now; prepareLines reattaches only the selected floating bodies.
+  for (const line of lines) line.HTMLElement.remove();
   finalVocalEnd = lines
     .filter((line) => !line.DotLine)
     .reduce((end, line) => Math.max(end, ...(line.Syllables?.Lead.filter((word) => !word.Dot).map((word) => word.EndTime) ?? [line.EndTime])), Number.NEGATIVE_INFINITY);
   leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
   let wordStart = 0;
-  leadEntityTexts = [];
   for (const [index, line] of leadLines.entries()) {
     leadLineIndexes.set(line, index);
     leadWordStarts.set(line, wordStart);
     const entityTexts = getEntityTexts(line);
     const count = entityTexts.length;
     leadWordCounts.set(line, count);
-    leadEntityTexts.push(...entityTexts);
     wordStart += count;
   }
   for (const line of lines) {
@@ -952,9 +1122,10 @@ export function tickSpaceGravity(position: number): void {
   applySoftAvoidance(delta);
   for (const body of activeBodies) {
     const speed = Math.hypot(body.VX, body.VY);
-    if (speed > MAX_SPEED) {
+    const maxSpeed = MAX_SPEED * body.SpeedMultiplier;
+    if (speed > maxSpeed) {
       const drag = Math.exp(-HIGH_SPEED_DRAG * delta);
-      const nextSpeed = MAX_SPEED + (speed - MAX_SPEED) * drag;
+      const nextSpeed = maxSpeed + (speed - maxSpeed) * drag;
       body.VX = body.VX / speed * nextSpeed;
       body.VY = body.VY / speed * nextSpeed;
     }
@@ -982,13 +1153,25 @@ export function restoreSpaceGravity(): GravityLine[] {
     }
   }
 
-  for (const { Group, Entities } of splitGroups) {
+  for (const { Original, Entities, RestoreChildren } of splitElements) {
     const first = Entities[0];
     if (!first?.parentElement) continue;
-    const children = Entities.flatMap((entity) => Array.from(entity.childNodes));
-    Group.replaceChildren(...children);
-    first.replaceWith(Group);
-    for (const entity of Entities.slice(1)) entity.remove();
+    if (RestoreChildren) {
+      first.before(Original);
+      Original.replaceChildren(...Entities.flatMap((entity) => Array.from(entity.childNodes)));
+      for (const entity of Entities) entity.remove();
+    } else {
+      first.replaceWith(Original);
+      for (const entity of Entities.slice(1)) entity.remove();
+    }
+  }
+
+  for (const { Group, Entities, RestoreChildren } of splitGroups) {
+    const first = Entities[0];
+    if (!first?.parentElement) continue;
+    first.before(Group);
+    Group.replaceChildren(...(RestoreChildren ? Entities.flatMap((entity) => Array.from(entity.childNodes)) : Entities));
+    for (const entity of Entities) entity.remove();
   }
 
   for (const line of restoredLines) {
@@ -1023,18 +1206,20 @@ export function destroySpaceGravity(): void {
   viewport = null;
   footer = null;
   cover = null;
+  nowBarHeader = null;
+  viewControls = null;
   lines = [];
   bodiesByLine = new Map();
   leadLines = [];
   lineLayouts = new Map();
   splitGroups = [];
+  splitElements = [];
   parentLines = new Map();
   backgroundLinesByParent = new Map();
   dotLines = [];
   leadLineIndexes = new Map();
   leadWordStarts = new Map();
   leadWordCounts = new Map();
-  leadEntityTexts = [];
   preparedLines = new Set();
   activeBodies = [];
   exitingBodies = new Set();
@@ -1050,6 +1235,8 @@ export function destroySpaceGravity(): void {
   stageBounds = null;
   footerBounds = null;
   coverBounds = null;
+  nowBarHeaderBounds = null;
+  viewControlsBounds = null;
   windowPosition = null;
   windowVelocity = { X: 0, Y: 0 };
   lastTick = performance.now();

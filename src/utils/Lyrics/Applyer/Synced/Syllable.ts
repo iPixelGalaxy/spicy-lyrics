@@ -227,6 +227,9 @@ function replaceLetterGroupText(word: any, text: string): void {
 }
 
 export function UpdateSyllableLyricsRomanization(useRomanized: boolean): void {
+  const gravitySession = syllableRenderSession?.SpaceGravity ? syllableRenderSession : null;
+  if (gravitySession) restoreSpaceGravity();
+
   for (const line of LyricsObject.Types.Syllable.Lines) {
     for (const word of line.Syllables?.Lead ?? []) {
       if (word.Dot) continue;
@@ -238,6 +241,16 @@ export function UpdateSyllableLyricsRomanization(useRomanized: boolean): void {
       if (word.LetterGroup) replaceLetterGroupText(word, text);
       else word.HTMLElement.textContent = text;
     }
+  }
+
+  if (gravitySession) {
+    mountSpaceGravity(
+      gravitySession.VirtualContainer,
+      gravitySession.Lines,
+      gravitySession.Container,
+      gravitySession.Footer
+    );
+    tickSpaceGravity(SpotifyPlayer.GetPosition());
   }
 }
 

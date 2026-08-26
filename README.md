@@ -63,7 +63,17 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.37 — Latest
+### v100.10.38 — Latest
+
+- Updated to be inline with 6.3.10
+
+- **Split gibberish words**
+  Space Gravity now separates gibberish lyrics into individual words.
+
+<details>
+<summary>v100.10.37</summary>
+
+### v100.10.37
 
 - **Space Gravity Mode**
   Refined word physics, pacing, rotation, density, cover-art avoidance, control clearance, lyric seeking, credits, and overlapping-line highlighting.
@@ -76,6 +86,8 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 - **Cinema and popup fixes**
   Cinema settings now close correctly. Stale popup buttons no longer remain after startup.
+
+</details>
 
 <details>
 <summary>v100.10.36</summary>

@@ -1443,6 +1443,29 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
   }
 }
 
+/* Settings footer */
+.sl-sp-footer { display: flex; align-items: stretch; justify-content: space-between; gap: var(--space-5); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--hairline); }
+.sl-sp-footer-links { display: flex; flex-direction: column; justify-content: center; gap: var(--space-2); flex: 1; min-width: 0; max-width: 300px; }
+.sl-sp-footer-link { display: flex; align-items: center; justify-content: center; gap: 6px; height: var(--tap-min); padding: 0 var(--space-3); border: none; border-radius: var(--radius-md); cursor: pointer; background: var(--accent-tint-bg); color: var(--color-text-primary); box-shadow: inset 0 0 0 1px var(--hairline); font-size: var(--text-body-size) !important; font-weight: var(--w-semibold); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), transform 0.12s ease; }
+.sl-sp-footer-link:hover { background: var(--accent-tint-bg-hover); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+.sl-sp-footer-link:active { transform: scale(.985); }
+.sl-sp-footer-link--brand { background: rgba(var(--brand), .14); box-shadow: inset 0 0 0 1px rgba(var(--brand), .35); color: rgb(var(--brand)); }
+.sl-sp-footer-link--brand:hover { background: rgba(var(--brand), .24); box-shadow: inset 0 0 0 1px rgba(var(--brand), .55); }
+.sl-sp-footer-arrow { flex-shrink: 0; opacity: .7; }
+.sl-sp-footer-meta { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: flex-end; justify-content: space-between; gap: var(--space-4); text-align: right; }
+.sl-sp-footer-build { color: var(--color-text-tertiary); font-size: var(--text-footnote-size) !important; font-weight: var(--w-regular); }
+.sl-sp-footer-build-value, .sl-sp-footer-version { color: var(--color-text-secondary); font-weight: var(--w-medium); }
+.sl-sp-footer-brand { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.sl-sp-footer-wordmark { color: var(--color-text-primary); font-size: clamp(1.6rem, 3.2vw, 2.75rem) !important; font-weight: var(--w-semibold); line-height: 1.1; letter-spacing: -.015em; white-space: nowrap; }
+.sl-sp-footer-status-row { display: flex; align-items: center; gap: var(--space-2); min-height: 22px; }
+.sl-sp-footer-status { font-size: clamp(.95rem, 1.35vw, 1.2rem) !important; font-weight: var(--w-semibold); }
+.sl-sp-footer-status--latest { color: var(--color-status-success); }
+.sl-sp-footer-status--outdated, .sl-sp-footer-update { color: var(--color-status-warning); }
+.sl-sp-footer-sep { color: var(--color-text-quaternary); }
+.sl-sp-footer-update { border: none; border-radius: var(--radius-pill); padding: 3px 10px; cursor: pointer; background: rgba(255, 195, 120, .16); box-shadow: inset 0 0 0 1px rgba(255, 195, 120, .35); font-size: var(--text-footnote-size) !important; font-weight: var(--w-semibold); }
+.sl-sp-footer-update:hover { background: rgba(255, 195, 120, .26); }
+@media (max-width: 520px) { .sl-sp-footer { flex-direction: column; } .sl-sp-footer-links { max-width: none; } .sl-sp-footer-meta, .sl-sp-footer-brand { align-items: flex-start; text-align: left; } }
+
 /* Small offsets — the panel is telling you which way you moved, not putting on
    a show. Opacity carries most of the swap; the shift just gives it direction. */
 @keyframes sl-sp-page-in-forward {

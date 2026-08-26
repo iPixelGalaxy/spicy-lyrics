@@ -38,6 +38,7 @@ import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import Emphasize from "../Utils/Emphasize.ts";
+import { StripZeroWidth } from "../Utils/StripZeroWidth.ts";
 import { IsLetterCapable } from "../Utils/IsLetterCapable.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
 import { CreateLyricsFooter, PlaceLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
@@ -188,6 +189,12 @@ function setSyllableTextVariants(
   element.dataset.lyricsRomanizedText = isGibberish
     ? displayedText
     : syllable.TransliteratedText ?? syllable.Text;
+
+  if (isGibberish) {
+    element.dataset.spaceGravityOriginalWordEnd = `${!syllable.IsPartOfWord}`;
+  } else {
+    delete element.dataset.spaceGravityOriginalWordEnd;
+  }
 }
 
 function replaceLetterGroupText(word: any, text: string): void {
@@ -238,8 +245,9 @@ export function UpdateSyllableLyricsRomanization(useRomanized: boolean): void {
         : word.HTMLElement.dataset.lyricsOriginalText;
       if (text === undefined) continue;
 
-      if (word.LetterGroup) replaceLetterGroupText(word, text);
-      else word.HTMLElement.textContent = text;
+      const displayText = StripZeroWidth(text);
+      if (word.LetterGroup) replaceLetterGroupText(word, displayText);
+      else word.HTMLElement.textContent = displayText;
     }
   }
 
@@ -515,7 +523,7 @@ export function ApplySyllableLyrics(
 
       const totalDuration = ConvertTime(lead.EndTime) - ConvertTime(lead.StartTime);
 
-      const leadText = getSyllableText(lead, UseRomanized);
+      const leadText = StripZeroWidth(getSyllableText(lead, UseRomanized));
       const letterLength = leadText.split("").length;
 
       const IfLetterCapable = allowLetterEmphasis && IsLetterCapable(letterLength, totalDuration) && !isRtl(leadText);
@@ -631,7 +639,7 @@ export function ApplySyllableLyrics(
 
           const totalDuration = ConvertTime(bw.EndTime) - ConvertTime(bw.StartTime);
 
-            const bwText = getSyllableText(bw, UseRomanized);
+            const bwText = StripZeroWidth(getSyllableText(bw, UseRomanized));
             const letterLength = bwText.split("").length;
 
           const IfLetterCapable = allowLetterEmphasis && IsLetterCapable(letterLength, totalDuration) && !isRtl(bwText);

@@ -4,6 +4,7 @@ import DeveloperSection from "./DeveloperSection.tsx";
 import ExperimentsSection from "./ExperimentsSection.tsx";
 import InterfaceSection from "./InterfaceSection.tsx";
 import LyricsSection from "./LyricsSection.tsx";
+import Footer from "./Footer.tsx";
 import { FilterDropdown, SearchBar } from "./components.tsx";
 
 const SECTIONS = ["Appearance", "Lyrics Display", "Interface", "Advanced"];
@@ -28,6 +29,7 @@ export default function SettingsPanel({ onOpenExperiments }: { onOpenExperiments
         onOpen={onOpenExperiments ?? (() => {})}
       />
       <DeveloperSection query={query} sectionFilter={sectionFilter} />
+      <Footer />
     </div>
   );
 }

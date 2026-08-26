@@ -67,6 +67,11 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
   async function handleUpload(file: File, mode: UploadMode) {
     if (uploading) return;
 
+    if (!file.name.toLowerCase().endsWith(".ttml")) {
+      toast.error("Choose a .ttml file.", { duration: 5000 });
+      return;
+    }
+
     const uri = SpotifyPlayer.GetUri();
     if (!uri) {
       toast.error("No track is currently playing.", { duration: 5000 });
@@ -114,8 +119,12 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
           if (mode === "session" && songKey) {
             SessionTTMLStore.set(songKey, dataToSave);
           }
+          if (SpotifyPlayer.GetUri() !== uri) {
+            toast.error("Track changed before TTML could be applied.", { duration: 5000 });
+            return;
+          }
           $currentLyricsData.set(JSON.stringify(dataToSave));
-          await ApplyLyrics([dataToSave, 200]);
+          await ApplyLyricsIfCurrent(uri, [dataToSave, 200]);
           toast.success(
             mode === "session" ? "Lyrics applied for this session!" : "Lyrics parsed and applied!",
             { duration: 5000 }

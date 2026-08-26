@@ -553,11 +553,43 @@ function startsWithDash(element: Element): boolean {
   return /^[-‐‑‒–—―]/u.test(element.textContent?.trim() ?? "");
 }
 
+function getGibberishWordGroups(parts: HTMLElement[]): HTMLElement[][] | null {
+  if (!parts.some((part) => part.dataset.spaceGravityOriginalWordEnd !== undefined)) {
+    return null;
+  }
+
+  const groups: HTMLElement[][] = [];
+  let currentGroup: HTMLElement[] = [];
+  for (const part of parts) {
+    currentGroup.push(part);
+    if (part.dataset.spaceGravityOriginalWordEnd === "true") {
+      groups.push(currentGroup);
+      currentGroup = [];
+    }
+  }
+  if (currentGroup.length > 0) groups.push(currentGroup);
+
+  return groups.length > 1 ? groups : null;
+}
+
 function splitWordGroup(group: HTMLElement): HTMLElement[] {
   const parts = Array.from(group.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
   if (parts.length < 2) return [group];
 
   if (!isCjkEntity(group.textContent ?? "")) {
+    const gibberishWordGroups = getGibberishWordGroups(parts);
+    if (gibberishWordGroups) {
+      const entities = gibberishWordGroups.map((wordParts) => {
+        const entity = document.createElement("span");
+        entity.classList.add("SpaceGravityEntity");
+        entity.append(...wordParts);
+        return entity;
+      });
+      group.replaceWith(...entities);
+      splitGroups.push({ Group: group, Entities: entities, RestoreChildren: true });
+      return entities;
+    }
+
     const boundaries = parts.slice(0, -1).some((part, index) =>
       endsWithDash(part) || startsWithDash(parts[index + 1])
     );
@@ -658,6 +690,12 @@ function getEntityTexts(line: GravityLine): string[] {
       return preserveAuthoredSplits ? [text] : getGravitySegments(text);
     }
     const parts = Array.from(child.children).filter((part): part is HTMLElement => part instanceof HTMLElement);
+    const gibberishWordGroups = getGibberishWordGroups(parts);
+    if (gibberishWordGroups) {
+      return gibberishWordGroups.map((wordParts) =>
+        wordParts.map((part) => part.textContent ?? "").join("")
+      );
+    }
     if (preserveAuthoredSplits) return parts.length < 2 ? [child.textContent ?? ""] : parts.map((part) => part.textContent ?? "");
     if (!isCjkEntity(child.textContent ?? "")) {
       const boundaries = parts.slice(0, -1).some((part, index) =>

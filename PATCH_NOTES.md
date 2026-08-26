@@ -1,3 +1,10 @@
+## v100.10.38
+
+- Updated to be inline with 6.3.10
+
+- **Split gibberish words**
+  Space Gravity now separates gibberish lyrics into individual words.
+
 ## v100.10.37
 
 - **Space Gravity Mode**

@@ -17,6 +17,7 @@ import {
 } from "../lyrics.ts";
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "./CreateLyricsContainer.ts";
 import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../LyricsVirtualizer.ts";
+import { StripZeroWidth } from "./Utils/StripZeroWidth.ts";
 import { ApplyIsByCommunity } from "./Credits/ApplyIsByCommunity.tsx";
 import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "./Credits/ApplyExperimentalWordSyncNotice.ts";
@@ -63,7 +64,7 @@ export function UpdateStaticLyricsRomanization(useRomanized: boolean): void {
     const text = useRomanized
       ? element.dataset.lyricsRomanizedText
       : element.dataset.lyricsOriginalText;
-    if (text !== undefined) element.textContent = text;
+    if (text !== undefined) element.textContent = StripZeroWidth(text);
   }
 }
 
@@ -112,7 +113,7 @@ export function ApplyStaticLyrics(
   data.Lines.forEach((line) => {
     const lineElem = document.createElement("div");
 
-    lineElem.textContent = getDisplayText(line, UseRomanized);
+    lineElem.textContent = StripZeroWidth(getDisplayText(line, UseRomanized));
     lineElem.dataset.lyricsOriginalText = getDisplayText(line, false);
     lineElem.dataset.lyricsRomanizedText = getDisplayText(line, true);
 

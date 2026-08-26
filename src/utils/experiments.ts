@@ -59,6 +59,13 @@ export const EXPERIMENTS = [
     pageClass: "Exp_PinLyricsFooter",
     rebuildsLyrics: true,
   },
+  {
+    id: "duetLinePadding",
+    label: "Wide duet line padding",
+    description: "Separate duet voices into wider columns. Disable for compact padding.",
+    default: true,
+    pageClass: "Exp_DuetLinePadding",
+  },
 ] as const satisfies readonly Experiment[];
 
 /** A registry entry, narrowed to its literal `id` — what the UI iterates over. */

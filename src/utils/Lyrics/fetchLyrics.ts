@@ -200,10 +200,9 @@ async function fetchLyricsInternal(
 
   if (savedLyricsData && !isDev) {
     try {
-      if (savedLyricsData.includes("NO_LYRICS")) {
-        const split = savedLyricsData.split(":");
-        const id = split[1];
-        if (id === trackId && getActiveLyricsSourceOrder().length <= 1) {
+      if (savedLyricsData.startsWith("NO_LYRICS:")) {
+        const savedUri = savedLyricsData.slice("NO_LYRICS:".length);
+        if ((savedUri === uri || getSongKey(savedUri) === trackId) && getActiveLyricsSourceOrder().length <= 1) {
           finishFetching(uri);
           HideLoaderContainer(uri);
           return ["lyrics-not-found", 404];
@@ -211,7 +210,7 @@ async function fetchLyricsInternal(
       } else {
         const lyricsData = JSON.parse(savedLyricsData);
         // Return the stored lyrics if the ID matches the track ID
-        if (lyricsData?.id === trackId && isLyricsCacheCompatible(lyricsData)) {
+        if ((lyricsData?.id === trackId || lyricsData?.uri === uri) && isLyricsCacheCompatible(lyricsData)) {
           if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
           const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
           await presentLyrics(uri, preparedLyrics);

@@ -26,12 +26,15 @@ type RomanizationMetadata = {
 type ParsedLine = {
   leadText: string;
   leadTransliteratedText?: string;
+  leadTranslatedText?: string;
   leadSyllables: SyllableEntry[];
   background: BackgroundEntry[];
   startTime: number;
   endTime: number;
   oppositeAligned: boolean;
 };
+
+let timingContext = { frameRate: 30, tickRate: 1 };
 
 const WRITER_KEY_MATCH = /(songwriter|writers?|written[\s_-]*by|lyricist|composer)/i;
 const LEADING_BG_BRACKET = /^[([{]\s*/;
@@ -81,6 +84,11 @@ function parseTimestamp(value: string | null | undefined): number | null {
   const time = value.trim();
   if (!time) return null;
 
+  const frameClock = time.match(/^(?:(\d+):)?(\d{1,2}):(\d{1,2}):(\d+(?:\.\d+)?)$/);
+  if (frameClock) {
+    return Number(frameClock[1] ?? 0) * 3600 + Number(frameClock[2]) * 60 + Number(frameClock[3]) + Number(frameClock[4]) / timingContext.frameRate;
+  }
+
   const hmsMatch = time.match(
     /^(?:(\d{2,3}):)?(\d{1,2}):(\d{1,2})(?:[.:](\d+))?$/
   );
@@ -100,6 +108,16 @@ function parseTimestamp(value: string | null | undefined): number | null {
   const millisecondsMatch = time.match(/^(\d+(?:\.\d+)?)ms$/);
   if (millisecondsMatch) {
     return Number.parseFloat(millisecondsMatch[1]) / 1000;
+  }
+
+  const offsetMatch = time.match(/^(\d+(?:\.\d+)?)(h|m|f|t)$/);
+  if (offsetMatch) {
+    const amount = Number(offsetMatch[1]);
+    if (!Number.isFinite(amount)) return null;
+    if (offsetMatch[2] === "h") return amount * 3600;
+    if (offsetMatch[2] === "m") return amount * 60;
+    if (offsetMatch[2] === "f") return amount / timingContext.frameRate;
+    return amount / timingContext.tickRate;
   }
 
   return null;
@@ -444,6 +462,7 @@ function parseParagraph(
   body: Element,
   oppositeAgents: Map<string, boolean>,
   transliterations: Map<string, string>,
+  translations: Map<string, string>,
   transliterationPieces: Map<string, RomanizationMetadata>
 ): ParsedLine | null {
   const paragraphStart = parseTimestamp(getAttr(paragraph, "begin")) ?? 0;
@@ -456,6 +475,7 @@ function parseParagraph(
   const lineKey = getAttr(paragraph, "itunes:key");
 
   let leadTransliteratedText = lineKey ? transliterations.get(lineKey) : undefined;
+  let leadTranslatedText = lineKey ? translations.get(lineKey) : undefined;
 
   const childNodes = Array.from(paragraph.childNodes).filter((node) => !isSkippableWhitespace(node));
   const leadSyllables: SyllableEntry[] = [];
@@ -482,6 +502,7 @@ function parseParagraph(
     const text = element.textContent?.trim() ?? "";
 
     if (role === "x-translation") {
+      if (!leadTranslatedText && text) leadTranslatedText = text;
       return;
     }
 
@@ -521,17 +542,18 @@ function parseParagraph(
     : collectPlainText(plainNodes);
   if (!leadText && background.length === 0) return null;
 
-  const timedEntries = leadSyllables.length > 0
-    ? leadSyllables.map((syllable) => ({
+  const timedEntries = [
+    ...leadSyllables.map((syllable) => ({
       StartTime: syllable.StartTime,
       EndTime: syllable.EndTime,
-    }))
-    : background.flatMap((group) =>
+    })),
+    ...background.flatMap((group) =>
       group.Syllables.map((syllable) => ({
         StartTime: syllable.StartTime,
         EndTime: syllable.EndTime,
       }))
-    );
+    ),
+  ];
 
   const lineStart = timedEntries.length > 0
     ? Math.min(...timedEntries.map((entry) => entry.StartTime))
@@ -543,6 +565,7 @@ function parseParagraph(
   return {
     leadText,
     leadTransliteratedText,
+    leadTranslatedText,
     leadSyllables,
     background,
     startTime: lineStart,
@@ -559,6 +582,7 @@ function buildStaticLyrics(lines: ParsedLine[], songwriters: string[]) {
       .map((line) => ({
         Text: line.leadText,
         ...(line.leadTransliteratedText ? { TransliteratedText: line.leadTransliteratedText } : {}),
+        ...(line.leadTranslatedText ? { TranslatedText: line.leadTranslatedText } : {}),
       }))
       .filter((line) => line.Text),
   };
@@ -574,6 +598,7 @@ function buildLineLyrics(lines: ParsedLine[], songwriters: string[]) {
         Type: "Vocal",
         Text: line.leadText,
         ...(line.leadTransliteratedText ? { TransliteratedText: line.leadTransliteratedText } : {}),
+        ...(line.leadTranslatedText ? { TranslatedText: line.leadTranslatedText } : {}),
         StartTime: line.startTime,
         EndTime: line.endTime,
         OppositeAligned: line.oppositeAligned,
@@ -624,9 +649,25 @@ export default function parseTTMLToLyrics(ttml: string) {
     throw new Error("Invalid TTML: missing <tt> root element");
   }
 
+  const frameRate = Number(getAttr(tt, "ttp:frameRate", "frameRate"));
+  const tickRate = Number(getAttr(tt, "ttp:tickRate", "tickRate"));
+  timingContext = {
+    frameRate: Number.isFinite(frameRate) && frameRate > 0 ? frameRate : 30,
+    tickRate: Number.isFinite(tickRate) && tickRate > 0 ? tickRate : 1,
+  };
+
+  for (const element of findElements(tt, "p", "span", "div")) {
+    for (const name of ["begin", "end"]) {
+      const value = getAttr(element, name);
+      if (value !== null && parseTimestamp(value) === null) {
+        throw new Error(`Invalid TTML ${name} timestamp: ${value}`);
+      }
+    }
+  }
+
   const songwriters = parseSongwriters(tt);
   const oppositeAgents = parseAgents(tt);
-  const { transliterations, transliterationPieces } = readITunesMetadata(tt);
+  const { translations, transliterations, transliterationPieces } = readITunesMetadata(tt);
 
   const body = Array.from(tt.children).find((child) => child.tagName === "body");
   if (!body) {
@@ -646,6 +687,7 @@ export default function parseTTMLToLyrics(ttml: string) {
         body,
         oppositeAgents,
         transliterations,
+        translations,
         transliterationPieces
       );
       if (parsed) {
@@ -664,12 +706,24 @@ export default function parseTTMLToLyrics(ttml: string) {
   const hasLineTimings = parsedLines.some((line) => line.startTime > 0 || line.endTime > 0);
 
   if (hasSyllableTimings) {
-    return buildSyllableLyrics(parsedLines, songwriters);
+    return {
+      ...buildSyllableLyrics(parsedLines, songwriters),
+      HasTransliterations: parsedLines.some((line) => !!line.leadTransliteratedText),
+      HasTranslations: parsedLines.some((line) => !!line.leadTranslatedText),
+    };
   }
 
   if (hasLineTimings) {
-    return buildLineLyrics(parsedLines, songwriters);
+    return {
+      ...buildLineLyrics(parsedLines, songwriters),
+      HasTransliterations: parsedLines.some((line) => !!line.leadTransliteratedText),
+      HasTranslations: parsedLines.some((line) => !!line.leadTranslatedText),
+    };
   }
 
-  return buildStaticLyrics(parsedLines, songwriters);
+  return {
+    ...buildStaticLyrics(parsedLines, songwriters),
+    HasTransliterations: parsedLines.some((line) => !!line.leadTransliteratedText),
+    HasTranslations: parsedLines.some((line) => !!line.leadTranslatedText),
+  };
 }

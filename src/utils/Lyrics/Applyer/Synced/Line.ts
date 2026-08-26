@@ -29,6 +29,7 @@ import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
 import { CreateLyricsFooter } from "../Credits/CreateLyricsFooter.ts";
 import Defaults from "../../../../components/Global/Defaults.ts";
+import { StripZeroWidth } from "../Utils/StripZeroWidth.ts";
 
 // Define the data structure for lyrics
 interface LyricsLineData {
@@ -69,7 +70,7 @@ export function UpdateLineLyricsRomanization(useRomanized: boolean): void {
     const text = useRomanized
       ? line.HTMLElement.dataset.lyricsRomanizedText
       : line.HTMLElement.dataset.lyricsOriginalText;
-    if (text !== undefined) line.HTMLElement.textContent = text;
+    if (text !== undefined) line.HTMLElement.textContent = StripZeroWidth(text);
   }
 }
 
@@ -208,7 +209,7 @@ export function ApplyLineLyrics(
 
   data.Content.forEach((line, index, arr) => {
     const lineElem = document.createElement("div");
-    lineElem.textContent = getDisplayText(line, UseRomanized);
+    lineElem.textContent = StripZeroWidth(getDisplayText(line, UseRomanized));
     lineElem.dataset.lyricsOriginalText = getDisplayText(line, false);
     lineElem.dataset.lyricsRomanizedText = getDisplayText(line, true);
     lineElem.classList.add("line");

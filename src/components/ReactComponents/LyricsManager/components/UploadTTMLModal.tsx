@@ -67,6 +67,11 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
   async function handleUpload(file: File, mode: UploadMode) {
     if (uploading) return;
 
+    if (!file.name.toLowerCase().endsWith(".ttml")) {
+      toast.error("Choose a .ttml file.", { duration: 5000 });
+      return;
+    }
+
     const uri = SpotifyPlayer.GetUri();
     if (!uri) {
       toast.error("No track is currently playing.", { duration: 5000 });
@@ -83,12 +88,20 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
     reader.onload = async (e) => {
       try {
         const ttml = e.target?.result as string;
+        if (SpotifyPlayer.GetUri() !== uri) {
+          toast.error("Track changed before TTML finished loading.", { duration: 5000 });
+          return;
+        }
 
         const songKey = getSongKey(uri);
         const lyricsId = uri.startsWith("spotify:local:") ? songKey : SpotifyPlayer.GetId();
 
         if (mode === "persistent") {
           await LocalLyricsManager.put(uri, ttml);
+          if (SpotifyPlayer.GetUri() !== uri) {
+            toast.error("TTML saved for original track. Current track unchanged.", { duration: 5000 });
+            return;
+          }
           $lastFetchedUri.set(null);
           $currentLyricsData.set("");
           setTimeout(() => {
@@ -114,8 +127,12 @@ export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalPro
           if (mode === "session" && songKey) {
             SessionTTMLStore.set(songKey, dataToSave);
           }
+          if (SpotifyPlayer.GetUri() !== uri) {
+            toast.error("Track changed before TTML could be applied.", { duration: 5000 });
+            return;
+          }
           $currentLyricsData.set(JSON.stringify(dataToSave));
-          await ApplyLyrics([dataToSave, 200]);
+          await ApplyLyricsIfCurrent(uri, [dataToSave, 200]);
           toast.success(
             mode === "session" ? "Lyrics applied for this session!" : "Lyrics parsed and applied!",
             { duration: 5000 }

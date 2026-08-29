@@ -672,14 +672,12 @@ export function Animate(position: number): void {
       const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
-        // Stamp playback progress before this frame promotes the line to Active.
-        // A delayed animation frame can cross the line boundary by many
-        // milliseconds. Without this value the newly-active parent briefly uses
-        // CSS's -20% fallback gradient, which is visibly white before child
-        // syllable styles catch up.
+        // Stamp the same -20% to 100% gradient range used by words before this
+        // frame promotes the line to Active. Raw 0% to 100% line progress starts
+        // a delayed frame too far through the gradient and can paint white.
         line.HTMLElement.style.setProperty(
           "--active-gradient-position",
-          `${getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime) * 100}%`
+          `${-20 + 120 * getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime)}%`
         );
 
         if (Blurring_LastLine !== index) {
@@ -1660,12 +1658,12 @@ export function Animate(position: number): void {
 
       if (lineState === "Active") {
         const percentage = getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime);
-        // See Syllable branch: this must happen before Active changes the
-        // background-image rule, otherwise a low-FPS boundary frame can paint
-        // the default white gradient.
+        // Match the word renderer's -20% to 100% gradient range before Active
+        // changes the background-image rule. Raw line progress paints too far
+        // through the white gradient after a delayed frame.
         line.HTMLElement.style.setProperty(
           "--active-gradient-position",
-          `${percentage * 100}%`
+          `${-20 + 120 * percentage}%`
         );
 
         if (Blurring_LastLine !== index) {

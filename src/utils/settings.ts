@@ -4,6 +4,7 @@ import { flushSync } from "react-dom";
 import { PopupModal } from "../components/Modal.ts";
 import SettingsPanel from "../components/ReactComponents/SettingsPanel/index.tsx";
 import ExperimentsPanel from "../components/ReactComponents/SettingsPanel/ExperimentsPanel.tsx";
+import HiddenSettingsPanel from "../components/ReactComponents/SettingsPanel/HiddenSettingsPanel.tsx";
 
 const MODAL_ID = "settingsPanel";
 type Direction = "forward" | "back";
@@ -17,6 +18,10 @@ function renderPanel(targetDocument: Document, element: React.ReactElement, dire
 }
 
 export function openSettingsPanel(targetDocument: Document = document) {
+  const openHiddenSettingsPanel = () => {
+    const { container, root } = renderPanel(targetDocument, React.createElement(HiddenSettingsPanel, { onBack: backToSettings }), "forward");
+    PopupModal.transition({ title: "Hidden Settings", content: container, modalId: MODAL_ID, onClose: () => root.unmount() });
+  };
   const openExperimentsPanel = () => {
     const { container, root } = renderPanel(
       targetDocument,
@@ -29,7 +34,7 @@ export function openSettingsPanel(targetDocument: Document = document) {
   const backToSettings = () => {
     const { container, root } = renderPanel(
       targetDocument,
-      React.createElement(SettingsPanel, { onOpenExperiments: openExperimentsPanel }),
+      React.createElement(SettingsPanel, { onOpenExperiments: openExperimentsPanel, onOpenHiddenSettings: openHiddenSettingsPanel }),
       "back"
     );
     PopupModal.transition({ title: "Settings", content: container, modalId: MODAL_ID, onClose: () => root.unmount() });
@@ -37,7 +42,7 @@ export function openSettingsPanel(targetDocument: Document = document) {
 
   const { container, root } = renderPanel(
     targetDocument,
-    React.createElement(SettingsPanel, { onOpenExperiments: openExperimentsPanel })
+    React.createElement(SettingsPanel, { onOpenExperiments: openExperimentsPanel, onOpenHiddenSettings: openHiddenSettingsPanel })
   );
   PopupModal.display({
     title: "Settings",

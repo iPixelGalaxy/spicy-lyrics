@@ -3,6 +3,8 @@ import React from "react";
 import {
   $buildChannel,
   $developerMode,
+  $allowHidingSettings,
+  $hideHidingIcon,
   $lyricsCacheAction,
   $showLyricsCacheActionButton,
 } from "../../../utils/stores.ts";
@@ -22,13 +24,16 @@ const SECTION_NAME = "Advanced";
 interface Props {
   query: string;
   sectionFilter: string;
+  onOpenHiddenSettings: () => void;
 }
 
-export default function DeveloperSection({ query, sectionFilter }: Props) {
+export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSettings }: Props) {
   const developerMode = useStore($developerMode);
   const showLyricsCacheActionButton = useStore($showLyricsCacheActionButton);
   const lyricsCacheAction = normalizeLyricsCacheAction(useStore($lyricsCacheAction));
   const buildChannel = useStore($buildChannel);
+  const allowHidingSettings = useStore($allowHidingSettings);
+  const hideHidingIcon = useStore($hideHidingIcon);
   const displayedBuildChannel =
     Spicetify.LocalStorage.get("SpicyLyrics-buildChannel") ?? buildChannel;
 
@@ -53,11 +58,26 @@ export default function DeveloperSection({ query, sectionFilter }: Props) {
     "Show a selected cache action in the lyrics view controls."
   );
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.")) return null;
 
   return (
     <>
       <SectionTitle>Advanced</SectionTitle>
+
+      {matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.") && (
+        <Row label="Allow Hiding Settings" description="Allow settings rows to be hidden from this menu.">
+          <div className="sl-sp-btn-group">
+            <Toggle checked={allowHidingSettings} onChange={(value) => $allowHidingSettings.set(value)} />
+            <button className="sl-sp-btn" onClick={onOpenHiddenSettings}>Manage</button>
+          </div>
+        </Row>
+      )}
+
+      {allowHidingSettings && matches(query, "Hide Hiding Icon", "Hide eye buttons while keeping setting hiding enabled.") && (
+        <Row label="Hide Hiding Icon" description="Hide eye buttons while keeping setting hiding enabled.">
+          <Toggle checked={hideHidingIcon} onChange={(value) => $hideHidingIcon.set(value)} />
+        </Row>
+      )}
 
       {r2 && (
         <Row label="Manage Sources" description="Manage lyric source priority and availability.">
@@ -84,13 +104,13 @@ export default function DeveloperSection({ query, sectionFilter }: Props) {
       )}
 
       {r5 && (
-        <Row label="Developer Mode" description="Enable extra logging and debug utilities.">
+        <Row settingId="advanced-developer-mode" label="Developer Mode" description="Enable extra logging and debug utilities.">
           <Toggle checked={developerMode} onChange={(v) => $developerMode.set(v)} />
         </Row>
       )}
 
       {r6 && (
-        <Row
+        <Row settingId="advanced-cache-button"
           label="Lyrics View Cache Button"
           description="Show selected cache action in lyrics view controls."
         >
@@ -112,7 +132,7 @@ export default function DeveloperSection({ query, sectionFilter }: Props) {
       )}
 
       {r1 && (
-        <Row
+        <Row settingId="advanced-cache-actions"
           label="Cache Actions"
           description="Clear all current-song caches, clear current in-memory lyrics, or clear stored lyrics cache."
         >

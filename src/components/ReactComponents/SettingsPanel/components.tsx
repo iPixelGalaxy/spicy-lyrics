@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useStore } from "@nanostores/react";
+import { $allowHidingSettings, $hiddenSettingIds, $hideHidingIcon } from "../../../utils/stores.ts";
 
 export function matches(query: string, label: string, description?: string): boolean {
   if (!query.trim()) return true;
@@ -15,6 +17,7 @@ export function Row({
   disabledReason,
   labelAccessory,
   stacked,
+  settingId,
 }: {
   label: string;
   description?: string;
@@ -23,7 +26,13 @@ export function Row({
   disabledReason?: string;
   labelAccessory?: React.ReactNode;
   stacked?: boolean;
+  settingId?: string;
 }) {
+  const allowHidingSettings = useStore($allowHidingSettings);
+  const hideHidingIcon = useStore($hideHidingIcon);
+  const hiddenSettingIds = useStore($hiddenSettingIds);
+  if (settingId && hiddenSettingIds.includes(settingId)) return null;
+  const hide = () => settingId && $hiddenSettingIds.set([...hiddenSettingIds, settingId]);
   return (
     <div
       className={`sl-sp-row sl-list-row${disabled ? " sl-sp-row--disabled" : ""}${stacked ? " sl-sp-row--stacked" : ""}`}
@@ -36,6 +45,11 @@ export function Row({
         {description && <span className="sl-sp-description">{description}</span>}
       </div>
       <div className="sl-sp-control">{children}</div>
+      {settingId && allowHidingSettings && !hideHidingIcon && (
+        <button className="sl-sp-visibility-btn" onClick={hide} aria-label={`Hide ${label}`} title="Hide setting">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+        </button>
+      )}
       {disabled && disabledReason && <div className="sl-sp-row-tooltip">{disabledReason}</div>}
     </div>
   );

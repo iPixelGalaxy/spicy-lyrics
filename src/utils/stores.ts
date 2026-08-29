@@ -1,5 +1,6 @@
 import { atom } from "nanostores";
 import { ProjectVersion } from "../../project/config.ts";
+import { SETTING_IDS } from "../components/ReactComponents/SettingsPanel/hiddenSettings.ts";
 
 export const SETTINGS_KEY = "SL:settings";
 
@@ -132,6 +133,12 @@ export const $timelineOutsideMediaContent = persistAtom<boolean>(
 export const $showVolumeSlider = persistAtom<boolean>("showVolumeSlider", false);
 // Playback timing offset in milliseconds (bipolar: negative = earlier, positive = later)
 export const $playbackOffset = persistAtom<number>("playbackOffset", 0);
+export const $allowHidingSettings = persistAtom<boolean>("allowHidingSettings", false);
+export const $hideHidingIcon = persistAtom<boolean>("hideHidingIcon", false);
+const initialHiddenSettingIds = Array.isArray(_settings.hiddenSettingIds)
+  ? _settings.hiddenSettingIds.filter((id): id is string => typeof id === "string" && SETTING_IDS.has(id))
+  : [];
+export const $hiddenSettingIds = persistAtom<string[]>("hiddenSettingIds", initialHiddenSettingIds);
 
 // Version atom — NOT persisted, set once at startup
 export const $spicyLyricsVersion = atom<string>(

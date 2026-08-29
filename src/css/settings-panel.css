@@ -529,6 +529,31 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     > span {
       grid-area: 1 / 1;
     }
+
+    .sl-sp-visibility-btn {
+      width: 30px;
+      height: 30px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+
+      &:hover,
+      &:focus-visible {
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--color-text-primary);
+      }
+    }
+  }
+
+  .sl-sp-empty {
+    margin: var(--space-6) var(--space-3);
+    color: var(--color-text-secondary);
+    text-align: center;
   }
 
   /* Select — flat tinted surface, no inner blur */

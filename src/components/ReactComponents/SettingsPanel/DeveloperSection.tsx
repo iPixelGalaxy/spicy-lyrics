@@ -72,7 +72,10 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
       {!showHidden && matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.") && (
         <Row label="Allow Hiding Settings" description="Allow settings rows to be hidden from this menu.">
           <div className="sl-sp-btn-group">
-            <Toggle checked={allowHidingSettings} onChange={(value) => $allowHidingSettings.set(value)} />
+            <Toggle checked={allowHidingSettings} onChange={(value) => {
+              $allowHidingSettings.set(value);
+              if (!value) $hiddenSettingIds.set([]);
+            }} />
             <button className="sl-sp-btn" onClick={onOpenHiddenSettings}>Manage</button>
           </div>
         </Row>

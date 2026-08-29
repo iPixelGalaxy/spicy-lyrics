@@ -4,6 +4,7 @@ import { useStore } from "@nanostores/react";
 import { $allowHidingSettings, $hiddenSettingIds, $hideHidingIcon } from "../../../utils/stores.ts";
 
 export const HiddenSettingsContext = React.createContext(false);
+export const ShowHiddenSettingsInSearchContext = React.createContext(false);
 
 export function matches(query: string, label: string, description?: string): boolean {
   if (!query.trim()) return true;
@@ -31,11 +32,12 @@ export function Row({
   settingId?: string;
 }) {
   const showHidden = useContext(HiddenSettingsContext);
+  const showHiddenInSearch = useContext(ShowHiddenSettingsInSearchContext);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
   const hiddenSettingIds = useStore($hiddenSettingIds);
   const isHidden = settingId && hiddenSettingIds.includes(settingId);
-  if (settingId && isHidden && !showHidden) return null;
+  if (settingId && isHidden && !showHidden && !showHiddenInSearch) return null;
   const toggleVisibility = () => {
     if (!settingId) return;
     $hiddenSettingIds.set(isHidden ? hiddenSettingIds.filter((id) => id !== settingId) : [...hiddenSettingIds, settingId]);

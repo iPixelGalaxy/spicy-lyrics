@@ -54,7 +54,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
     );
   const r3 = matches(query, "Browse TTML Database", "Open the local TTML database manager.");
   const r4 = matches(query, "Build Channel", "Select which update channel this fork should track.");
-  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id);
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id) || Boolean(query.trim());
   const r5 = visible("advanced-developer-mode") && matches(query, "Developer Mode", "Enable extra logging and debug utilities.");
   const r6 = visible("advanced-cache-button") && matches(
     query,

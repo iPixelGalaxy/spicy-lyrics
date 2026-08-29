@@ -15,7 +15,8 @@ import {
 const lyricsLogger = new Logger("Lyrics Pipeline");
 const lyricsCacheLogger = new Logger("Lyrics Cache");
 
-export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore", 13, {
+// recently updated key structure - changed name
+export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 4, {
   Unit: "Days",
   Duration: 3,
 }, isDev as true);

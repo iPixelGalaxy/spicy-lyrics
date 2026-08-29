@@ -888,7 +888,10 @@ async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyricsResul
       ],
       {
         "SpicyLyrics-WebAuth": `Bearer ${token}`,
-      }
+      },
+      // This user-initiated fetch is the breaker's health probe while the API
+      // is paused. Query still limits it to one probe at a time.
+      { probe: true }
     );
 
     const lyricsQuery = queries.get("0");

@@ -92,6 +92,7 @@ import Whentil from "./modules/Whentil.ts";
 import App from "./utils/app.ts";
 import { toCssFontFamily } from "./utils/cssFontFamily.ts";
 import { initSession } from "./utils/SessionManager/index.ts";
+import { jitter } from "./utils/jitter.ts";
 
 function bindDefault<T>(store: { get: () => T; listen: (listener: (value: T) => void) => () => void }, assign: (value: T) => void) {
   assign(store.get());
@@ -1313,6 +1314,20 @@ async function main() {
           OpenBuildChannelPanel();
         }
       });
+
+      // 15 minutes, jittered. The `finally` matters: CheckForUpdates reaches the
+      // network, and a single throw used to skip the reschedule entirely, which
+      // silently stopped update checks for the rest of the session.
+      const CheckForUpdates_Intervaled = async () => {
+        try {
+          await CheckForUpdates();
+        } catch (error) {
+          console.warn("Update check failed", error);
+        } finally {
+          setTimeout(CheckForUpdates_Intervaled, jitter(900 * 1000, 0.2));
+        }
+      };
+      setTimeout(async () => await CheckForUpdates_Intervaled(), 1000);
     }
   };
 

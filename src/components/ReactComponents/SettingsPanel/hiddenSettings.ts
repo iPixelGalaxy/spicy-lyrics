@@ -16,7 +16,6 @@ export const SETTING_CATALOG = [
   ["interface-lock-media-box", "Lock Media Box Size in Compact Mode", "Prevent the media box from resizing when Forced Compact Mode is active.", "Interface"],
   ["interface-disable-popup", "Disable Popup Lyrics Window", "Show or hide the Popup Lyrics button in the playback bar.", "Interface"],
   ["interface-view-controls", "View Controls Position", "Where the view controls (play, scroll, etc.) appear.", "Interface"],
-  ["interface-timeline-outside", "Timeline Outside Media Box", "Display the playback timeline outside the media box, in the NowBar header.", "Interface"],
   ["interface-always-fullscreen", "Always Show In Fullscreen", "Keep fullscreen time or controls visible.", "Interface"],
   ["interface-fullscreen-volume", "Fullscreen Volume Slider", "Show a volume slider in fullscreen and Cinema View.", "Interface"],
   ["interface-release-year", "Release Year Position", "Show release year near track metadata.", "Interface"],

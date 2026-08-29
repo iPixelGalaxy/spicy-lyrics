@@ -124,10 +124,6 @@ export const $disabledLyricsSources = persistAtom<string>(
 export const $ignoreMusixmatchWordSync = persistAtom<boolean>("ignoreMusixmatchWordSync", true);
 export const $prioritizeAppleMusicQuality = persistAtom<boolean>("prioritizeAppleMusicQuality", true);
 export const $musixmatchToken = persistAtom<string>("musixmatchToken", "");
-export const $timelineOutsideMediaContent = persistAtom<boolean>(
-  "timelineOutsideMediaContent",
-  true
-);
 // Reserved for upstream's in-artwork volume controller. This fork keeps its
 // own placement selector, so the controller stays disabled.
 export const $showVolumeSlider = persistAtom<boolean>("showVolumeSlider", false);

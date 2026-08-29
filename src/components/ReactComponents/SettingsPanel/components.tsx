@@ -37,6 +37,11 @@ export function Row({
     <div
       className={`sl-sp-row sl-list-row${disabled ? " sl-sp-row--disabled" : ""}${stacked ? " sl-sp-row--stacked" : ""}`}
     >
+      {settingId && allowHidingSettings && !hideHidingIcon && (
+        <button className="sl-sp-btn sl-sp-visibility-btn" onClick={hide} aria-label={`Hide ${label}`} title="Hide setting">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+        </button>
+      )}
       <div className="sl-sp-label-wrap">
         <span className="sl-sp-label-line">
           <span className="sl-sp-label">{label}</span>
@@ -45,11 +50,6 @@ export function Row({
         {description && <span className="sl-sp-description">{description}</span>}
       </div>
       <div className="sl-sp-control">
-        {settingId && allowHidingSettings && !hideHidingIcon && (
-          <button className="sl-sp-visibility-btn" onClick={hide} aria-label={`Hide ${label}`} title="Hide setting">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
-          </button>
-        )}
         {children}
       </div>
       {disabled && disabledReason && <div className="sl-sp-row-tooltip">{disabledReason}</div>}

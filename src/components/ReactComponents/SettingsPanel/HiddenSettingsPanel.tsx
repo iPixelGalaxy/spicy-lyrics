@@ -27,7 +27,7 @@ export default function HiddenSettingsPanel({ onBack }: { onBack: () => void }) 
     {hiddenSettings.length === 0 ? <p className="sl-sp-empty">No hidden settings.</p> : SETTING_SECTIONS.map((section) => {
       const entries = hiddenSettings.filter((setting) => setting.category === section && (sectionFilter === "All" || sectionFilter === section) && (setting.label.toLowerCase().includes(query.toLowerCase()) || setting.description.toLowerCase().includes(query.toLowerCase())));
       if (!entries.length) return null;
-      return <React.Fragment key={section}><SectionTitle>{section}</SectionTitle>{entries.map((setting) => <Row key={setting.id} label={setting.label} description={setting.description}><button className="sl-sp-visibility-btn" onClick={() => restore(setting.id)} aria-label={`Restore ${setting.label}`} title="Restore setting"><EyeIcon /></button></Row>)}</React.Fragment>;
+      return <React.Fragment key={section}><SectionTitle>{section}</SectionTitle>{entries.map((setting) => <Row key={setting.id} label={setting.label} description={setting.description}><button className="sl-sp-btn sl-sp-visibility-btn" onClick={() => restore(setting.id)} aria-label={`Restore ${setting.label}`} title="Restore setting"><EyeIcon /></button></Row>)}</React.Fragment>;
     })}
   </div>;
 }

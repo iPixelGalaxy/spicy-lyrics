@@ -18,9 +18,10 @@ const bgModeLabels = ["Default", "Legacy", "Auto", "Artist Header", "Cover Art",
 interface Props {
   query: string;
   sectionFilter: string;
+  showHidden?: boolean;
 }
 
-export default function AppearanceSection({ query, sectionFilter }: Props) {
+export default function AppearanceSection({ query, sectionFilter, showHidden = false }: Props) {
   const customFontEnabled = useStore($customFontEnabled);
   const customFont = useStore($customFont);
   const staticBackgroundMode = useStore($staticBackgroundMode);
@@ -31,9 +32,9 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
-  const visible = (id: string) => !hiddenSettingIds.includes(id);
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id);
   const r1 = visible("appearance-custom-font") && matches(query, "Use Custom Font", "Use a custom font instead of the bundled Spicy Lyrics font.");
-  const r2 = visible("appearance-font-name") && customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
+  const r2 = visible("appearance-custom-font") && customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
   const r3 = visible("appearance-background-type") && matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
   const r4 = visible("appearance-npv-background") && matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
   const r5 = visible("appearance-cover-art-animation") && matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
@@ -53,7 +54,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       )}
 
       {r2 && (
-        <Row settingId="appearance-font-name" label="Font Name" description="Enter the installed font family name to use for lyrics.">
+        <Row label="Font Name" description="Enter the installed font family name to use for lyrics.">
           <input
             className="sl-sp-text-input"
             type="text"

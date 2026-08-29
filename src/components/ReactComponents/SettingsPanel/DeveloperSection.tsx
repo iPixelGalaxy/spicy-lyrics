@@ -5,6 +5,7 @@ import {
   $developerMode,
   $allowHidingSettings,
   $hideHidingIcon,
+  $hiddenSettingIds,
   $lyricsCacheAction,
   $showLyricsCacheActionButton,
 } from "../../../utils/stores.ts";
@@ -25,15 +26,17 @@ interface Props {
   query: string;
   sectionFilter: string;
   onOpenHiddenSettings: () => void;
+  showHidden?: boolean;
 }
 
-export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSettings }: Props) {
+export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSettings, showHidden = false }: Props) {
   const developerMode = useStore($developerMode);
   const showLyricsCacheActionButton = useStore($showLyricsCacheActionButton);
   const lyricsCacheAction = normalizeLyricsCacheAction(useStore($lyricsCacheAction));
   const buildChannel = useStore($buildChannel);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
+  const hiddenSettingIds = useStore($hiddenSettingIds);
   const displayedBuildChannel =
     Spicetify.LocalStorage.get("SpicyLyrics-buildChannel") ?? buildChannel;
 
@@ -51,20 +54,22 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
     );
   const r3 = matches(query, "Browse TTML Database", "Open the local TTML database manager.");
   const r4 = matches(query, "Build Channel", "Select which update channel this fork should track.");
-  const r5 = matches(query, "Developer Mode", "Enable extra logging and debug utilities.");
-  const r6 = matches(
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id);
+  const r5 = visible("advanced-developer-mode") && matches(query, "Developer Mode", "Enable extra logging and debug utilities.");
+  const r6 = visible("advanced-cache-button") && matches(
     query,
     "Lyrics View Cache Button",
     "Show a selected cache action in the lyrics view controls."
   );
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.")) return null;
+  const r7 = visible("advanced-cache-actions") && matches(query, "Cache Actions", "Clear all, current song, or stored lyrics cache.");
+  if (showHidden ? (!r5 && !r6 && !r7) : (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !r7 && !matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu."))) return null;
 
   return (
     <>
       <SectionTitle>Advanced</SectionTitle>
 
-      {matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.") && (
+      {!showHidden && matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.") && (
         <Row label="Allow Hiding Settings" description="Allow settings rows to be hidden from this menu.">
           <div className="sl-sp-btn-group">
             <Toggle checked={allowHidingSettings} onChange={(value) => $allowHidingSettings.set(value)} />
@@ -73,13 +78,13 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
         </Row>
       )}
 
-      {allowHidingSettings && matches(query, "Hide Hiding Icon", "Hide eye buttons while keeping setting hiding enabled.") && (
+      {!showHidden && allowHidingSettings && matches(query, "Hide Hiding Icon", "Hide eye buttons while keeping setting hiding enabled.") && (
         <Row label="Hide Hiding Icon" description="Hide eye buttons while keeping setting hiding enabled.">
           <Toggle checked={hideHidingIcon} onChange={(value) => $hideHidingIcon.set(value)} />
         </Row>
       )}
 
-      {r2 && (
+      {!showHidden && r2 && (
         <Row label="Manage Sources" description="Manage lyric source priority and availability.">
           <button className="sl-sp-btn" onClick={OpenLyricsSourcesManager}>
             Manage
@@ -87,7 +92,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
         </Row>
       )}
 
-      {r3 && (
+      {!showHidden && r3 && (
         <Row label="Browse TTML Database" description="Open the local TTML database manager.">
           <button className="sl-sp-btn" onClick={OpenTTMLDatabasePanelFromSettings}>
             Browse
@@ -95,7 +100,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
         </Row>
       )}
 
-      {r4 && (
+      {!showHidden && r4 && (
         <Row label="Build Channel" description="Select which update channel this fork should track.">
           <button className="sl-sp-btn" onClick={OpenBuildChannelPanel}>
             {displayedBuildChannel}
@@ -131,7 +136,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
         </Row>
       )}
 
-      {r1 && (
+      {r7 && (
         <Row settingId="advanced-cache-actions"
           label="Cache Actions"
           description="Clear all current-song caches, clear current in-memory lyrics, or clear stored lyrics cache."

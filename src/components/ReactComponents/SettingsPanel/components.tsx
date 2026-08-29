@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "@nanostores/react";
 import { $allowHidingSettings, $hiddenSettingIds, $hideHidingIcon } from "../../../utils/stores.ts";
+
+export const HiddenSettingsContext = React.createContext(false);
 
 export function matches(query: string, label: string, description?: string): boolean {
   if (!query.trim()) return true;
@@ -28,19 +30,24 @@ export function Row({
   stacked?: boolean;
   settingId?: string;
 }) {
+  const showHidden = useContext(HiddenSettingsContext);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
   const hiddenSettingIds = useStore($hiddenSettingIds);
-  if (settingId && hiddenSettingIds.includes(settingId)) return null;
-  const hide = () => settingId && $hiddenSettingIds.set([...hiddenSettingIds, settingId]);
+  const isHidden = settingId && hiddenSettingIds.includes(settingId);
+  if (settingId && isHidden && !showHidden) return null;
+  const toggleVisibility = () => {
+    if (!settingId) return;
+    $hiddenSettingIds.set(isHidden ? hiddenSettingIds.filter((id) => id !== settingId) : [...hiddenSettingIds, settingId]);
+  };
   return (
     <div
       className={`sl-sp-row sl-list-row${disabled ? " sl-sp-row--disabled" : ""}${stacked ? " sl-sp-row--stacked" : ""}`}
     >
       <div className="sl-sp-label-area">
-        {settingId && allowHidingSettings && !hideHidingIcon && (
-          <button className="sl-sp-btn sl-sp-visibility-btn" onClick={hide} aria-label={`Hide ${label}`} title="Hide setting">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>
+        {settingId && ((showHidden && isHidden) || (allowHidingSettings && !hideHidingIcon)) && (
+          <button className="sl-sp-btn sl-sp-visibility-btn" onClick={toggleVisibility} aria-label={`${isHidden ? "Restore" : "Hide"} ${label}`} title={`${isHidden ? "Restore" : "Hide"} setting`}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/>{!isHidden && <path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>}</svg>
           </button>
         )}
         <div className="sl-sp-label-wrap">

@@ -18,9 +18,9 @@ const SECTION_NAME = "Lyrics Display";
 const simpleLyricsOptions = ["Off", "calculate", "animate"];
 const simpleLyricsLabels = ["Off", "Calculate", "Animate"];
 const uniqueWordFilterOptions = ["Off", "Gibberish", "all lowercase", "ALL UPPERCASE"];
-interface Props { query: string; sectionFilter: string; }
+interface Props { query: string; sectionFilter: string; showHidden?: boolean; }
 
-export default function LyricsSection({ query, sectionFilter }: Props) {
+export default function LyricsSection({ query, sectionFilter, showHidden = false }: Props) {
   const simpleLyricsMode = useStore($simpleLyricsMode);
   const simpleLyricsModeRenderingType = useStore($simpleLyricsModeRenderingType);
   const minimalLyricsMode = useStore($minimalLyricsMode);
@@ -33,7 +33,7 @@ export default function LyricsSection({ query, sectionFilter }: Props) {
   const hiddenSettingIds = useStore($hiddenSettingIds);
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
-  const visible = (id: string) => !hiddenSettingIds.includes(id);
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id);
   const r1 = visible("lyrics-simple-mode") && (matches(query, "Simple Lyrics Mode", "Off, Calculate, or Animate simple lyric transitions.") || matches(query, "Simple Mode: Text Animation Style", "How lyrics text transitions are rendered in Simple Lyrics Mode."));
   const r3 = visible("lyrics-minimal-mode") && matches(query, "Minimal Lyrics Mode", "Hides sung lyrics lines in Fullscreen and Cinema Mode");
   const r4 = visible("lyrics-right-align") && matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");

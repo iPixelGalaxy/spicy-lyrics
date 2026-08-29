@@ -22,9 +22,9 @@ const volumeOptions = ["Off", "Left", "Right", "Below"];
 const releaseYearOptions = ["Off", "Left", "Right"];
 const escapeOptions = ["Default", "Exit Fullscreen", "Exit Fully"];
 
-interface Props { query: string; sectionFilter: string; }
+interface Props { query: string; sectionFilter: string; showHidden?: boolean; }
 
-export default function InterfaceSection({ query, sectionFilter }: Props) {
+export default function InterfaceSection({ query, sectionFilter, showHidden = false }: Props) {
   const lockedMediaBox = useStore($lockedMediaBox);
   const popupLyricsAllowed = useStore($popupLyricsAllowed);
   const viewControlsPosition = useStore($viewControlsPosition);
@@ -42,7 +42,7 @@ export default function InterfaceSection({ query, sectionFilter }: Props) {
   const ids = ["interface-lock-media-box", "interface-disable-popup", "interface-view-controls", "interface-always-fullscreen", "interface-fullscreen-volume", "interface-release-year", "interface-animate-close", "interface-escape-key", "interface-disable-npv", "interface-hide-empty-npv"];
   const rows = [
     matches(query, "Lock Media Box Size in Compact Mode", "Prevent the media box from resizing when Forced Compact Mode is active."), matches(query, "Disable Popup Lyrics Window", "Show or hide the Popup Lyrics button in the playback bar."), matches(query, "Lyrics Controls Position", "Where the lyrics view controls (play, scroll, etc.) appear."), matches(query, "Always Show In Fullscreen", "Keep fullscreen time or controls visible."), matches(query, "Fullscreen Volume Slider", "Show a volume slider in fullscreen."), matches(query, "Release Year Position", "Show release year near track metadata."), matches(query, "Animate closing fullscreen", "Slide the lyrics page away when closing fullscreen."), matches(query, "Escape Key Function", "Choose how Escape behaves in lyrics fullscreen."), matches(query, "Disable NPV Lyrics", "Never show the lyrics card in the Now Playing sidebar."), matches(query, "Hide NPV Lyrics When No Lyrics Are Available", "Remove the lyrics card from the Now Playing sidebar while the current song has no lyrics, instead of showing a notice. It comes back on the next song that has them."),
-  ].map((matched, index) => matched && !hiddenSettingIds.includes(ids[index]));
+  ].map((matched, index) => matched && (showHidden ? hiddenSettingIds.includes(ids[index]) : !hiddenSettingIds.includes(ids[index])));
   if (!rows.some(Boolean)) return null;
   const normalizedAlwaysShow = alwaysShowInFullscreen === "All" ? "Both" : alwaysShowInFullscreen;
 

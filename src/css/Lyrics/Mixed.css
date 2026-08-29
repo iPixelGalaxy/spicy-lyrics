@@ -480,17 +480,6 @@
   --BlurAmount: 0px !important;
 }
 
-/* The animator sets this before adding Active. On a delayed animation frame,
-   do not expose the line's -20% fallback gradient while its child styles catch
-   up: it reads as a single bright-white flash. Simple mode owns this property
-   through --SLM_GradientPosition, so leave that path untouched. */
-#SpicyLyricsPage.SpicyRenderer:not(.SimpleLyricsMode)
-  .LyricsContainer
-  .LyricsContent
-  .line.Active {
-  --gradient-position: var(--active-gradient-position, -20%) !important;
-}
-
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .letterGroup,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .letterGroup .letter {

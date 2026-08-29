@@ -106,7 +106,6 @@ const ScaleDamping = 0.64;
 const ScaleFrequency = 0.88;
 const GlowDamping = 0.56;
 const GlowFrequency = 1.18;
-const AnimationResponseLeadMs = 67;
 
 const getDotOpacityRange = (simpleLyricsMode: boolean) => [
   // Controls element opacity
@@ -443,7 +442,7 @@ setOnNewElementMounted(() => {
 });
 
 export function findActiveElement(currentTime: number): any {
-  const ProcessedPosition = currentTime + timeOffset + AnimationResponseLeadMs;
+  const ProcessedPosition = currentTime + timeOffset;
   const CurrentLyricsType = $currentLyricsType.get();
 
   if (!CurrentLyricsType || CurrentLyricsType === "None") return null;
@@ -533,7 +532,7 @@ function getProgressPercentage(currentTime: number, startTime: number, endTime: 
 let lastAnimateFrameTime = 0;
 
 export function Animate(position: number): void {
-  const ProcessedPosition = position + timeOffset + AnimationResponseLeadMs;
+  const ProcessedPosition = position + timeOffset - ($simpleLyricsMode.get() ? 33.5 : 0);
 
   const now = performance.now();
 
@@ -672,14 +671,6 @@ export function Animate(position: number): void {
       const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
-        // Stamp the same -20% to 100% gradient range used by words before this
-        // frame promotes the line to Active. Raw 0% to 100% line progress starts
-        // a delayed frame too far through the gradient and can paint white.
-        line.HTMLElement.style.setProperty(
-          "--active-gradient-position",
-          `${-20 + 120 * getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime)}%`
-        );
-
         if (Blurring_LastLine !== index) {
           applyBlur(arr, index, BlurMultiplier);
           //applyScale(arr, index);
@@ -1657,15 +1648,6 @@ export function Animate(position: number): void {
       const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
-        const percentage = getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime);
-        // Match the word renderer's -20% to 100% gradient range before Active
-        // changes the background-image rule. Raw line progress paints too far
-        // through the white gradient after a delayed frame.
-        line.HTMLElement.style.setProperty(
-          "--active-gradient-position",
-          `${-20 + 120 * percentage}%`
-        );
-
         if (Blurring_LastLine !== index) {
           applyBlur(arr, index, BlurMultiplier);
           //applyScale(arr, index);
@@ -1695,6 +1677,8 @@ export function Animate(position: number): void {
             }
           }
         }
+
+        const percentage = getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime);
 
         if (line.DotLine && line.Syllables?.Lead) {
           const dotArray = line.Syllables.Lead; // Assuming Syllables.Lead holds the dots for DotLine

@@ -1,4 +1,4 @@
-# Low-frame-rate lyric flash diagnosis
+# Low-frame-rate lyric flash: upstream comparison
 
 Audience: Spicy Lyrics maintainer
 
@@ -6,18 +6,17 @@ Date: 2026-08-28
 
 ## Answer
 
-The prior fix set `--active-gradient-position` to raw line progress, from `0%` to `100%`. The word renderer uses `-20%` to `100%`. A delayed frame promoted a new line with a value ahead of its word gradient, exposing the bright portion of the line gradient.
+The fork advanced all active-line state by 67ms. Upstream uses playback position plus the user timing offset. This fork-only lead promotes the next line before its first lyric frame and is the remaining candidate after the earlier gradient patch failed.
 
 ## Evidence
 
-- Commit `0457693` added `--active-gradient-position` before applying the `Active` class in both animator branches.
-- The same commit used `getProgressPercentage(...) * 100`, producing `0%` through `100%`.
-- Syllable words calculate their non-simple gradient as `-20 + 120 * percentage` in `LyricsAnimator.ts`.
-- `Mixed.css` initializes non-sung lines at `-20%` and uses the gradient position in each line and word background.
+- Fork commit `b7a30c8` introduced `AnimationResponseLeadMs = 67` and added it to `findActiveElement()` and `Animate()`.
+- `upstream/main` uses `currentTime + timeOffset` in `findActiveElement()` and `position + timeOffset`, with a 33.5ms Simple Lyrics adjustment, in `Animate()`.
+- The fork-only lead is applied before every line, word, and letter active-state calculation.
 
 ## Fix
 
-Both line branches now set `--active-gradient-position` with `-20 + 120 * percentage` before adding `Active`. The line and word gradient positions now start and progress on the same scale.
+The renderer now uses upstream timing in both functions. The earlier fork-only active-gradient override is removed because it did not resolve the affected user's flash.
 
 ## Limitation
 

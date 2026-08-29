@@ -2,6 +2,7 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import {
   $lineHoverBackground,
+  $allowHidingSettings,
   $hiddenSettingIds,
   $memeFormat,
   $minimalLyricsMode,
@@ -29,11 +30,12 @@ export default function LyricsSection({ query, sectionFilter, showHidden = false
   const memeFormat = useStore($memeFormat);
   const playbackOffset = useStore($playbackOffset);
   const lineHoverBackground = useStore($lineHoverBackground);
+  const allowHidingSettings = useStore($allowHidingSettings);
   const spaceGravityMode = useStore($spaceGravityMode);
   const hiddenSettingIds = useStore($hiddenSettingIds);
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
-  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id) || Boolean(query.trim());
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !allowHidingSettings || !hiddenSettingIds.includes(id) || Boolean(query.trim());
   const r1 = visible("lyrics-simple-mode") && (matches(query, "Simple Lyrics Mode", "Off, Calculate, or Animate simple lyric transitions.") || matches(query, "Simple Mode: Text Animation Style", "How lyrics text transitions are rendered in Simple Lyrics Mode."));
   const r3 = visible("lyrics-minimal-mode") && matches(query, "Minimal Lyrics Mode", "Hides sung lyrics lines in Fullscreen and Cinema Mode");
   const r4 = visible("lyrics-right-align") && matches(query, "Right Align Lyrics", "Flip duet/opposite lyric alignment.");

@@ -37,7 +37,7 @@ export function Row({
   const hideHidingIcon = useStore($hideHidingIcon);
   const hiddenSettingIds = useStore($hiddenSettingIds);
   const isHidden = settingId && hiddenSettingIds.includes(settingId);
-  if (settingId && isHidden && !showHidden && !showHiddenInSearch) return null;
+  if (settingId && isHidden && allowHidingSettings && !showHidden && !showHiddenInSearch) return null;
   const toggleVisibility = () => {
     if (!settingId) return;
     $hiddenSettingIds.set(isHidden ? hiddenSettingIds.filter((id) => id !== settingId) : [...hiddenSettingIds, settingId]);

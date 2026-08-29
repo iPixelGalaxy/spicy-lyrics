@@ -2,6 +2,7 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import {
   $coverArtAnimation,
+  $allowHidingSettings,
   $customFont,
   $customFontEnabled,
   $showNpvDynamicBg,
@@ -28,11 +29,12 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
   const coverArtAnimation = useStore($coverArtAnimation);
+  const allowHidingSettings = useStore($allowHidingSettings);
   const hiddenSettingIds = useStore($hiddenSettingIds);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
-  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !hiddenSettingIds.includes(id) || Boolean(query.trim());
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !allowHidingSettings || !hiddenSettingIds.includes(id) || Boolean(query.trim());
   const r1 = visible("appearance-custom-font") && matches(query, "Use Custom Font", "Use a custom font instead of the bundled Spicy Lyrics font.");
   const r2 = visible("appearance-custom-font") && customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
   const r3 = visible("appearance-background-type") && matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");

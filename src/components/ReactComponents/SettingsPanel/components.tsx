@@ -73,12 +73,12 @@ export function Select({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
-  const selectedLabel = labels?.[options.indexOf(value)] ?? value;
-
   return (
     <span className="sl-sp-select-wrap">
       <span className="sl-sp-select-sizer" aria-hidden="true">
-        {selectedLabel}
+        {options.map((opt, i) => (
+          <span key={opt}>{labels?.[i] ?? opt}</span>
+        ))}
       </span>
       <select
         className="sl-sp-select"

@@ -516,12 +516,19 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
   }
 
   .sl-sp-select-sizer {
-    display: block;
+    /* All labels share one grid cell, so this takes the widest label's width
+       without adding height. Rows keep controls right-aligned; extra width
+       therefore grows left instead of native option text spilling right. */
+    display: grid;
     visibility: hidden;
     white-space: nowrap;
     padding: 6px 28px 6px 10px;
     font-size: var(--text-caption-size) !important;
     font-weight: var(--w-medium);
+
+    > span {
+      grid-area: 1 / 1;
+    }
   }
 
   /* Select — flat tinted surface, no inner blur */

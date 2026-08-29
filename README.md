@@ -63,12 +63,30 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
-### v100.10.38 — Latest
+### v100.10.39 — Latest
+
+- **Updated to be inline with 6.3.12 to follow API changes**
+
+- **Lyrics transition fix**
+  Fixed brief white flash on next active lyric line during low frame rates.
+
+- **Unique Word Filters**
+  Added `Gibberish`, `all lowercase`, `ALL UPPERCASE`, and `Off`.
+
+- **Settings layout**
+  Moved Space Gravity and Unique Word Filters to top of Lyrics Display. Dropdowns now size left for longer options.
+
+<details>
+<summary>v100.10.38</summary>
+
+### v100.10.38
 
 - Updated to be inline with 6.3.10
 
 - **Split gibberish words**
   Space Gravity now separates gibberish lyrics into individual words.
+
+</details>
 
 <details>
 <summary>v100.10.37</summary>

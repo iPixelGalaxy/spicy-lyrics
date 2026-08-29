@@ -672,6 +672,16 @@ export function Animate(position: number): void {
       const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
+        // Stamp playback progress before this frame promotes the line to Active.
+        // A delayed animation frame can cross the line boundary by many
+        // milliseconds. Without this value the newly-active parent briefly uses
+        // CSS's -20% fallback gradient, which is visibly white before child
+        // syllable styles catch up.
+        line.HTMLElement.style.setProperty(
+          "--active-gradient-position",
+          `${getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime) * 100}%`
+        );
+
         if (Blurring_LastLine !== index) {
           applyBlur(arr, index, BlurMultiplier);
           //applyScale(arr, index);
@@ -1649,6 +1659,15 @@ export function Animate(position: number): void {
       const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
+        const percentage = getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime);
+        // See Syllable branch: this must happen before Active changes the
+        // background-image rule, otherwise a low-FPS boundary frame can paint
+        // the default white gradient.
+        line.HTMLElement.style.setProperty(
+          "--active-gradient-position",
+          `${percentage * 100}%`
+        );
+
         if (Blurring_LastLine !== index) {
           applyBlur(arr, index, BlurMultiplier);
           //applyScale(arr, index);
@@ -1678,8 +1697,6 @@ export function Animate(position: number): void {
             }
           }
         }
-
-        const percentage = getProgressPercentage(ProcessedPosition, line.StartTime, line.EndTime);
 
         if (line.DotLine && line.Syllables?.Lead) {
           const dotArray = line.Syllables.Lead; // Assuming Syllables.Lead holds the dots for DotLine

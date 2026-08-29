@@ -377,11 +377,13 @@ function normalizeLegacyRomanizationFields(lyrics: any): void {
 
 function applyTextTransform(text: string, _isPartOfWord = false): string {
   if (Defaults.MemeFormat === "Gibberish") return gibberishifyLine(text).replace(/\s+/g, "");
+  if (Defaults.MemeFormat === "all lowercase") return text.toLowerCase();
+  if (Defaults.MemeFormat === "ALL UPPERCASE") return text.toUpperCase();
   return text;
 }
 
 export function ApplyMemeFormat(lyrics: any): void {
-  if (Defaults.MemeFormat !== "Gibberish") return;
+  if (Defaults.MemeFormat === "Off") return;
 
   if (lyrics.Type === "Static") {
     for (const line of lyrics.Lines ?? []) {

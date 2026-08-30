@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { Query } from "../../../utils/API/Query.ts";
 import storage from "../../../utils/storage.ts";
 
 const IFRAME_ORIGIN = "https://spicylyrics.org";
@@ -10,44 +9,13 @@ const devLog = (...args: any[]) => {
 };
 
 interface IframeProfileModalProps {
-  userId: string;
+  username: string;
   onClose: () => void;
   messageWindow: Window;
 }
 
-function IframeProfileModal({ userId, onClose, messageWindow }: IframeProfileModalProps) {
-  const [username, setUsername] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  devLog("render —", { loading, username, error });
-
-  useEffect(() => {
-    devLog("mount, userId:", userId);
-    let cancelled = false;
-    Query([{
-      operation: "ttmlProfile",
-      variables: { userId, referrer: "lyricsCreditsView" },
-    }])
-      .then((req) => {
-        if (cancelled) return;
-        devLog("query result:", req.get("0"));
-        const name = req.get("0")?.data?.profile?.data?.username;
-        devLog("resolved username:", name);
-        if (name) {
-          setUsername(name);
-        } else {
-          setError(true);
-        }
-      })
-      .catch((err) => {
-        devLog("query error:", err);
-        if (!cancelled) setError(true);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
-  }, [userId]);
+function IframeProfileModal({ username, onClose, messageWindow }: IframeProfileModalProps) {
+  devLog("render —", { username });
 
   const handleMessage = useCallback((e: MessageEvent) => {
     if (e.origin !== IFRAME_ORIGIN) return;
@@ -133,27 +101,15 @@ function IframeProfileModal({ userId, onClose, messageWindow }: IframeProfileMod
           </svg>
         </button>
 
-        {loading && (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: "0.85rem", fontFamily: "sans-serif" }}>
-            Loading profile…
-          </div>
-        )}
-        {!loading && error && (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: "0.85rem", fontFamily: "sans-serif" }}>
-            Failed to load profile.
-          </div>
-        )}
-        {!loading && username && (
-          <iframe
-            src={`${IFRAME_ORIGIN}/embed/${encodeURIComponent(username)}`}
-            allow="clipboard-write"
-            // allow-same-origin is safe: IFRAME_ORIGIN differs from Spicetify's parent
-            // origin, so the sandbox-escape cannot be triggered. Remove if the embed
-            // URL ever becomes same-origin with the parent.
-            sandbox="allow-scripts allow-same-origin allow-popups"
-            style={{ flex: 1, width: "100%", border: "none", display: "block", minHeight: 0 }}
-          />
-        )}
+        <iframe
+          src={`${IFRAME_ORIGIN}/embed/${encodeURIComponent(username)}`}
+          allow="clipboard-write"
+          // allow-same-origin is safe: IFRAME_ORIGIN differs from Spicetify's parent
+          // origin, so the sandbox-escape cannot be triggered. Remove if the embed
+          // URL ever becomes same-origin with the parent.
+          sandbox="allow-scripts allow-same-origin allow-popups"
+          style={{ flex: 1, width: "100%", border: "none", display: "block", minHeight: 0 }}
+        />
       </div>
     </div>
   );
@@ -185,10 +141,10 @@ export function closeIframeProfileModal() {
   _profileWindow = null;
 }
 
-export function showIframeProfileModal(userId: string | undefined, targetDocument: Document = document) {
-  devLog("showIframeProfileModal called, userId:", userId);
-  if (!userId) {
-    devLog("userId is falsy, aborting");
+export function showIframeProfileModal(username: string | undefined, targetDocument: Document = document) {
+  devLog("showIframeProfileModal called, username:", username);
+  if (!username) {
+    devLog("username is falsy, aborting");
     return;
   }
 
@@ -226,7 +182,7 @@ export function showIframeProfileModal(userId: string | undefined, targetDocumen
   try {
     const root = ReactDOM.createRoot(container);
     _profileRoot = root;
-    root.render(React.createElement(IframeProfileModal, { userId, onClose: closeIframeProfileModal, messageWindow: targetWindow }));
+    root.render(React.createElement(IframeProfileModal, { username, onClose: closeIframeProfileModal, messageWindow: targetWindow }));
     devLog("React root created and rendered");
 
     setTimeout(() => {

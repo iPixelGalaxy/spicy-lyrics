@@ -24,13 +24,15 @@ export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
   madeTippys.clear();
 }
 
-function openProfile(userId: string | undefined) {
-  if (!userId) return;
+function openProfile(userId: string | undefined, username: string | undefined) {
+  if (!username) return;
   if (!IsPIP) {
-    showIframeProfileModal(userId, PageDocument);
+    showIframeProfileModal(username, PageDocument);
     return;
   }
-  const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
+  const url = userId
+    ? `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`
+    : `https://spicylyrics.org/embed/${encodeURIComponent(username)}`;
   globalThis.open?.(url, "_blank", "noopener,noreferrer");
 }
 
@@ -141,7 +143,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     uploaderSpan.addEventListener(
       "click",
       () => {
-        openProfile(data.TTMLUploadMetadata?.Uploader?.id);
+        openProfile(data.TTMLUploadMetadata?.Uploader?.id, uploaderUsername);
         if (IsPIP) {
           globalThis.focus();
         }
@@ -166,7 +168,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     makerSpan.addEventListener(
       "click",
       () => {
-        openProfile(data.TTMLUploadMetadata?.Maker?.id);
+          openProfile(data.TTMLUploadMetadata?.Maker?.id, makerUsername);
         if (IsPIP) {
           globalThis.focus();
         }

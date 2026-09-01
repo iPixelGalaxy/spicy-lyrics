@@ -14,7 +14,6 @@ const Defaults = {
   BuildChannel: "Stable" as string,
   CustomFontEnabled: false,
   CustomFont: "",
-  CustomFontSource: "",
   AlwaysShowInFullscreen: "None" as string,
   ShowVolumeSliderFullscreen: "Off" as string,
   ReleaseYearPosition: "Off" as string,

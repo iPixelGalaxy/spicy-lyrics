@@ -103,7 +103,6 @@ export const $escapeKeyFunction = persistAtom<string>("escapeKeyFunction", "Defa
 export const $buildChannel = persistAtom<string>("buildChannel", "Stable");
 export const $customFontEnabled = persistAtom<boolean>("customFontEnabled", false);
 export const $customFont = persistAtom<string>("customFont", "");
-export const $customFontSource = persistAtom<string>("customFontSource", "");
 export const $alwaysShowInFullscreen = persistAtom<string>("alwaysShowInFullscreen", "None");
 export const $showVolumeSliderFullscreen = persistAtom<string>("showVolumeSliderFullscreen", "Off");
 export const $releaseYearPosition = persistAtom<string>("releaseYearPosition", "Off");

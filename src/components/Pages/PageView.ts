@@ -30,7 +30,6 @@ import {
   $currentLyricsData,
   $customFont,
   $customFontEnabled,
-  $customFontSource,
   $enableExperimentalWordSync,
   $lineHoverBackground,
   $memeFormat,
@@ -143,45 +142,13 @@ let PageResizeListener: ResizeObserver | null = null;
 export let PageContainer: HTMLElement | null = null;
 export let IsCardMode = false;
 
-const CUSTOM_WEB_FONT_FAMILY = "SpicyLyricsCustomWebFont";
-const CUSTOM_WEB_FONT_STYLE_ID = "spicy-lyrics-custom-web-font";
-
-function getCustomFontSource(value: string): string | null {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "https:" ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-function applyCustomWebFont(targetDocument: Document): boolean {
-  const existing = targetDocument.getElementById(CUSTOM_WEB_FONT_STYLE_ID);
-  const source = $customFontEnabled.get() ? getCustomFontSource($customFontSource.get()) : null;
-  if (!source) {
-    existing?.remove();
-    return false;
-  }
-
-  const style = existing ?? targetDocument.createElement("style");
-  style.id = CUSTOM_WEB_FONT_STYLE_ID;
-  style.textContent = `@font-face { font-family: ${toCssFontFamily(CUSTOM_WEB_FONT_FAMILY)}; src: url(${JSON.stringify(source)}) format("woff2"); font-weight: 1 1000; font-style: normal; font-display: block; }`;
-  if (!existing) targetDocument.head.appendChild(style);
-  return true;
-}
-
 function applyCustomFontSetting(fontFamily: string, targetDocument: Document = PageContainer?.ownerDocument ?? document) {
-  const usesWebFont = applyCustomWebFont(targetDocument);
   const cssFontFamily = toCssFontFamily(fontFamily);
-  if ($customFontEnabled.get() && (usesWebFont || cssFontFamily)) {
-    targetDocument.documentElement.style.setProperty(
-      "--spicy-custom-font",
-      usesWebFont ? toCssFontFamily(CUSTOM_WEB_FONT_FAMILY) : cssFontFamily
-    );
+  if ($customFontEnabled.get() && cssFontFamily) {
+    targetDocument.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
   } else {
     targetDocument.documentElement.style.removeProperty("--spicy-custom-font");
   }
-  targetDocument.getElementById("SpicyLyricsPage")?.classList.toggle("UsesCustomWebFont", usesWebFont);
 }
 
 async function OpenPage(
@@ -981,10 +948,6 @@ $customFontEnabled.listen((v) => {
 
 $customFont.listen((v) => {
   applyCustomFontSetting(v);
-});
-
-$customFontSource.listen(() => {
-  applyCustomFontSetting($customFont.get());
 });
 
 // Experiments own their CSS hook here; NowBar.ts handles the rebuild for the ones

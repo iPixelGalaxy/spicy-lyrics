@@ -23,7 +23,6 @@ import {
   $currentLyricsData,
   $customFont,
   $customFontEnabled,
-  $customFontSource,
   $disabledLyricsSources,
   $enableExperimentalWordSync,
   $escapeKeyFunction,
@@ -101,7 +100,6 @@ function bindDefault<T>(store: { get: () => T; listen: (listener: (value: T) => 
 }
 
 function applyCustomFont(enabled = $customFontEnabled.get(), font = $customFont.get()) {
-  if ($customFontSource.get().trim()) return;
   const cssFontFamily = toCssFontFamily(font);
   if (enabled && cssFontFamily) {
     document.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
@@ -162,10 +160,6 @@ function bindForkDefaults() {
   bindDefault($customFont, (value) => {
     Defaults.CustomFont = value;
     applyCustomFont($customFontEnabled.get(), value);
-  });
-  bindDefault($customFontSource, (value) => {
-    Defaults.CustomFontSource = value;
-    applyCustomFont();
   });
   bindDefault($alwaysShowInFullscreen, (value) => {
     Defaults.AlwaysShowInFullscreen = value;

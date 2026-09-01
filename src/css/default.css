@@ -48,8 +48,8 @@
   font-family: var(--spicy-custom-font, var(--encore-body-font-stack, sans-serif)), "Noto Sans Georgian", "VazirmatnRegular", sans-serif !important;
 }
 
-#SpicyLyricsPage.UsesCustomWebFont,
-#SpicyLyricsPage.UsesCustomWebFont * {
+#SpicyLyricsPage:not(.UseSpicyFont),
+#SpicyLyricsPage:not(.UseSpicyFont) *:not(.musical-line, .musical-line *) {
   font-synthesis: none;
 }
 

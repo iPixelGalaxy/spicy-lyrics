@@ -5,6 +5,7 @@ import {
   $allowHidingSettings,
   $customFont,
   $customFontEnabled,
+  $customFontSource,
   $showNpvDynamicBg,
   $staticBackgroundBlur,
   $staticBackgroundMode,
@@ -25,6 +26,7 @@ interface Props {
 export default function AppearanceSection({ query, sectionFilter, showHidden = false }: Props) {
   const customFontEnabled = useStore($customFontEnabled);
   const customFont = useStore($customFont);
+  const customFontSource = useStore($customFontSource);
   const staticBackgroundMode = useStore($staticBackgroundMode);
   const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
@@ -37,13 +39,14 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !allowHidingSettings || !hiddenSettingIds.includes(id) || Boolean(query.trim());
   const r1 = visible("appearance-custom-font") && matches(query, "Use Custom Font", "Use a custom font instead of the bundled Spicy Lyrics font.");
   const r2 = visible("appearance-custom-font") && customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
-  const r3 = visible("appearance-background-type") && matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
-  const r4 = visible("appearance-npv-background") && matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
-  const r5 = visible("appearance-cover-art-animation") && matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
+  const r3 = visible("appearance-custom-font") && customFontEnabled && matches(query, "Font File URL", "Use an HTTPS WOFF2 font file so lyrics use identical font outlines on every platform.");
+  const r4 = visible("appearance-background-type") && matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
+  const r5 = visible("appearance-npv-background") && matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
+  const r6 = visible("appearance-cover-art-animation") && matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
   const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
-  const r6 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
+  const r7 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !r7) return null;
 
   return (
     <>
@@ -69,6 +72,19 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
       )}
 
       {r3 && (
+        <Row label="Font File URL" description="Optional HTTPS WOFF2 URL with CORS. Uses this exact font file on every platform; leave blank to use installed Font Name.">
+          <input
+            className="sl-sp-text-input"
+            type="url"
+            placeholder="https://example.com/HemiHead-BoldItalic.woff2"
+            value={customFontSource}
+            onChange={(e) => $customFontSource.set(e.currentTarget.value)}
+            spellCheck={false}
+          />
+        </Row>
+      )}
+
+      {r4 && (
         <Row settingId="appearance-background-type" label="Background Type" description="Choose the dynamic, legacy, static image, or color background.">
           <Select
             value={staticBackgroundMode === "off" ? "default" : staticBackgroundMode}
@@ -79,7 +95,7 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
         </Row>
       )}
 
-      {r6 && (
+      {r7 && (
         <Row settingId="appearance-background-blur" label="Background Blur" description="Soften the static background image." stacked>
           <Slider
             value={staticBackgroundBlur}
@@ -93,7 +109,7 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
         </Row>
       )}
 
-      {r4 && (
+      {r5 && (
         <Row settingId="appearance-npv-background"
           label="Display Dynamic Background in Now Playing View"
           description="Show the animated background in the Now Playing panel."
@@ -102,7 +118,7 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
         </Row>
       )}
 
-      {r5 && (
+      {r6 && (
         <Row settingId="appearance-cover-art-animation" label="Cover Art Animation" description="Animate cover art changes in the NowBar.">
           <Toggle checked={coverArtAnimation} onChange={(v) => $coverArtAnimation.set(v)} />
         </Row>

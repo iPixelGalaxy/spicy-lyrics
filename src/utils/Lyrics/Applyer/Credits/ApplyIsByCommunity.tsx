@@ -1,9 +1,16 @@
 import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
+import {
+  closeIframeProfileModal,
+  showIframeProfileModal,
+} from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
 
-export function CleanUpIsByCommunity() {
+export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
+  if (closeProfileModal) {
+    closeIframeProfileModal();
+  }
   if (isByCommunityAbortController) {
     isByCommunityAbortController.abort();
     isByCommunityAbortController = null;
@@ -17,11 +24,15 @@ export function CleanUpIsByCommunity() {
   madeTippys.clear();
 }
 
-function openProfile(userId: string | undefined) {
-  if (!userId) return;
-  // TEMP: Cloudflare's DDoS challenge blocks cross-origin embeds. Restore
-  // showIframeProfileModal(username, PageDocument) when /embed/* permits framing.
-  const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
+function openProfile(userId: string | undefined, username: string | undefined) {
+  if (!username) return;
+  if (!IsPIP) {
+    showIframeProfileModal(username, PageDocument);
+    return;
+  }
+  const url = userId
+    ? `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`
+    : `https://spicylyrics.org/embed/${encodeURIComponent(username)}`;
   globalThis.open?.(url, "_blank", "noopener,noreferrer");
 }
 
@@ -132,7 +143,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     uploaderSpan.addEventListener(
       "click",
       () => {
-        openProfile(data.TTMLUploadMetadata?.Uploader?.id);
+        openProfile(data.TTMLUploadMetadata?.Uploader?.id, uploaderUsername);
         if (IsPIP) {
           globalThis.focus();
         }
@@ -157,7 +168,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     makerSpan.addEventListener(
       "click",
       () => {
-        openProfile(data.TTMLUploadMetadata?.Maker?.id);
+          openProfile(data.TTMLUploadMetadata?.Maker?.id, makerUsername);
         if (IsPIP) {
           globalThis.focus();
         }

@@ -22,7 +22,7 @@ export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 4, 
 }, isDev as true);
 
 export const SessionTTMLStore = new Map<string, any>();
-const LYRICS_SOURCE_CACHE_VERSION = 3;
+const LYRICS_SOURCE_CACHE_VERSION = 4;
 const inFlightLyricsFetches = new Map<string, Promise<[object | string, number] | null>>();
 let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
 let resolveLoaderHide: (() => void) | null = null;

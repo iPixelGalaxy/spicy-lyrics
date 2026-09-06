@@ -607,6 +607,18 @@ function isMusixmatchInstrumental(track: any): boolean {
   return track?.instrumental === true || track?.instrumental === 1 || track?.instrumental === "1";
 }
 
+function normalizeMusixmatchTrackName(text: string): string {
+  return removeSongFeat(normalizeText(text, false))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isMusixmatchTrackMatch(track: any, trackInfo: TrackLyricsInfo): boolean {
+  const expected = normalizeMusixmatchTrackName(trackInfo.title);
+  const actual = normalizeMusixmatchTrackName(track?.track_name ?? "");
+  return !!expected && !!actual && (expected === actual || expected.includes(actual) || actual.includes(expected));
+}
+
 function shouldJoinMusixmatchTokens(currentText: string, nextText: string): boolean {
   const current = currentText.trim();
   const next = nextText.trim();
@@ -1042,21 +1054,8 @@ async function fetchMusixmatchLyrics(
     }
 
     const track = macroCalls?.["matcher.track.get"]?.message?.body?.track;
-    if (isMusixmatchInstrumental(track)) {
-      const instrumentalLyrics = buildStaticLyrics(
-        ["♪ Instrumental ♪"],
-        "musixmatch",
-        "Musixmatch"
-      );
-      if (!instrumentalLyrics) return null;
-
-      return {
-        lyrics: {
-          ...instrumentalLyrics,
-          fetchProvider: "musixmatch",
-        },
-        status: 200,
-      };
+    if (!isMusixmatchTrackMatch(track, trackInfo) || isMusixmatchInstrumental(track)) {
+      return null;
     }
 
     const richsync = Defaults.IgnoreMusixmatchWordSync

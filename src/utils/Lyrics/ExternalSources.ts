@@ -603,6 +603,10 @@ function isMusixmatchInstrumentalPlaceholder(text: string | undefined): boolean 
   return !normalized || /^(instrumental|inst\.?)$/i.test(normalized);
 }
 
+function isMusixmatchInstrumental(track: any): boolean {
+  return track?.instrumental === true || track?.instrumental === 1 || track?.instrumental === "1";
+}
+
 function shouldJoinMusixmatchTokens(currentText: string, nextText: string): boolean {
   const current = currentText.trim();
   const next = nextText.trim();
@@ -685,7 +689,7 @@ async function fetchMusixmatchRichsync(
   retry: boolean = true
 ) {
   const meta = macroCalls?.["matcher.track.get"]?.message?.body?.track;
-  if (!meta?.has_richsync || meta?.instrumental || !meta?.commontrack_id) {
+  if (!meta?.has_richsync || isMusixmatchInstrumental(meta) || !meta?.commontrack_id) {
     return null;
   }
 
@@ -724,7 +728,7 @@ function getMusixmatchSyncedLines(macroCalls: any): TimedLine[] | null {
     return null;
   }
 
-  if (meta.instrumental) {
+  if (isMusixmatchInstrumental(meta)) {
     return null;
   }
 
@@ -784,7 +788,7 @@ function getMusixmatchUnsyncedLines(macroCalls: any): string[] | null {
     return null;
   }
 
-  if (meta.instrumental) {
+  if (isMusixmatchInstrumental(meta)) {
     return null;
   }
 
@@ -1035,6 +1039,24 @@ async function fetchMusixmatchLyrics(
     const macroCalls = await fetchMusixmatchMacro(trackInfo);
     if (!macroCalls) {
       return null;
+    }
+
+    const track = macroCalls?.["matcher.track.get"]?.message?.body?.track;
+    if (isMusixmatchInstrumental(track)) {
+      const instrumentalLyrics = buildStaticLyrics(
+        ["♪ Instrumental ♪"],
+        "musixmatch",
+        "Musixmatch"
+      );
+      if (!instrumentalLyrics) return null;
+
+      return {
+        lyrics: {
+          ...instrumentalLyrics,
+          fetchProvider: "musixmatch",
+        },
+        status: 200,
+      };
     }
 
     const richsync = Defaults.IgnoreMusixmatchWordSync

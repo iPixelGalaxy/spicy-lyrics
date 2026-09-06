@@ -12,10 +12,11 @@ const devLog = (...args: any[]) => {
 interface IframeProfileModalProps {
   userId: string;
   onClose: () => void;
+  onBrowserFallback: () => void;
   messageWindow: Window;
 }
 
-function IframeProfileModal({ userId, onClose, messageWindow }: IframeProfileModalProps) {
+function IframeProfileModal({ userId, onClose, onBrowserFallback, messageWindow }: IframeProfileModalProps) {
   const [username, setUsername] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -46,6 +47,22 @@ function IframeProfileModal({ userId, onClose, messageWindow }: IframeProfileMod
       cancelled = true;
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!username) return;
+
+    let cancelled = false;
+    fetch(`${IFRAME_ORIGIN}/embed/${encodeURIComponent(username)}`, {
+      mode: "no-cors",
+      cache: "no-store",
+    }).catch(() => {
+      if (!cancelled) onBrowserFallback();
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [onBrowserFallback, username]);
 
   const handleMessage = useCallback((e: MessageEvent) => {
     if (e.origin !== IFRAME_ORIGIN) return;
@@ -198,6 +215,11 @@ export function showIframeProfileModal(userId: string | undefined, targetDocumen
   // explicit pixel dimensions. The html element retains real layout dimensions.
   const host = targetDocument.documentElement;
   const targetWindow = targetDocument.defaultView ?? window;
+  const openInBrowser = () => {
+    const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
+    targetWindow.open(url, "_blank", "noopener,noreferrer");
+    closeIframeProfileModal();
+  };
 
   // Ensure the host is a positioning context for our absolute overlay
   _profileHost = host;
@@ -224,7 +246,12 @@ export function showIframeProfileModal(userId: string | undefined, targetDocumen
   try {
     const root = ReactDOM.createRoot(container);
     _profileRoot = root;
-    root.render(React.createElement(IframeProfileModal, { userId, onClose: closeIframeProfileModal, messageWindow: targetWindow }));
+    root.render(React.createElement(IframeProfileModal, {
+      userId,
+      onClose: closeIframeProfileModal,
+      onBrowserFallback: openInBrowser,
+      messageWindow: targetWindow,
+    }));
     devLog("React root created and rendered");
 
     setTimeout(() => {

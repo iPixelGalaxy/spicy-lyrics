@@ -39,7 +39,7 @@ export function ApplyLyricsProvider(data: any, LyricsContainer: HTMLElement): vo
     providerLabel === "Apple Music" && data.experimentalAppleWordSplitting;
   ProviderElement.textContent = `Lyrics provided by: ${providerLabel}${
     experimentalWordSplittingHelp
-      ? " (with some experimental word splitting help)"
+      ? " (+ extra splits)"
       : ""
   }`;
   LyricsContainer.appendChild(ProviderElement);

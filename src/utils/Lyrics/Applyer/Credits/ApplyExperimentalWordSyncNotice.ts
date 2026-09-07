@@ -13,6 +13,8 @@ export function ApplyExperimentalWordSyncNotice(
   if (IsPIP) return;
   if (!data?.experimentalWordSync || !LyricsContainer) return;
 
+  if (data.experimentalWordSyncReason !== "SpaceGravity") return;
+
   const songInfoElement = document.createElement("div");
   songInfoElement.classList.add("SongInfo");
 

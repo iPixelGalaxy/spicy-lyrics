@@ -182,7 +182,7 @@ class LyricsVirtualizer {
       // only; that preserves the normal writer-to-source gap.
       scrollContainer.style.setProperty(
         "--SL-PinnedFooterBottomMargin",
-        `${Math.ceil(footerLayer.offsetHeight + 16)}px`
+        `${Math.ceil(footerLayer.offsetHeight + 48)}px`
       );
       return;
     }

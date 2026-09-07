@@ -148,7 +148,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   position: absolute;
   z-index: 10;
   right: var(--LyricsRightSidePadding);
-  bottom: 64px;
+  bottom: 20px;
   left: var(--LyricsLeftSidePadding);
   padding: 0 0 1.25rem;
   display: block;

@@ -12,7 +12,7 @@ import Logger from "../Logger.ts";
 // different trailing gaps without any virtualizer-level workaround.
 const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
-const PINNED_FOOTER_BOTTOM_OFFSET = 64;
+const PINNED_FOOTER_BOTTOM_OFFSET = 20;
 
 const ESTIMATE: Record<string, number> = {
   // Inactive musical-lines have line-height: 0 → measured height ~0.
@@ -179,7 +179,7 @@ class LyricsVirtualizer {
 
     if (page.classList.contains("PinnedFooterMode_NoWriters")) {
       // The writer footer already contributes to scroll height. The pinned layer's
-      // 64px screen offset is outside the scroll content, so reserve its height
+      // The screen offset is outside the scroll content, so reserve its height
       // only; that preserves the normal writer-to-source gap.
       scrollContainer.style.setProperty(
         "--SL-PinnedFooterBottomMargin",

@@ -1,3 +1,29 @@
+## v100.10.40
+
+- **In-app community profiles**
+  Contributor profiles now open directly inside Spotify instead of sending you to a browser. Fallback to browser if it fails to fetch the profile.
+
+- **Build Channel controls redesigned**
+  The Advanced settings section now places Build Channel at the top, with an inline branch dropdown and a Manage button.
+
+- **Branch manager**
+  Manage Branches now lists Stable, Beta, and all saved custom branches in one place. You can switch branches directly, see the active branch as Selected, add new branches, and remove custom branches.
+
+- **Protected built-in branches**
+  Stable and Beta remain available in the manager but cannot be removed.
+
+- **Stable-plugin support**
+  The entrypoint adds the same channel selector and branch manager to the upstream Stable plugin settings, without modifying the upstream plugin.
+
+- **Safer Musixmatch fallback**
+  Musixmatch results are rejected when they belong to the wrong track, preventing mismatched lyrics from appearing.
+
+- **Lyric timing restored**
+  Restored upstream lyric timing behavior.
+
+- **Custom font improvements**
+  Added a webfont source option and disabled synthetic font styling for more faithful custom-font rendering.
+
 ## v100.10.39
 
 - **Updated to be inline with 6.3.12 to follow API changes**

@@ -185,8 +185,11 @@ class LyricsVirtualizer {
     const scrollRect = scrollEl.getBoundingClientRect();
     const containerOffset =
       virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
+    const writerFooterHeight = scrollContainer.querySelector<HTMLElement>(
+      '.LyricsFooter[data-pinned-footer-mode="NoWriters"]',
+    )?.offsetHeight ?? 0;
     const terminalBottomAtMaxScroll =
-      scrollRect.top + containerOffset + lastMeasurement.end -
+      scrollRect.top + containerOffset + lastMeasurement.end + writerFooterHeight -
       Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
     const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - 32;
 

@@ -93,7 +93,7 @@ export default function BuildChannelPanel() {
   );
 
   const selectedHosts = channelMap[selectedChannel];
-  const customNames = Object.keys(customChannels);
+  const branchNames = Object.keys(channelMap);
 
   const resetForm = () => {
     setName("");
@@ -200,24 +200,44 @@ export default function BuildChannelPanel() {
       {managingChannels && (
         <div className="sl-build-channel-custom">
           <div className="sl-build-channel-custom-header">
-            <span className="sl-build-channel-section-title">Custom Branches</span>
+            <span className="sl-build-channel-section-title">Branches</span>
           </div>
 
-          {customNames.length > 0 && (
+          {branchNames.length > 0 && (
             <div className="sl-build-channel-custom-list">
-              {customNames.map((channelName) => (
+              {branchNames.map((channelName) => (
                 <div className="sl-build-channel-custom-row" key={channelName}>
                   <span className="sl-build-channel-option-copy">
                     <span className="sl-build-channel-option-title">{channelName}</span>
-                    <span className="sl-build-channel-option-description">{hostSummary(customChannels[channelName])}</span>
+                    <span className="sl-build-channel-option-description">{hostSummary(channelMap[channelName])}</span>
                   </span>
-                  <button
-                    className="sl-build-channel-danger"
-                    onClick={() => removeChannel(channelName)}
-                    type="button"
-                  >
-                    Remove
-                  </button>
+                  <span className="sl-build-channel-channel-control">
+                    {channelName === buildChannel ? (
+                      <button className="sl-build-channel-secondary" disabled type="button">
+                        Selected
+                      </button>
+                    ) : (
+                      <button
+                        className="sl-build-channel-secondary"
+                        onClick={() => {
+                          persistBuildChannel(channelName);
+                          window.location.reload();
+                        }}
+                        type="button"
+                      >
+                        Switch
+                      </button>
+                    )}
+                    {!isBuiltInChannel(channelName) && channelName !== buildChannel && (
+                      <button
+                        className="sl-build-channel-danger"
+                        onClick={() => removeChannel(channelName)}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </span>
                 </div>
               ))}
             </div>

@@ -108,7 +108,7 @@ const showPanel = (title, buildContent) => {
   const container = document.createElement("div");
   container.className = "SpicyLyricsSettingsContainer";
 
-  const panelWidth = 500;
+  const panelWidth = 540;
 
   function updatePosition() {
     const safeInset = 24;
@@ -347,16 +347,11 @@ const showAddCustomChannel = () => {
 };
 
 const showChannelManager = () => {
-  const channels = getCustomChannels();
+  const channels = getFullChannelMap();
   const names = Object.keys(channels);
+  const selected = getCurrentChannel();
 
   showPanel("Manage Branches", (scroll, close) => {
-    scroll.appendChild(makeGroup("Custom Branches"));
-
-    const addBtn = makeBtn("Add Branch", "sl-btn-primary");
-    addBtn.addEventListener("click", () => reopenPanel(close, showAddCustomChannel));
-    scroll.appendChild(addBtn);
-
     for (const name of names) {
       const row = document.createElement("div");
       row.className = "sl-settings-row";
@@ -371,25 +366,45 @@ const showChannelManager = () => {
       info.appendChild(nameEl);
       info.appendChild(hostEl);
 
-      const removeBtn = makeBtn("Remove", "sl-btn-danger");
-      removeBtn.addEventListener("click", () => {
-        delete channels[name];
-        saveCustomChannels(channels);
-        if (getCurrentChannel() === name) setCurrentChannel("Stable");
-        close();
-        Spicetify.showNotification(`Branch "${name}" removed`);
-        setTimeout(showChannelManager, 100);
-      });
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px;align-items:center;";
+      if (name === selected) {
+        const selectedBtn = makeBtn("Selected");
+        selectedBtn.disabled = true;
+        selectedBtn.style.cssText = "opacity:.45;cursor:default;";
+        actions.appendChild(selectedBtn);
+      } else {
+        const switchBtn = makeBtn("Switch");
+        switchBtn.addEventListener("click", () => {
+          setCurrentChannel(name);
+          close();
+          window.location.reload();
+        });
+        actions.appendChild(switchBtn);
+
+        if (!BUILT_IN_CHANNELS.includes(name)) {
+          const removeBtn = makeBtn("Remove", "sl-btn-danger");
+          removeBtn.addEventListener("click", () => {
+            const customChannels = getCustomChannels();
+            delete customChannels[name];
+            saveCustomChannels(customChannels);
+            close();
+            Spicetify.showNotification(`Branch "${name}" removed`);
+            setTimeout(showChannelManager, 100);
+          });
+          actions.appendChild(removeBtn);
+        }
+      }
 
       row.appendChild(info);
-      row.appendChild(removeBtn);
+      row.appendChild(actions);
       scroll.appendChild(row);
     }
 
     const btnRow = makeBtnRow();
-    const backBtn = makeBtn("Back to Channel");
-    backBtn.addEventListener("click", () => reopenPanel(close, showChannelSwitcher));
-    btnRow.appendChild(backBtn);
+    const addBtn = makeBtn("Add Branch", "sl-btn-primary");
+    addBtn.addEventListener("click", () => reopenPanel(close, showAddCustomChannel));
+    btnRow.appendChild(addBtn);
     scroll.appendChild(btnRow);
   });
 };

@@ -36,10 +36,10 @@ export function resolveProfileUsername(userId: string): Promise<string | null> {
   return request;
 }
 
-type ProfileState = "loading" | "ready" | "unconfirmed" | "failed" | "closed";
+type ProfileState = "loading" | "ready" | "failed" | "closed";
 interface ProfileOptions {
   signal: AbortSignal;
-  onState: (state: ProfileState, canReveal?: boolean) => void;
+  onState: (state: ProfileState) => void;
 }
 
 interface ProfileSession {
@@ -56,13 +56,9 @@ export function closeIframeProfileModal(userId?: string) {
   if (!userId || activeSession?.userId === userId) activeSession?.close();
 }
 
-/** Explicit user override for older websites that do not send readiness messages. */
-export function revealIframeProfileModal(userId: string) {
-  if (activeSession?.userId === userId) activeSession.reveal();
-}
-
-function IframeProfileModal({ onClose, attachFrame }: {
+function IframeProfileModal({ onClose, onOpenBrowser, attachFrame }: {
   onClose: () => void;
+  onOpenBrowser: () => void;
   attachFrame: (frame: HTMLIFrameElement | null) => void;
 }) {
   return (
@@ -103,6 +99,14 @@ function IframeProfileModal({ onClose, attachFrame }: {
             <path d="M31.098 29.794L16.955 15.65 31.097 1.51 29.683.093 15.54 14.237 1.4.094-.016 1.508 14.126 15.65-.016 29.795l1.414 1.414L15.54 17.065l14.144 14.143" fill="currentColor" fillRule="evenodd" />
           </svg>
         </button>
+        <button
+          type="button"
+          onClick={onOpenBrowser}
+          aria-label="Open profile in browser"
+          style={{ position: "absolute", top: 12, right: 48, zIndex: 1, padding: "5px 9px", background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 14, cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 11 }}
+        >
+          Browser
+        </button>
         <iframe
           ref={attachFrame}
           title="TTML profile"
@@ -130,13 +134,10 @@ export function showIframeProfileModal(
   let root: ReturnType<typeof ReactDOM.createRoot> | null = null;
   let iframe: HTMLIFrameElement | null = null;
   let deadline: ReturnType<typeof setTimeout> | undefined;
-  let poll: ReturnType<typeof setInterval> | undefined;
   let closed = false;
-  let reportedTimeout = false;
 
   const stopTimers = () => {
     clearTimeout(deadline);
-    clearInterval(poll);
   };
   const onAbort = () => {
     if (session.pending) close();
@@ -148,7 +149,7 @@ export function showIframeProfileModal(
     options.signal.removeEventListener("abort", onAbort);
     targetWindow.removeEventListener("message", onMessage);
     targetWindow.removeEventListener("keydown", onKeyDown, true);
-    if (iframe) iframe.removeEventListener("load", requestStatus);
+    if (iframe) iframe.removeEventListener("load", reveal);
     root?.unmount();
     container?.remove();
     if (activeSession === session) activeSession = null;
@@ -169,23 +170,10 @@ export function showIframeProfileModal(
     close();
     options.onState("failed");
   };
-  const requestStatus = () => {
-    if (closed || !session.pending) return;
-    iframe?.contentWindow?.postMessage(
-      { type: "spicy-profile-status-request", version: 1, userId },
-      IFRAME_ORIGIN,
-    );
-  };
   const onMessage = (event: MessageEvent) => {
     if (closed || event.origin !== IFRAME_ORIGIN || !iframe ||
         event.source !== iframe.contentWindow) return;
     const message = event.data;
-    if (message?.type === "spicy-profile-status" && message.version === 1 &&
-        String(message.userId) === userId) {
-      if (message.status === "ready") reveal();
-      else if (message.status === "error") fail();
-      return;
-    }
     if (session.pending || message?.type !== "events" || !Array.isArray(message.data?.events)) return;
     for (const item of message.data.events) {
       const patches = Array.isArray(item?.patches) ? item.patches : [];
@@ -218,10 +206,7 @@ export function showIframeProfileModal(
   options.onState("loading");
   deadline = setTimeout(() => {
     if (closed || !session.pending) return;
-    reportedTimeout = true;
-    stopTimers();
-    // Silence can mean an older webapp, not a transport failure. Let the user choose.
-    options.onState("unconfirmed", !!iframe);
+    fail();
   }, PROFILE_READY_TIMEOUT_MS);
 
   void resolveProfileUsername(userId).then((username) => {
@@ -240,13 +225,15 @@ export function showIframeProfileModal(
       root = ReactDOM.createRoot(container);
       root.render(React.createElement(IframeProfileModal, {
         onClose: close,
+        onOpenBrowser: () => {
+          targetWindow.open(`https://spicylyrics.org/uid/${encodeURIComponent(userId)}`, "_blank", "noopener,noreferrer");
+          close();
+        },
         attachFrame: (frame: HTMLIFrameElement | null) => {
           iframe = frame;
           if (!frame || closed) return;
-          frame.addEventListener("load", requestStatus);
+          frame.addEventListener("load", reveal, { once: true });
           frame.src = `${IFRAME_ORIGIN}/embed/${encodeURIComponent(username)}`;
-          if (!reportedTimeout) poll = setInterval(requestStatus, 500);
-          else options.onState("unconfirmed", true);
         },
       }));
     } catch {

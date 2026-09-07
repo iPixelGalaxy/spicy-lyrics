@@ -2,7 +2,6 @@ import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
 import {
   closeIframeProfileModal,
   resolveProfileUsername,
-  revealIframeProfileModal,
   showIframeProfileModal,
 } from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
 
@@ -45,7 +44,7 @@ function openProfile(userId: string | undefined, profileElement: HTMLElement, si
   signal.addEventListener("abort", clearFeedback, { once: true });
   showIframeProfileModal(userId, profileDocument, {
     signal,
-    onState: (state, canReveal) => {
+    onState: (state) => {
       clearFeedback();
       if (signal.aborted || state === "closed" || state === "ready") return;
       const status = profileDocument.createElement("span");
@@ -59,16 +58,8 @@ function openProfile(userId: string | undefined, profileElement: HTMLElement, si
         status.textContent = "Loading profile";
         feedback.append(spinner, status);
       } else {
-        status.textContent = state === "unconfirmed" ? "Profile is taking longer." : "Couldn't load profile here.";
+        status.textContent = "Couldn't load profile here.";
         feedback.appendChild(status);
-        if (canReveal) {
-          const showProfile = profileDocument.createElement("button");
-          showProfile.type = "button";
-          showProfile.className = "sl-profile-action";
-          showProfile.textContent = "Show profile";
-          showProfile.addEventListener("click", () => revealIframeProfileModal(userId), { signal });
-          feedback.appendChild(showProfile);
-        }
         const browserLink = profileDocument.createElement("a");
         browserLink.className = "sl-profile-action";
         browserLink.href = url;

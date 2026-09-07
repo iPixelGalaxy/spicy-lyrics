@@ -41,15 +41,14 @@ If you have Spicy Lyrics installed from the **Spicetify Marketplace**, uninstall
 Once the plugin is loaded, you need to point it at the dev server:
 
 1. In Spotify, go to **Settings** (the cog icon in the top-right)
-2. Scroll down until you see the **Spicy Lyrics** section
-3. Click **Open Settings**
-4. Scroll to the bottom and find **Build Channel** under the **Advanced** section, then click **Manage**
-5. If the custom channel controls are hidden, right-click the **Build Channel** label seven times quickly to unlock custom channels
-6. Enter `ipixelgalaxy.com` as the server URL
-7. Check the **"Use the same host for both API and Storage"** box
-8. Name the branch something like **`iPixel Dev`**
-9. Click **Save Channel**
-10. Click **Apply & Reload** — Spicy Lyrics will restart on the dev channel
+2. Open **Spicy Lyrics Settings**, then open **Advanced**
+3. Find **Build Channel** at the top of the section and click **Manage**
+4. Click **Add Branch**
+5. Name it **`Canary`** or **`iPixel Dev`**
+6. Enter `ipixelgalaxy.com` as the **API Host**
+7. Enable **Use the same host for both API and Storage**
+8. Click **Save Branch**
+9. Click **Switch** beside `iPixel Dev` — Spicy Lyrics reloads on the dev branch
 
 ---
 

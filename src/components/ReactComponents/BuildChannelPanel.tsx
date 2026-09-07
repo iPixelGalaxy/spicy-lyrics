@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { $buildChannel } from "../../utils/stores.ts";
 
 type ChannelHosts = [string, string] | [string, string, string];
@@ -7,6 +7,7 @@ type ChannelMap = Record<string, ChannelHosts>;
 
 const LEGACY_PREFIX = "SpicyLyrics-";
 const CUSTOM_CHANNELS_KEY = "customChannels";
+const CHANNELS_CHANGED_EVENT = "spicy-lyrics:channels-changed";
 const DEFAULT_API_HOST = "api.spicylyrics.org";
 const DEFAULT_STORAGE_HOST = "public.storage.spicylyrics.org";
 
@@ -52,6 +53,7 @@ function readCustomChannels(): ChannelMap {
 
 function saveCustomChannels(channels: ChannelMap): void {
   legacySet(CUSTOM_CHANNELS_KEY, JSON.stringify(channels));
+  window.dispatchEvent(new Event(CHANNELS_CHANGED_EVENT));
 }
 
 function getInitialChannel(fallback: string): string {
@@ -74,10 +76,15 @@ function isBuiltInChannel(name: string): boolean {
 /** Compact setting control shared by Advanced settings and the channel panel. */
 export function BuildChannelSettingControl({ onManage }: { onManage: () => void }) {
   const buildChannel = useStore($buildChannel);
-  const channelMap = useMemo(
-    () => ({ ...BUILT_IN_CHANNELS, ...readCustomChannels() }),
-    [],
-  );
+  const [channelMap, setChannelMap] = useState<ChannelMap>(() => ({
+    ...BUILT_IN_CHANNELS,
+    ...readCustomChannels(),
+  }));
+  useEffect(() => {
+    const refresh = () => setChannelMap({ ...BUILT_IN_CHANNELS, ...readCustomChannels() });
+    window.addEventListener(CHANNELS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(CHANNELS_CHANGED_EVENT, refresh);
+  }, []);
   const selectedChannel = channelMap[buildChannel] ? buildChannel : "Stable";
 
   return (

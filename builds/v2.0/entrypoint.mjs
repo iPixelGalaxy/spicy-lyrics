@@ -9,6 +9,7 @@ const DEFAULT_API_HOST = CHANNEL_MAP.Stable[0];
 const DEFAULT_STORAGE_HOST = CHANNEL_MAP.Stable[1];
 
 const LS_PREFIX = "SpicyLyrics-";
+const CHANNELS_CHANGED_EVENT = "spicy-lyrics:channels-changed";
 const lsGet = (key) => Spicetify.LocalStorage.get(`${LS_PREFIX}${key}`);
 const lsSet = (key, value) => Spicetify.LocalStorage.set(`${LS_PREFIX}${key}`, value);
 
@@ -33,7 +34,10 @@ const getCustomChannels = () => {
   return {};
 };
 
-const saveCustomChannels = (channels) => lsSet("customChannels", JSON.stringify(channels));
+const saveCustomChannels = (channels) => {
+  lsSet("customChannels", JSON.stringify(channels));
+  window.dispatchEvent(new Event(CHANNELS_CHANGED_EVENT));
+};
 
 const getFullChannelMap = () => ({ ...CHANNEL_MAP, ...getCustomChannels() });
 
@@ -494,6 +498,10 @@ const registerChannelSettings = () => {
   };
   channelSettingsObserver = new MutationObserver(scheduleRender);
   channelSettingsObserver.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener(CHANNELS_CHANGED_EVENT, () => {
+    document.getElementById(CHANNEL_SETTING_ROW_ID)?.remove();
+    scheduleRender();
+  });
   scheduleRender();
 };
 

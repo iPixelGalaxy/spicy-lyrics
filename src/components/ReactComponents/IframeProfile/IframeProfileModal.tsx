@@ -87,14 +87,14 @@ function IframeProfileModal({ onClose, attachFrame }: {
           ref={(element) => {
             if (!element) return;
             element.style.setProperty("position", "absolute", "important");
-            element.style.setProperty("right", "6px", "important");
+            element.style.setProperty("right", "2px", "important");
             element.style.setProperty("left", "auto", "important");
             element.style.setProperty("transform", "none", "important");
           }}
           onClick={onClose}
           aria-label="Close profile"
           style={{
-            position: "absolute", top: 6, right: 6, zIndex: 1,
+            position: "absolute", top: 6, right: 2, zIndex: 1,
             width: 32, height: 32, display: "flex", alignItems: "center",
             justifyContent: "center", background: "transparent", border: "none",
             borderRadius: "50%", cursor: "pointer", color: "rgba(255,255,255,0.8)",

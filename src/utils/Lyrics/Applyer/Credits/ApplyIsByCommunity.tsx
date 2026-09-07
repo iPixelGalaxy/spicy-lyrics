@@ -1,12 +1,13 @@
 import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
 import {
   closeIframeProfileModal,
-  resolveProfileUsername,
+  resolveProfileIdentity,
   showIframeProfileModal,
 } from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
+const CREDIT_NAME_SETTLE_MS = 50;
 
 export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
   if (closeProfileModal) {
@@ -103,10 +104,23 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
 
   const songInfoElement = PageDocument.createElement("div");
   songInfoElement.classList.add("SongInfo");
+  songInfoElement.style.opacity = "0";
+  songInfoElement.style.transition = "opacity 120ms ease";
 
-  const makerUsername = data.TTMLUploadMetadata?.Maker?.username ?? data.TTMLUploadMetadata?.Maker?.displayName;
+  const preferredProfileName = (username?: string, displayName?: string) => {
+    const cleanUsername = username?.trim();
+    const cleanDisplayName = displayName?.trim();
+    if (cleanUsername && cleanDisplayName && cleanUsername.toLowerCase() === cleanDisplayName.toLowerCase()) {
+      return cleanDisplayName;
+    }
+    return cleanUsername ?? cleanDisplayName;
+  };
+
+  const makerDisplayName = data.TTMLUploadMetadata?.Maker?.displayName ?? data.TTMLUploadMetadata?.Maker?.display_name ?? data.TTMLUploadMetadata?.Maker?.globalName ?? data.TTMLUploadMetadata?.Maker?.global_name;
+  const makerUsername = preferredProfileName(data.TTMLUploadMetadata?.Maker?.username, makerDisplayName);
   const makerAvatar = data.TTMLUploadMetadata?.Maker?.avatar;
-  const uploaderUsername = data.TTMLUploadMetadata?.Uploader?.username ?? data.TTMLUploadMetadata?.Uploader?.displayName;
+  const uploaderDisplayName = data.TTMLUploadMetadata?.Uploader?.displayName ?? data.TTMLUploadMetadata?.Uploader?.display_name ?? data.TTMLUploadMetadata?.Uploader?.globalName ?? data.TTMLUploadMetadata?.Uploader?.global_name;
+  const uploaderUsername = preferredProfileName(data.TTMLUploadMetadata?.Uploader?.username, uploaderDisplayName);
   const uploaderAvatar = data.TTMLUploadMetadata?.Uploader?.avatar;
 
   // Helper for creating a profile section (Maker / Uploader) safely
@@ -171,18 +185,38 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
 
   if (!data.TTMLUploadMetadata) return;
 
-  const updateDiscordUsername = (userId: string | undefined, element: HTMLSpanElement | undefined) => {
-    if (!userId || !element) return;
-    void resolveProfileUsername(userId).then((username) => {
-      if (!signal.aborted && username) {
-        element.textContent = username;
+  let creditsRevealed = false;
+  const revealCredits = () => {
+    if (creditsRevealed) return;
+    creditsRevealed = true;
+    songInfoElement.style.opacity = "1";
+  };
+
+  const updateDiscordUsername = (
+    userId: string | undefined,
+    element: HTMLSpanElement | undefined,
+    displayName?: string,
+  ) => {
+    if (!userId || !element) return Promise.resolve();
+    return resolveProfileIdentity(userId).then((profile) => {
+      if (!signal.aborted && profile) {
+        const renderedName = element.textContent?.trim();
+        const profileName = preferredProfileName(
+          profile.username,
+          renderedName || displayName || profile.displayName,
+        ) ?? profile.username;
+        element.textContent = profileName;
         const avatar = element.parentElement?.querySelector("img");
-        if (avatar) avatar.alt = `${username}'s avatar`;
+        if (avatar) avatar.alt = `${profileName}'s avatar`;
       }
     });
   };
-  updateDiscordUsername(data.TTMLUploadMetadata?.Maker?.id, makerUsernameSpan);
-  updateDiscordUsername(data.TTMLUploadMetadata?.Uploader?.id, uploaderUsernameSpan);
+  const profileUpdates = [
+    updateDiscordUsername(data.TTMLUploadMetadata?.Maker?.id, makerUsernameSpan, makerDisplayName),
+    updateDiscordUsername(data.TTMLUploadMetadata?.Uploader?.id, uploaderUsernameSpan, uploaderDisplayName),
+  ];
+  void Promise.all(profileUpdates).then(revealCredits);
+  setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
 
   const uploaderSpan = songInfoElement.querySelector<HTMLElement>(".Uploader .song-info-profile-section");
   if (uploaderSpan) {

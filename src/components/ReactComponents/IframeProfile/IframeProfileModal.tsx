@@ -6,12 +6,24 @@ const IFRAME_ORIGIN = "https://spicylyrics.org";
 const PROFILE_READY_TIMEOUT_MS = 8_000;
 const USERNAME_CACHE_MS = 5 * 60_000;
 const USERNAME_RETRY_MS = 30_000;
-const usernameCache = new Map<string, { username: string | null; expires: number }>();
-const usernameRequests = new Map<string, Promise<string | null>>();
+export interface ProfileIdentity {
+  username: string;
+  displayName?: string;
+}
 
-export function resolveProfileUsername(userId: string): Promise<string | null> {
+const usernameCache = new Map<string, { profile: ProfileIdentity | null; expires: number }>();
+const usernameRequests = new Map<string, Promise<ProfileIdentity | null>>();
+
+const readString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+};
+
+export function resolveProfileIdentity(userId: string): Promise<ProfileIdentity | null> {
   const cached = usernameCache.get(userId);
-  if (cached && cached.expires > Date.now()) return Promise.resolve(cached.username);
+  if (cached && cached.expires > Date.now()) return Promise.resolve(cached.profile);
   const pending = usernameRequests.get(userId);
   if (pending) return pending;
 
@@ -20,20 +32,38 @@ export function resolveProfileUsername(userId: string): Promise<string | null> {
     variables: { userId, referrer: "lyricsCreditsView" },
   }])
     .then((result) => {
-      const value = result.get("0")?.data?.profile?.data?.username;
-      return typeof value === "string" && value.trim() ? value.trim() : null;
-    })
-    .catch(() => null)
-    .then((username) => {
-      usernameCache.set(userId, {
+      const profile = result.get("0")?.data?.profile?.data;
+      const username = readString(profile?.username, profile?.user?.username);
+      if (!username) return null;
+      return {
         username,
-        expires: Date.now() + (username ? USERNAME_CACHE_MS : USERNAME_RETRY_MS),
+        displayName: readString(
+          profile?.globalName,
+          profile?.global_name,
+          profile?.displayName,
+          profile?.display_name,
+          profile?.user?.globalName,
+          profile?.user?.global_name,
+          profile?.user?.displayName,
+          profile?.user?.display_name,
+        ),
+      };
+    })
+    .catch((): ProfileIdentity | null => null)
+    .then((profile) => {
+      usernameCache.set(userId, {
+        profile,
+        expires: Date.now() + (profile ? USERNAME_CACHE_MS : USERNAME_RETRY_MS),
       });
-      return username;
+      return profile;
     })
     .finally(() => usernameRequests.delete(userId));
   usernameRequests.set(userId, request);
   return request;
+}
+
+export function resolveProfileUsername(userId: string): Promise<string | null> {
+  return resolveProfileIdentity(userId).then((profile) => profile?.username ?? null);
 }
 
 type ProfileState = "loading" | "ready" | "failed" | "closed";

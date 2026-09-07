@@ -82,6 +82,14 @@ function IframeProfileModal({ onClose, attachFrame }: {
           height: "min(72%, calc(100% - 48px))",
         }}
       >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute", top: 0, right: 0, zIndex: 1,
+            width: 76, height: 60, pointerEvents: "none",
+            background: "linear-gradient(135deg, transparent 0%, rgba(0,0,0,0.38) 100%)",
+          }}
+        />
         <button
           type="button"
           ref={(element) => {
@@ -94,14 +102,14 @@ function IframeProfileModal({ onClose, attachFrame }: {
           onClick={onClose}
           aria-label="Close profile"
           style={{
-            position: "absolute", top: 12, right: 12, zIndex: 1,
-            width: 28, height: 28, display: "flex", alignItems: "center",
-            justifyContent: "center", background: "rgba(255,255,255,0.08)",
-            border: "none", borderRadius: "50%", cursor: "pointer",
-            color: "rgba(255,255,255,0.7)",
+            position: "absolute", top: 10, right: 10, zIndex: 2,
+            width: 32, height: 32, display: "flex", alignItems: "center",
+            justifyContent: "center", background: "transparent", border: "none",
+            borderRadius: "50%", cursor: "pointer", color: "rgba(255,255,255,0.88)",
+            filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 32 32" aria-hidden="true">
+          <svg width="13" height="13" viewBox="0 0 32 32" aria-hidden="true">
             <path d="M31.098 29.794L16.955 15.65 31.097 1.51 29.683.093 15.54 14.237 1.4.094-.016 1.508 14.126 15.65-.016 29.795l1.414 1.414L15.54 17.065l14.144 14.143" fill="currentColor" fillRule="evenodd" />
           </svg>
         </button>

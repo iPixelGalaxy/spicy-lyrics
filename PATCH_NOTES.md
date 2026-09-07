@@ -1,3 +1,17 @@
+## v100.10.41
+
+- **Pinned Lyrics Footer**
+  Appearance now has Off, No Writers, and Full modes. No Writers pins source and community credits while writers scroll at lyric end.
+
+- **Experimental splitting labels**
+  Lyrics sources now show compact `(+ extra splits)` and `(+ experimental splitting)` labels.
+
+- **Space Gravity active-line control**
+  Fixed the active-line arrow remaining visible after leaving Space Gravity mode.
+
+- **Playback progress fallback**
+  Playback progress now falls back to player state when local position updates stall.
+
 ## v100.10.40
 
 - **In-app community profiles**

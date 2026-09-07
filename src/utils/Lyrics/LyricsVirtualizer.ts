@@ -177,11 +177,12 @@ class LyricsVirtualizer {
     lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
 
     if (page.classList.contains("PinnedFooterMode_NoWriters")) {
-      // The writer footer already contributes to scroll height. Reserve only the
-      // pinned source layer after it, so the final writer line rests above source.
+      // The writer footer already contributes to scroll height. The pinned layer's
+      // 64px screen offset is outside the scroll content, so reserve its height
+      // only; that preserves the normal writer-to-source gap.
       scrollContainer.style.setProperty(
         "--SL-PinnedFooterBottomMargin",
-        `${Math.ceil(trackBottom + 16)}px`
+        `${Math.ceil(footerLayer.offsetHeight + 16)}px`
       );
       return;
     }

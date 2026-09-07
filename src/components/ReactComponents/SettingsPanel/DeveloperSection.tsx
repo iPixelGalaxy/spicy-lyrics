@@ -15,7 +15,7 @@ import {
 } from "../../../utils/LyricsCacheTools.ts";
 import { LYRICS_SOURCE_PROVIDER_DEFINITIONS } from "../../../utils/Lyrics/LyricsSourcePreferences.ts";
 import { OpenTTMLDatabasePanelFromSettings } from "../../../utils/openLyricsDBPanel.tsx";
-import { OpenBuildChannelPanel } from "../../../utils/openBuildChannelPanel.tsx";
+import { OpenBuildChannelManager } from "../../../utils/openBuildChannelPanel.tsx";
 import { BuildChannelSettingControl } from "../BuildChannelPanel.tsx";
 import { OpenLyricsSourcesManager } from "../../../utils/openLyricsSourcesManager.tsx";
 import { matches, Row, SectionTitle, Select, Toggle } from "./components.tsx";
@@ -67,7 +67,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
 
       {!showHidden && r4 && (
         <Row label="Build Channel" description="Select a branch or manage saved branches.">
-          <BuildChannelSettingControl onManage={OpenBuildChannelPanel} />
+          <BuildChannelSettingControl onManage={OpenBuildChannelManager} />
         </Row>
       )}
 

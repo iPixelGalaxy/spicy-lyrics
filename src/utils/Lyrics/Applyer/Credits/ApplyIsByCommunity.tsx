@@ -1,13 +1,16 @@
 import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
 import {
   closeIframeProfileModal,
+  resolveProfileUsername,
   showIframeProfileModal,
 } from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
+let openingProfile = false;
 
 export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
+  openingProfile = false;
   if (closeProfileModal) {
     closeIframeProfileModal();
   }
@@ -24,14 +27,35 @@ export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
   madeTippys.clear();
 }
 
-function openProfile(userId: string | undefined) {
+async function openProfile(userId: string | undefined, profileElement: HTMLElement) {
   if (!userId) return;
-  if (!IsPIP) {
-    showIframeProfileModal(userId, PageDocument);
+  if (openingProfile) return;
+  if (IsPIP) {
+    const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
+    globalThis.open?.(url, "_blank", "noopener,noreferrer");
     return;
   }
-  const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
-  globalThis.open?.(url, "_blank", "noopener,noreferrer");
+
+  openingProfile = true;
+  profileElement.setAttribute("aria-busy", "true");
+  const spinner = PageDocument.createElement("span");
+  spinner.className = "sl-profile-loading";
+  spinner.setAttribute("role", "status");
+  spinner.setAttribute("aria-label", "Loading profile");
+  profileElement.appendChild(spinner);
+
+  const username = await resolveProfileUsername(userId);
+  spinner.remove();
+  profileElement.removeAttribute("aria-busy");
+  openingProfile = false;
+
+  if (isByCommunityAbortController?.signal.aborted) return;
+  if (!username) {
+    globalThis.open?.(`https://spicylyrics.org/uid/${encodeURIComponent(userId)}`, "_blank", "noopener,noreferrer");
+    return;
+  }
+  openingProfile = false;
+  showIframeProfileModal(userId, username, PageDocument);
 }
 
 let PageDocument: Document = document;
@@ -61,9 +85,9 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   const songInfoElement = PageDocument.createElement("div");
   songInfoElement.classList.add("SongInfo");
 
-  const makerUsername = data.TTMLUploadMetadata?.Maker?.username;
+  const makerUsername = data.TTMLUploadMetadata?.Maker?.username ?? data.TTMLUploadMetadata?.Maker?.displayName;
   const makerAvatar = data.TTMLUploadMetadata?.Maker?.avatar;
-  const uploaderUsername = data.TTMLUploadMetadata?.Uploader?.username;
+  const uploaderUsername = data.TTMLUploadMetadata?.Uploader?.username ?? data.TTMLUploadMetadata?.Uploader?.displayName;
   const uploaderAvatar = data.TTMLUploadMetadata?.Uploader?.avatar;
 
   // Helper for creating a profile section (Maker / Uploader) safely
@@ -111,19 +135,31 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     wrapperSpan.appendChild(innerSpan);
 
     songInfoElement.appendChild(wrapperSpan);
+    return usernameSpan;
   };
 
+  let makerUsernameSpan: HTMLSpanElement | undefined;
+  let uploaderUsernameSpan: HTMLSpanElement | undefined;
   if (makerUsername) {
-    createProfileSection("Maker", "Made by", makerUsername, makerAvatar);
+    makerUsernameSpan = createProfileSection("Maker", "Made by", makerUsername, makerAvatar);
   }
 
   if (uploaderUsername) {
     const labelText = makerUsername ? "Uploaded by" : "Made by";
-    createProfileSection("Uploader", labelText, uploaderUsername, uploaderAvatar);
+    uploaderUsernameSpan = createProfileSection("Uploader", labelText, uploaderUsername, uploaderAvatar);
   }
   LyricsContainer.appendChild(songInfoElement);
 
   if (!data.TTMLUploadMetadata) return;
+
+  const updateDiscordUsername = (userId: string | undefined, element: HTMLSpanElement | undefined) => {
+    if (!userId || !element) return;
+    void resolveProfileUsername(userId).then((username) => {
+      if (!signal.aborted && username) element.textContent = username;
+    });
+  };
+  updateDiscordUsername(data.TTMLUploadMetadata?.Maker?.id, makerUsernameSpan);
+  updateDiscordUsername(data.TTMLUploadMetadata?.Uploader?.id, uploaderUsernameSpan);
 
   const uploaderSpan = songInfoElement.querySelector(".Uploader .song-info-profile-section");
   if (uploaderSpan) {
@@ -141,7 +177,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     uploaderSpan.addEventListener(
       "click",
       () => {
-        openProfile(data.TTMLUploadMetadata?.Uploader?.id);
+        void openProfile(data.TTMLUploadMetadata?.Uploader?.id, uploaderSpan);
         if (IsPIP) {
           globalThis.focus();
         }
@@ -166,7 +202,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     makerSpan.addEventListener(
       "click",
       () => {
-        openProfile(data.TTMLUploadMetadata?.Maker?.id);
+        void openProfile(data.TTMLUploadMetadata?.Maker?.id, makerSpan);
         if (IsPIP) {
           globalThis.focus();
         }

@@ -53,7 +53,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
       matches(query, definition.label, definition.description)
     );
   const r3 = matches(query, "Browse TTML Database", "Open the local TTML database manager.");
-  const r4 = matches(query, "Build Channel", "Select which update channel this fork should track.");
+  const r4 = matches(query, "Build Channel", "Select a branch or manage saved branches.");
   const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !allowHidingSettings || !hiddenSettingIds.includes(id) || Boolean(query.trim());
   const r5 = visible("advanced-developer-mode") && matches(query, "Developer Mode", "Enable extra logging and debug utilities.");
   const r6 = visible("advanced-cache-button") && matches(
@@ -68,6 +68,14 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
   return (
     <>
       <SectionTitle>Advanced</SectionTitle>
+
+      {!showHidden && r4 && (
+        <Row label="Build Channel" description="Select a branch or manage saved branches.">
+          <button className="sl-sp-btn" onClick={OpenBuildChannelPanel}>
+            {displayedBuildChannel}
+          </button>
+        </Row>
+      )}
 
       {!showHidden && matches(query, "Allow Hiding Settings", "Allow settings rows to be hidden from this menu.") && (
         <Row label="Allow Hiding Settings" description="Allow settings rows to be hidden from this menu.">
@@ -98,14 +106,6 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
         <Row label="Browse TTML Database" description="Open the local TTML database manager.">
           <button className="sl-sp-btn" onClick={OpenTTMLDatabasePanelFromSettings}>
             Browse
-          </button>
-        </Row>
-      )}
-
-      {!showHidden && r4 && (
-        <Row label="Build Channel" description="Select which update channel this fork should track.">
-          <button className="sl-sp-btn" onClick={OpenBuildChannelPanel}>
-            {displayedBuildChannel}
           </button>
         </Row>
       )}

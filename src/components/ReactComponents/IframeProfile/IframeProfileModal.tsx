@@ -82,31 +82,22 @@ function IframeProfileModal({ onClose, attachFrame }: {
           height: "min(72%, calc(100% - 48px))",
         }}
       >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute", top: 0, right: 0, zIndex: 1,
-            width: 76, height: 60, pointerEvents: "none",
-            background: "linear-gradient(135deg, transparent 0%, rgba(0,0,0,0.38) 100%)",
-          }}
-        />
         <button
           type="button"
           ref={(element) => {
             if (!element) return;
             element.style.setProperty("position", "absolute", "important");
-            element.style.setProperty("right", "12px", "important");
+            element.style.setProperty("right", "6px", "important");
             element.style.setProperty("left", "auto", "important");
             element.style.setProperty("transform", "none", "important");
           }}
           onClick={onClose}
           aria-label="Close profile"
           style={{
-            position: "absolute", top: 10, right: 10, zIndex: 2,
+            position: "absolute", top: 6, right: 6, zIndex: 1,
             width: 32, height: 32, display: "flex", alignItems: "center",
             justifyContent: "center", background: "transparent", border: "none",
-            borderRadius: "50%", cursor: "pointer", color: "rgba(255,255,255,0.88)",
-            filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.7))",
+            borderRadius: "50%", cursor: "pointer", color: "rgba(255,255,255,0.8)",
           }}
         >
           <svg width="13" height="13" viewBox="0 0 32 32" aria-hidden="true">

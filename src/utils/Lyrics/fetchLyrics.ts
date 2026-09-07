@@ -469,6 +469,7 @@ function ShowLoaderContainer(uri: string): void {
   const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
   lyricsContainer?.classList.remove("Hidden");
   lyricsContainer?.classList.add("LoadingLyrics");
+  lyricsContainer?.querySelector<HTMLElement>(".LyricsPinnedFooter")?.replaceChildren();
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
   resolveLoaderHide?.();

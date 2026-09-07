@@ -145,8 +145,12 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) - 16px);
 }
 
-#SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+#SpicyLyricsPage.PinnedFooterMode_Full:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
   margin-bottom: var(--SL-PinnedFooterBottomMargin, calc(8cqh + 98px));
+}
+
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+  margin-bottom: var(--SL-PinnedFooterBottomMargin, 16px);
 }
 
 #SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .simplebar-track.simplebar-vertical {

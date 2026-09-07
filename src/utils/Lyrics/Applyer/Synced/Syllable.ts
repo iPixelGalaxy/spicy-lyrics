@@ -7,7 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
-import { AdoptReappliedScrollPosition, HoldScrollToActiveButtonUntilVisible, QueueForceScroll, ScrollToActiveLine } from "../../../Scrolling/ScrollToActiveLine.ts";
+import { AdoptReappliedScrollPosition, HoldScrollToActiveButtonUntilVisible, InitializeScrollEvents, QueueForceScroll, ScrollToActiveLine } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
@@ -319,7 +319,10 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     PlaceLyricsFooter(session.Footer, session.Container, session.Host);
     MountScrollSimplebar();
     const scrollEl = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
-    if (scrollEl) initLyricsVirtualizer(scrollEl, session.VirtualContainer, session.LineElements);
+    if (scrollEl && ScrollSimplebar) {
+      InitializeScrollEvents(ScrollSimplebar);
+      initLyricsVirtualizer(scrollEl, session.VirtualContainer, session.LineElements);
+    }
     QueueForceScroll();
     // The normal playback tick may not arrive for a while. Let the new
     // virtualizer mount first, then consume the queued correction so its

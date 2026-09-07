@@ -438,6 +438,18 @@ class LyricsVirtualizer {
     this._virtualContainer = virtualContainer;
     this._scrollEl = scrollEl;
 
+    const lyricsContent = scrollEl.closest<HTMLElement>(".LyricsContent");
+    const syncBottomMask = () => {
+      const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
+      lyricsContent?.classList.toggle("LyricsScrollAtBottom", atBottom);
+    };
+    scrollEl.addEventListener("scroll", syncBottomMask, { passive: true });
+    this._maid.Give(() => {
+      scrollEl.removeEventListener("scroll", syncBottomMask);
+      lyricsContent?.classList.remove("LyricsScrollAtBottom");
+    });
+    requestAnimationFrame(syncBottomMask);
+
     const containerWidth = scrollEl.clientWidth || virtualContainer.clientWidth || 0;
     this._containerWidth = containerWidth;
     this._containerHeight = scrollEl.clientHeight;

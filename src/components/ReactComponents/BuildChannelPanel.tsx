@@ -1,6 +1,5 @@
 import { useStore } from "@nanostores/react";
 import React, { useMemo, useState } from "react";
-import { ProjectVersion } from "../../../project/config.ts";
 import { $buildChannel } from "../../utils/stores.ts";
 
 type ChannelHosts = [string, string] | [string, string, string];
@@ -8,7 +7,6 @@ type ChannelMap = Record<string, ChannelHosts>;
 
 const LEGACY_PREFIX = "SpicyLyrics-";
 const CUSTOM_CHANNELS_KEY = "customChannels";
-const CUSTOM_CHANNELS_ENABLED_KEY = "customChannelsEnabled";
 const DEFAULT_API_HOST = "api.spicylyrics.org";
 const DEFAULT_STORAGE_HOST = "public.storage.spicylyrics.org";
 
@@ -17,7 +15,6 @@ const BUILT_IN_CHANNELS: ChannelMap = {
   Beta: [DEFAULT_API_HOST, DEFAULT_STORAGE_HOST],
 };
 
-const canManageCustomChannels = ProjectVersion.startsWith("100.10.");
 
 function legacyGet(key: string): string | null {
   return Spicetify.LocalStorage.get(`${LEGACY_PREFIX}${key}`);
@@ -57,16 +54,6 @@ function saveCustomChannels(channels: ChannelMap): void {
   legacySet(CUSTOM_CHANNELS_KEY, JSON.stringify(channels));
 }
 
-function getCustomChannelsEnabled(channels: ChannelMap): boolean {
-  const saved = legacyGet(CUSTOM_CHANNELS_ENABLED_KEY);
-  if (saved !== null) return saved === "true";
-  return Object.keys(channels).length > 0;
-}
-
-function setCustomChannelsEnabled(enabled: boolean): void {
-  legacySet(CUSTOM_CHANNELS_ENABLED_KEY, enabled ? "true" : "false");
-}
-
 function getInitialChannel(fallback: string): string {
   return legacyGet("buildChannel") ?? fallback;
 }
@@ -87,8 +74,8 @@ function isBuiltInChannel(name: string): boolean {
 export default function BuildChannelPanel() {
   const buildChannel = useStore($buildChannel);
   const [customChannels, setCustomChannels] = useState<ChannelMap>(() => readCustomChannels());
-  const [customEnabled, setCustomEnabled] = useState(() => getCustomChannelsEnabled(readCustomChannels()));
   const [selectedChannel, setSelectedChannel] = useState(() => getInitialChannel(buildChannel));
+  const [managingChannels, setManagingChannels] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [name, setName] = useState("");
   const [apiHost, setApiHost] = useState("");
@@ -100,9 +87,9 @@ export default function BuildChannelPanel() {
   const channelMap = useMemo(
     () => ({
       ...BUILT_IN_CHANNELS,
-      ...(customEnabled ? customChannels : {}),
+      ...customChannels,
     }),
-    [customChannels, customEnabled],
+    [customChannels],
   );
 
   const selectedHosts = channelMap[selectedChannel];
@@ -145,12 +132,10 @@ export default function BuildChannelPanel() {
 
     saveCustomChannels(nextChannels);
     setCustomChannels(nextChannels);
-    setCustomEnabled(true);
-    setCustomChannelsEnabled(true);
     setSelectedChannel(cleanName);
     resetForm();
     setShowAddForm(false);
-    notify(`Channel "${cleanName}" added`);
+    notify(`Branch "${cleanName}" added`);
   };
 
   const removeChannel = (channelName: string) => {
@@ -164,7 +149,7 @@ export default function BuildChannelPanel() {
       persistBuildChannel("Stable");
     }
 
-    notify(`Channel "${channelName}" removed`);
+    notify(`Branch "${channelName}" removed`);
   };
 
   const applyAndReload = () => {
@@ -176,40 +161,35 @@ export default function BuildChannelPanel() {
     window.location.reload();
   };
 
-  const toggleCustomAccess = (enabled: boolean) => {
-    setCustomEnabled(enabled);
-    setCustomChannelsEnabled(enabled);
-    if (!enabled && !isBuiltInChannel(selectedChannel)) {
-      setSelectedChannel("Stable");
-    }
-  };
-
   return (
     <div className="sl-build-channel-panel">
       <div className="sl-build-channel-copy">
         <span className="sl-build-channel-title">Build Channel</span>
         <span className="sl-build-channel-description">
-          {canManageCustomChannels
-            ? "Choose which release stream this install should follow. Custom channel management is available in this fork build."
-            : "Choose which release stream this install should follow."}
+          Choose which release stream this install should follow.
         </span>
       </div>
 
       <div className="sl-build-channel-picker">
         <label>
           <span>Channel</span>
-          <span className="sl-build-channel-select-wrap">
-            <select
-              className="sl-build-channel-select"
-              value={selectedChannel}
-              onChange={(e) => setSelectedChannel(e.currentTarget.value)}
-            >
-              {Object.keys(channelMap).map((channelName) => (
-                <option key={channelName} value={channelName}>
-                  {channelName}
-                </option>
-              ))}
-            </select>
+          <span className="sl-build-channel-channel-control">
+            <button className="sl-build-channel-secondary" onClick={() => setManagingChannels((open) => !open)} type="button">
+              Manage
+            </button>
+            <span className="sl-build-channel-select-wrap">
+              <select
+                className="sl-build-channel-select"
+                value={selectedChannel}
+                onChange={(e) => setSelectedChannel(e.currentTarget.value)}
+              >
+                {Object.keys(channelMap).map((channelName) => (
+                  <option key={channelName} value={channelName}>
+                    {channelName}
+                  </option>
+                ))}
+              </select>
+            </span>
           </span>
         </label>
         {selectedHosts && (
@@ -217,21 +197,13 @@ export default function BuildChannelPanel() {
         )}
       </div>
 
-      {canManageCustomChannels && (
+      {managingChannels && (
         <div className="sl-build-channel-custom">
           <div className="sl-build-channel-custom-header">
-            <span className="sl-build-channel-section-title">Custom Channels</span>
-            <label className="sl-sp-toggle">
-              <input
-                checked={customEnabled}
-                onChange={(e) => toggleCustomAccess(e.currentTarget.checked)}
-                type="checkbox"
-              />
-              <span className="sl-sp-toggle-track" />
-            </label>
+            <span className="sl-build-channel-section-title">Custom Branches</span>
           </div>
 
-          {customEnabled && customNames.length > 0 && (
+          {customNames.length > 0 && (
             <div className="sl-build-channel-custom-list">
               {customNames.map((channelName) => (
                 <div className="sl-build-channel-custom-row" key={channelName}>
@@ -251,10 +223,10 @@ export default function BuildChannelPanel() {
             </div>
           )}
 
-          {customEnabled && showAddForm && (
+          {showAddForm && (
             <div className="sl-build-channel-form">
               <label>
-                <span>Channel Name</span>
+                <span>Branch Name</span>
                 <input value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder="e.g. iPixel Dev" />
               </label>
               <label>
@@ -297,15 +269,15 @@ export default function BuildChannelPanel() {
                   Cancel
                 </button>
                 <button className="sl-build-channel-primary" onClick={saveChannel} type="button">
-                  Save Channel
+                  Save Branch
                 </button>
               </div>
             </div>
           )}
 
-          {customEnabled && !showAddForm && (
+          {!showAddForm && (
             <button className="sl-build-channel-secondary" onClick={() => setShowAddForm(true)} type="button">
-              Add Custom Channel
+              Add Branch
             </button>
           )}
         </div>

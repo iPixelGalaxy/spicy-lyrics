@@ -104,8 +104,6 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
 
   const songInfoElement = PageDocument.createElement("div");
   songInfoElement.classList.add("SongInfo");
-  songInfoElement.style.opacity = "0";
-  songInfoElement.style.transition = "opacity 120ms ease";
 
   const preferredProfileName = (username?: string, displayName?: string) => {
     const cleanUsername = username?.trim();
@@ -183,14 +181,30 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   }
   LyricsContainer.appendChild(songInfoElement);
 
-  if (!data.TTMLUploadMetadata) return;
+  const communityCreditElements = [
+    ...Array.from(LyricsContainer.children).filter((element) =>
+      element.classList.contains("Credits") || element.classList.contains("LyricsProvider"),
+    ),
+    songInfoElement,
+  ];
+  communityCreditElements.forEach((element) => {
+    (element as HTMLElement).style.opacity = "0";
+    (element as HTMLElement).style.transition = "opacity 120ms ease";
+  });
 
   let creditsRevealed = false;
   const revealCredits = () => {
     if (creditsRevealed) return;
     creditsRevealed = true;
-    songInfoElement.style.opacity = "1";
+    communityCreditElements.forEach((element) => {
+      (element as HTMLElement).style.opacity = "1";
+    });
   };
+
+  if (!data.TTMLUploadMetadata) {
+    setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
+    return;
+  }
 
   const updateDiscordUsername = (
     userId: string | undefined,

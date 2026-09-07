@@ -7,7 +7,7 @@ import {
   RecalculateScrollSimplebar,
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
-import { AdoptReappliedScrollPosition, QueueForceScroll, ScrollToActiveLine } from "../../../Scrolling/ScrollToActiveLine.ts";
+import { AdoptReappliedScrollPosition, HoldScrollToActiveButtonUntilVisible, QueueForceScroll, ScrollToActiveLine } from "../../../Scrolling/ScrollToActiveLine.ts";
 import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
@@ -325,7 +325,10 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     // virtualizer mount first, then consume the queued correction so its
     // visibility check cannot briefly show an incorrect "go to active" button.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!session.SpaceGravity && ScrollSimplebar) ScrollToActiveLine(ScrollSimplebar);
+      if (!session.SpaceGravity && ScrollSimplebar) {
+        HoldScrollToActiveButtonUntilVisible();
+        ScrollToActiveLine(ScrollSimplebar);
+      }
     }));
   }
 

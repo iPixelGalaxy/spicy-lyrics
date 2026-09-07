@@ -20,6 +20,18 @@
   initial-value: 0px;
 }
 
+#property --SL-LyricsContent_MaskBottomFadeStart {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 64px;
+}
+
+#property --SL-LyricsContent_MaskBottomFadeEnd {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 16px;
+}
+
 #SpicyLyricsPage .LyricsContainer .LyricsContent {
   --TextGlowDef: rgba(255, 255, 255, 0.15) 0px 0px 6px;
   --ActiveTextGlowDef: rgba(255, 255, 255, 0.4) 0px 0px 14px;
@@ -55,7 +67,11 @@
 
   container-type: size;
   opacity: 1;
-  transition: opacity 0.25s, --SL-LyricsContent_MaskTopPadding 0.5s;
+  transition:
+    opacity 0.25s,
+    --SL-LyricsContent_MaskTopPadding 0.5s,
+    --SL-LyricsContent_MaskBottomFadeStart 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    --SL-LyricsContent_MaskBottomFadeEnd 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 #SpicyLyricsPage .LyricsContainer .LyricsContent .simplebar-content-wrapper {

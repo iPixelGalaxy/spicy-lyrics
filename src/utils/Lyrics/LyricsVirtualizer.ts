@@ -175,6 +175,7 @@ class LyricsVirtualizer {
 
     const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
     lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+    lyricsContent.classList.toggle("PinnedFooterSingleLine", footerLayer.childElementCount === 1);
 
     if (page.classList.contains("PinnedFooterMode_NoWriters")) {
       // The writer footer already contributes to scroll height. The pinned layer's
@@ -182,7 +183,7 @@ class LyricsVirtualizer {
       // only; that preserves the normal writer-to-source gap.
       scrollContainer.style.setProperty(
         "--SL-PinnedFooterBottomMargin",
-        `${Math.ceil(footerLayer.offsetHeight + 48)}px`
+        `${Math.ceil(footerLayer.offsetHeight + 80)}px`
       );
       return;
     }

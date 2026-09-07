@@ -89,7 +89,8 @@ export function BuildChannelSettingControl({ onManage }: { onManage: () => void 
     window.addEventListener(CHANNELS_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(CHANNELS_CHANGED_EVENT, refresh);
   }, []);
-  const selectedChannel = channelMap[buildChannel] ? buildChannel : "Stable";
+  const persistedChannel = getInitialChannel(buildChannel);
+  const selectedChannel = channelMap[persistedChannel] ? persistedChannel : "Stable";
 
   return (
     <div className="sl-sp-btn-group">
@@ -137,6 +138,8 @@ export default function BuildChannelPanel() {
     [customChannels],
   );
 
+  const persistedChannel = getInitialChannel(buildChannel);
+  const activeChannel = channelMap[persistedChannel] ? persistedChannel : "Stable";
   const selectedHosts = channelMap[selectedChannel];
   const branchNames = Object.keys(channelMap);
   const customNames = Object.keys(customChannels);
@@ -295,7 +298,7 @@ export default function BuildChannelPanel() {
                         </button>
                       </>
                     )}
-                    {channelName === buildChannel ? (
+                    {channelName === activeChannel ? (
                       <button className="sl-build-channel-secondary" disabled type="button">
                         Selected
                       </button>
@@ -311,7 +314,7 @@ export default function BuildChannelPanel() {
                         Switch
                       </button>
                     )}
-                    {!isBuiltInChannel(channelName) && channelName !== buildChannel && (
+                    {!isBuiltInChannel(channelName) && channelName !== activeChannel && (
                       <button
                         className="sl-build-channel-danger"
                         onClick={() => removeChannel(channelName)}

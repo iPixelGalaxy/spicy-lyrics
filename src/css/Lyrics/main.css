@@ -145,6 +145,11 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) - 16px);
 }
 
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
+  --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 64px);
+  --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 16px);
+}
+
 #SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.LyricsScrollAtBottom {
   --SL-LyricsContent_MaskBottomFadeStart: 0px;
   --SL-LyricsContent_MaskBottomFadeEnd: 0px;

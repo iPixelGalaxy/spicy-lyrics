@@ -56,9 +56,8 @@ export function closeIframeProfileModal(userId?: string) {
   if (!userId || activeSession?.userId === userId) activeSession?.close();
 }
 
-function IframeProfileModal({ onClose, onOpenBrowser, attachFrame }: {
+function IframeProfileModal({ onClose, attachFrame }: {
   onClose: () => void;
-  onOpenBrowser: () => void;
   attachFrame: (frame: HTMLIFrameElement | null) => void;
 }) {
   return (
@@ -98,14 +97,6 @@ function IframeProfileModal({ onClose, onOpenBrowser, attachFrame }: {
           <svg width="14" height="14" viewBox="0 0 32 32" aria-hidden="true">
             <path d="M31.098 29.794L16.955 15.65 31.097 1.51 29.683.093 15.54 14.237 1.4.094-.016 1.508 14.126 15.65-.016 29.795l1.414 1.414L15.54 17.065l14.144 14.143" fill="currentColor" fillRule="evenodd" />
           </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onOpenBrowser}
-          aria-label="Open profile in browser"
-          style={{ position: "absolute", top: 12, right: 48, zIndex: 1, padding: "5px 9px", background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 14, cursor: "pointer", color: "rgba(255,255,255,0.7)", fontSize: 11 }}
-        >
-          Browser
         </button>
         <iframe
           ref={attachFrame}
@@ -225,10 +216,6 @@ export function showIframeProfileModal(
       root = ReactDOM.createRoot(container);
       root.render(React.createElement(IframeProfileModal, {
         onClose: close,
-        onOpenBrowser: () => {
-          targetWindow.open(`https://spicylyrics.org/uid/${encodeURIComponent(userId)}`, "_blank", "noopener,noreferrer");
-          close();
-        },
         attachFrame: (frame: HTMLIFrameElement | null) => {
           iframe = frame;
           if (!frame || closed) return;

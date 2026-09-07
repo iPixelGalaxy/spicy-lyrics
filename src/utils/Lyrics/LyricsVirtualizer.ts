@@ -176,6 +176,16 @@ class LyricsVirtualizer {
     const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
     lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
 
+    if (page.classList.contains("PinnedFooterMode_NoWriters")) {
+      // The writer footer already contributes to scroll height. Reserve only the
+      // pinned source layer after it, so the final writer line rests above source.
+      scrollContainer.style.setProperty(
+        "--SL-PinnedFooterBottomMargin",
+        `${Math.ceil(trackBottom + 16)}px`
+      );
+      return;
+    }
+
     const scrollEl = this._scrollEl;
     const lastMeasurement = this._virtualizer?.measurementsCache[
       this._allElements.length - 1
@@ -185,11 +195,8 @@ class LyricsVirtualizer {
     const scrollRect = scrollEl.getBoundingClientRect();
     const containerOffset =
       virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
-    const writerFooterHeight = scrollContainer.querySelector<HTMLElement>(
-      '.LyricsFooter[data-pinned-footer-mode="NoWriters"]',
-    )?.offsetHeight ?? 0;
     const terminalBottomAtMaxScroll =
-      scrollRect.top + containerOffset + lastMeasurement.end + writerFooterHeight -
+      scrollRect.top + containerOffset + lastMeasurement.end -
       Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
     const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - 32;
 

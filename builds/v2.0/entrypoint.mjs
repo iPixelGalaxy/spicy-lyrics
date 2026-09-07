@@ -535,10 +535,6 @@ const CHANNEL_SETTING_ROW_ID = "spicy-lyrics-entry-channel-row";
 let channelSettingsObserver = null;
 let channelSettingsRenderQueued = false;
 
-const removeChannelSettingsSection = () => {
-  document.getElementById(CHANNEL_SETTING_ROW_ID)?.remove();
-};
-
 const renderChannelSettings = () => {
   const modal = document.querySelector(
     "sl-generic-modal.SpicyLyricsModal .slmodal-settingsPanel"

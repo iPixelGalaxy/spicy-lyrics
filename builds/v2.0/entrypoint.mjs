@@ -607,7 +607,7 @@ const renderChannelSettings = () => {
         renderChannelSettings();
       }
     });
-    channelSettingsObserver.observe(stableSection, { childList: true });
+    channelSettingsObserver.observe(stableContainer, { childList: true, subtree: true });
     clearInterval(channelSettingsRenderInterval);
     channelSettingsRenderInterval = null;
   }, 100);

@@ -528,99 +528,77 @@ window._spicy_lyrics_channels = {
 };
 
 // ─── Stable Settings Injection ───
-// Stable exposes this SettingsSection itself. Add a row to its rendered DOM so
-// the upstream bundle remains untouched.
+// Stable renders its own settings modal. Observe that modal and add one native
+// row without importing or patching the upstream bundle.
 
-const STABLE_SETTINGS_ID = "spicy-lyrics-settings";
 const CHANNEL_SETTING_ROW_ID = "spicy-lyrics-entry-channel-row";
-let channelSettingsRenderInterval = null;
 let channelSettingsObserver = null;
+let channelSettingsRenderQueued = false;
 
 const removeChannelSettingsSection = () => {
   document.getElementById(CHANNEL_SETTING_ROW_ID)?.remove();
-  channelSettingsObserver?.disconnect();
-  channelSettingsObserver = null;
 };
 
 const renderChannelSettings = () => {
-  if (channelSettingsRenderInterval) {
-    clearInterval(channelSettingsRenderInterval);
-    channelSettingsRenderInterval = null;
+  const modal = document.querySelector(
+    "sl-generic-modal.SpicyLyricsModal .slmodal-settingsPanel"
+  );
+  if (!modal || document.getElementById(CHANNEL_SETTING_ROW_ID)) return;
+
+  const developerTitle = Array.from(modal.querySelectorAll(".sl-sp-section-title"))
+    .find((element) => element.textContent?.trim() === "Developer");
+  if (!developerTitle) return;
+
+  const channels = getCustomChannelAccessEnabled() ? getFullChannelMap() : CHANNEL_MAP;
+  const current = channels[getCurrentChannel()] ? getCurrentChannel() : "Stable";
+  const row = document.createElement("div");
+  row.id = CHANNEL_SETTING_ROW_ID;
+  row.className = "sl-sp-row sl-list-row";
+
+  const labelWrap = document.createElement("div");
+  labelWrap.className = "sl-sp-label-wrap";
+  const label = document.createElement("span");
+  label.className = "sl-sp-label";
+  label.textContent = "Build Channel";
+  const description = document.createElement("span");
+  description.className = "sl-sp-description";
+  description.textContent = "Choose the release stream used after reload.";
+  labelWrap.append(label, description);
+
+  const control = document.createElement("div");
+  control.className = "sl-sp-control";
+  const select = document.createElement("select");
+  select.className = "sl-sp-select";
+  select.setAttribute("aria-label", "Build Channel");
+  for (const name of Object.keys(channels)) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    option.selected = name === current;
+    select.appendChild(option);
   }
-
-  if (Spicetify.Platform.History.location.pathname !== "/preferences") {
-    removeChannelSettingsSection();
-    return;
-  }
-
-  channelSettingsRenderInterval = setInterval(() => {
-    if (Spicetify.Platform.History.location.pathname !== "/preferences") {
-      clearInterval(channelSettingsRenderInterval);
-      channelSettingsRenderInterval = null;
-      removeChannelSettingsSection();
-      return;
-    }
-
-    const stableContainer = document.getElementById(STABLE_SETTINGS_ID);
-    const stableSection = stableContainer?.querySelector(".x-settings-section") ?? stableContainer;
-    if (!stableSection || document.getElementById(CHANNEL_SETTING_ROW_ID)) return;
-
-    const channels = getCustomChannelAccessEnabled() ? getFullChannelMap() : CHANNEL_MAP;
-    const current = channels[getCurrentChannel()] ? getCurrentChannel() : "Stable";
-    const row = document.createElement("div");
-    row.id = CHANNEL_SETTING_ROW_ID;
-    row.className = "x-settings-row eguwzH_QWTBXry7hiNj3";
-
-    const firstColumn = document.createElement("div");
-    firstColumn.className = "x-settings-firstColumn lfXDZUXLhhKhFPjDO8by";
-    const label = document.createElement("label");
-    label.className = "TypeElement-viola-textSubdued-type e-91000-text encore-text-body-small encore-internal-color-text-subdued";
-    label.htmlFor = "spicy-lyrics-entry-channel-select";
-    label.textContent = "Build Channel";
-    firstColumn.appendChild(label);
-
-    const secondColumn = document.createElement("div");
-    secondColumn.className = "x-settings-secondColumn jKCZodyn7H2Trr7dhvGm";
-    const select = document.createElement("select");
-    select.id = "spicy-lyrics-entry-channel-select";
-    select.className = "main-dropDown-dropDown FQupgLGfMkp1dOYvUeuQ x-settings-dropdown";
-    for (const name of Object.keys(channels)) {
-      const option = document.createElement("option");
-      option.value = name;
-      option.textContent = name;
-      option.selected = name === current;
-      select.appendChild(option);
-    }
-    select.addEventListener("change", () => {
-      setCurrentChannel(select.value);
-      window.location.reload();
-    });
-    secondColumn.appendChild(select);
-    row.append(firstColumn, secondColumn);
-    stableSection.appendChild(row);
-
-    // SettingsSection rerenders its React subtree. Reinsert the external row
-    // after a settings change without patching the upstream plugin.
-    channelSettingsObserver?.disconnect();
-    channelSettingsObserver = new MutationObserver(() => {
-      if (Spicetify.Platform.History.location.pathname === "/preferences" && !document.getElementById(CHANNEL_SETTING_ROW_ID)) {
-        renderChannelSettings();
-      }
-    });
-    channelSettingsObserver.observe(stableContainer, { childList: true, subtree: true });
-    clearInterval(channelSettingsRenderInterval);
-    channelSettingsRenderInterval = null;
-  }, 100);
+  select.addEventListener("change", () => {
+    setCurrentChannel(select.value);
+    window.location.reload();
+  });
+  control.appendChild(select);
+  row.append(labelWrap, control);
+  developerTitle.after(row);
 };
 
 const registerChannelSettings = () => {
-  const waitForHistory = setInterval(() => {
-    if (Spicetify?.Platform?.History?.listen) {
-      clearInterval(waitForHistory);
-      Spicetify.Platform.History.listen(renderChannelSettings);
+  if (channelSettingsObserver) return;
+  const scheduleRender = () => {
+    if (channelSettingsRenderQueued) return;
+    channelSettingsRenderQueued = true;
+    queueMicrotask(() => {
+      channelSettingsRenderQueued = false;
       renderChannelSettings();
-    }
-  }, 100);
+    });
+  };
+  channelSettingsObserver = new MutationObserver(scheduleRender);
+  channelSettingsObserver.observe(document.body, { childList: true, subtree: true });
+  scheduleRender();
 };
 
 // ─── Loading Logic ───

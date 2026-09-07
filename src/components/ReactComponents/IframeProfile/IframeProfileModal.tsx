@@ -77,7 +77,8 @@ function IframeProfileModal({ onClose, attachFrame }: {
           position: "relative", background: "#0e0e0e",
           border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12,
           overflow: "hidden", boxShadow: "0 16px 60px rgba(0,0,0,0.8)",
-          display: "flex", flexDirection: "column",
+          display: "flex", flexDirection: "column", direction: "ltr",
+          padding: "0 52px",
           width: "min(1100px, calc(100% - 48px))",
           height: "min(72%, calc(100% - 48px))",
         }}
@@ -87,7 +88,7 @@ function IframeProfileModal({ onClose, attachFrame }: {
           onClick={onClose}
           aria-label="Close profile"
           style={{
-            position: "absolute", top: 12, right: 12, zIndex: 1,
+            position: "absolute", top: 12, right: 12, left: "auto", zIndex: 1,
             width: 28, height: 28, display: "flex", alignItems: "center",
             justifyContent: "center", background: "rgba(255,255,255,0.08)",
             border: "none", borderRadius: "50%", cursor: "pointer",
@@ -103,7 +104,7 @@ function IframeProfileModal({ onClose, attachFrame }: {
           title="TTML profile"
           allow="clipboard-write"
           sandbox="allow-scripts allow-same-origin allow-popups"
-          style={{ flex: 1, width: "100%", border: "none", display: "block", minHeight: 0 }}
+          style={{ flex: 1, width: "100%", boxSizing: "border-box", border: "none", display: "block", minHeight: 0 }}
         />
       </div>
     </div>

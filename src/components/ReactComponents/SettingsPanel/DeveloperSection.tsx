@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/react";
 import React from "react";
 import {
-  $buildChannel,
   $developerMode,
   $allowHidingSettings,
   $hideHidingIcon,
@@ -17,6 +16,7 @@ import {
 import { LYRICS_SOURCE_PROVIDER_DEFINITIONS } from "../../../utils/Lyrics/LyricsSourcePreferences.ts";
 import { OpenTTMLDatabasePanelFromSettings } from "../../../utils/openLyricsDBPanel.tsx";
 import { OpenBuildChannelPanel } from "../../../utils/openBuildChannelPanel.tsx";
+import { BuildChannelSettingControl } from "../BuildChannelPanel.tsx";
 import { OpenLyricsSourcesManager } from "../../../utils/openLyricsSourcesManager.tsx";
 import { matches, Row, SectionTitle, Select, Toggle } from "./components.tsx";
 
@@ -33,13 +33,9 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
   const developerMode = useStore($developerMode);
   const showLyricsCacheActionButton = useStore($showLyricsCacheActionButton);
   const lyricsCacheAction = normalizeLyricsCacheAction(useStore($lyricsCacheAction));
-  const buildChannel = useStore($buildChannel);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
   const hiddenSettingIds = useStore($hiddenSettingIds);
-  const displayedBuildChannel =
-    Spicetify.LocalStorage.get("SpicyLyrics-buildChannel") ?? buildChannel;
-
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
   const r1 =
@@ -71,9 +67,7 @@ export default function DeveloperSection({ query, sectionFilter, onOpenHiddenSet
 
       {!showHidden && r4 && (
         <Row label="Build Channel" description="Select a branch or manage saved branches.">
-          <button className="sl-sp-btn" onClick={OpenBuildChannelPanel}>
-            {displayedBuildChannel}
-          </button>
+          <BuildChannelSettingControl onManage={OpenBuildChannelPanel} />
         </Row>
       )}
 

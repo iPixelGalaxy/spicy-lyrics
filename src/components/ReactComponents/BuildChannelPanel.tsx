@@ -71,6 +71,35 @@ function isBuiltInChannel(name: string): boolean {
   return Object.prototype.hasOwnProperty.call(BUILT_IN_CHANNELS, name);
 }
 
+/** Compact setting control shared by Advanced settings and the channel panel. */
+export function BuildChannelSettingControl({ onManage }: { onManage: () => void }) {
+  const buildChannel = useStore($buildChannel);
+  const channelMap = useMemo(
+    () => ({ ...BUILT_IN_CHANNELS, ...readCustomChannels() }),
+    [],
+  );
+  const selectedChannel = channelMap[buildChannel] ? buildChannel : "Stable";
+
+  return (
+    <div className="sl-sp-btn-group">
+      <button className="sl-sp-btn" onClick={onManage} type="button">Manage</button>
+      <select
+        className="sl-sp-select"
+        aria-label="Build Channel"
+        value={selectedChannel}
+        onChange={(event) => {
+          persistBuildChannel(event.currentTarget.value);
+          window.location.reload();
+        }}
+      >
+        {Object.keys(channelMap).map((channelName) => (
+          <option key={channelName} value={channelName}>{channelName}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function BuildChannelPanel() {
   const buildChannel = useStore($buildChannel);
   const [customChannels, setCustomChannels] = useState<ChannelMap>(() => readCustomChannels());

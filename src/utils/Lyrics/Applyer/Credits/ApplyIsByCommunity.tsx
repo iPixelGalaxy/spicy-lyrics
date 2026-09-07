@@ -187,18 +187,30 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     ),
     songInfoElement,
   ];
+  const isPinnedFooter = LyricsContainer.classList.contains("LyricsPinnedFooter");
+  const targetOpacities = new Map(
+    communityCreditElements.map((element) => [element, getComputedStyle(element).opacity]),
+  );
   communityCreditElements.forEach((element) => {
-    (element as HTMLElement).style.opacity = "0";
-    (element as HTMLElement).style.transition = "opacity 120ms ease";
+    const creditElement = element as HTMLElement;
+    creditElement.style.opacity = "0";
+    creditElement.style.transition = isPinnedFooter
+      ? "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1)"
+      : "opacity 120ms ease";
+    if (isPinnedFooter) creditElement.style.transform = "translateY(4px)";
   });
 
   let creditsRevealed = false;
   const revealCredits = () => {
     if (creditsRevealed) return;
     creditsRevealed = true;
-    communityCreditElements.forEach((element) => {
-      (element as HTMLElement).style.opacity = "1";
-    });
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      communityCreditElements.forEach((element) => {
+        const creditElement = element as HTMLElement;
+        creditElement.style.opacity = targetOpacities.get(element) ?? "1";
+        if (isPinnedFooter) creditElement.style.transform = "translateY(0)";
+      });
+    }));
   };
 
   if (!data.TTMLUploadMetadata) {

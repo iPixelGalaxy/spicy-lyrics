@@ -245,7 +245,7 @@ const showChannelSwitcher = () => {
     channelControl.style.cssText = "display:inline-flex;align-items:center;gap:8px;";
     const manageBtn = makeBtn("Manage");
     manageBtn.addEventListener("click", () => reopenPanel(close, showChannelManager));
-    channelControl.append(manageBtn, selectWrap);
+    channelControl.append(selectWrap, manageBtn);
     const buildChannelRow = makeRow("Build Channel", channelControl);
     scroll.appendChild(buildChannelRow);
 
@@ -477,7 +477,7 @@ const renderChannelSettings = () => {
     setCurrentChannel(select.value);
     window.location.reload();
   });
-  control.append(manage, select);
+  control.append(select, manage);
   row.append(labelWrap, control);
   developerTitle.after(row);
 };

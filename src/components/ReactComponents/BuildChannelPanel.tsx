@@ -82,7 +82,6 @@ export function BuildChannelSettingControl({ onManage }: { onManage: () => void 
 
   return (
     <div className="sl-sp-btn-group">
-      <button className="sl-sp-btn" onClick={onManage} type="button">Manage</button>
       <span className="sl-sp-select-wrap">
         <span className="sl-sp-select-sizer" aria-hidden="true">
           {Object.keys(channelMap).map((channelName) => <span key={channelName}>{channelName}</span>)}
@@ -101,6 +100,7 @@ export function BuildChannelSettingControl({ onManage }: { onManage: () => void 
           ))}
         </select>
       </span>
+      <button className="sl-sp-btn" onClick={onManage} type="button">Manage</button>
     </div>
   );
 }

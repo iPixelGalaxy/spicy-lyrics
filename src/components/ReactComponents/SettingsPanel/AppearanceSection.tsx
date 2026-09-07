@@ -9,6 +9,7 @@ import {
   $staticBackgroundBlur,
   $staticBackgroundMode,
   $hiddenSettingIds,
+  $pinnedFooterMode,
 } from "../../../utils/stores.ts";
 import { matches, Row, SectionTitle, Select, Slider, Toggle } from "./components.tsx";
 
@@ -29,6 +30,7 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
   const coverArtAnimation = useStore($coverArtAnimation);
+  const pinnedFooterMode = useStore($pinnedFooterMode);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hiddenSettingIds = useStore($hiddenSettingIds);
 
@@ -42,8 +44,9 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const r5 = visible("appearance-cover-art-animation") && matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
   const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
   const r6 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
+  const r7 = visible("appearance-pinned-footer") && matches(query, "Pinned Lyrics Footer", "Keep source and community credits visible. Full also pins writers.");
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !r7) return null;
 
   return (
     <>
@@ -105,6 +108,12 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
       {r5 && (
         <Row settingId="appearance-cover-art-animation" label="Cover Art Animation" description="Animate cover art changes in the NowBar.">
           <Toggle checked={coverArtAnimation} onChange={(v) => $coverArtAnimation.set(v)} />
+        </Row>
+      )}
+
+      {r7 && (
+        <Row settingId="appearance-pinned-footer" label="Pinned Lyrics Footer" description="Keep source and community credits visible. Full also pins writers.">
+          <Select value={pinnedFooterMode} options={["Off", "No Writers", "Full"]} onChange={(value) => $pinnedFooterMode.set(value as typeof pinnedFooterMode)} />
         </Row>
       )}
 

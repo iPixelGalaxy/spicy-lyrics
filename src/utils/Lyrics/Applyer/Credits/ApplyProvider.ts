@@ -43,4 +43,6 @@ export function ApplyLyricsProvider(data: any, LyricsContainer: HTMLElement): vo
       : ""
   }`;
   LyricsContainer.appendChild(ProviderElement);
+  PinFooterDetailWithoutWriters(ProviderElement, LyricsContainer);
 }
+import { PinFooterDetailWithoutWriters } from "./CreateLyricsFooter.ts";

@@ -101,6 +101,11 @@ export const $lyricsCacheAction = persistAtom<string>(
 export const $rightAlignLyrics = persistAtom<boolean>("rightAlignLyrics", false);
 export const $escapeKeyFunction = persistAtom<string>("escapeKeyFunction", "Default");
 export const $buildChannel = persistAtom<string>("buildChannel", "Stable");
+export type PinnedFooterMode = "Off" | "No Writers" | "Full";
+export const $pinnedFooterMode = persistAtom<PinnedFooterMode>(
+  "pinnedFooterMode",
+  _settings["experiment:pinLyricsFooter"] ? "Full" : "Off",
+);
 export const $customFontEnabled = persistAtom<boolean>("customFontEnabled", false);
 export const $customFont = persistAtom<string>("customFont", "");
 export const $alwaysShowInFullscreen = persistAtom<string>("alwaysShowInFullscreen", "None");

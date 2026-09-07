@@ -23,8 +23,13 @@ export function PlaceLyricsFooter(
   );
   // Footer placement must follow page class. CSS uses same class to reveal and
   // pin layer, while persisted experiment store can lag during page construction.
-  const pinFooterEnabled = !cardMode && page?.classList.contains("Exp_PinLyricsFooter");
-  const pinned = Boolean(pinFooterEnabled && pinnedFooterLayer);
+  const mode = page?.classList.contains("PinnedFooterMode_Full")
+    ? "Full"
+    : page?.classList.contains("PinnedFooterMode_NoWriters")
+      ? "NoWriters"
+      : "Off";
+  const pinned = Boolean(!cardMode && mode === "Full" && pinnedFooterLayer);
+  footer.dataset.pinnedFooterMode = mode;
   footer.classList.toggle("PinnedLyricsFooter", pinned);
 
   if (pinned && pinnedFooterLayer) {
@@ -33,6 +38,15 @@ export function PlaceLyricsFooter(
   }
 
   lyricsContainer.appendChild(footer);
+}
+
+/** Move source/community details into the pinned layer while writers stay scrollable. */
+export function PinFooterDetailWithoutWriters(detail: HTMLElement, footer: HTMLElement): void {
+  if (footer.dataset.pinnedFooterMode !== "NoWriters") return;
+  const pinnedFooterLayer = footer.closest<HTMLElement>(".LyricsContainer")?.querySelector<HTMLElement>(
+    ".LyricsPinnedFooter",
+  );
+  pinnedFooterLayer?.appendChild(detail);
 }
 
 export function CreateLyricsFooter(

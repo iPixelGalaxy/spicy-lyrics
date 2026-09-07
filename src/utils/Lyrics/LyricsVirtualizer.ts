@@ -160,7 +160,7 @@ class LyricsVirtualizer {
     if (
       !scrollContainer ||
       !lyricsContent ||
-      !page?.classList.contains("Exp_PinLyricsFooter") ||
+      (!page?.classList.contains("PinnedFooterMode_NoWriters") && !page?.classList.contains("PinnedFooterMode_Full")) ||
       page.classList.contains("CardMode")
     ) {
       scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");

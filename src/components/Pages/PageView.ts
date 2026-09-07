@@ -36,6 +36,7 @@ import {
   $lyricsContainerExists,
   $lyricsRendererPaused,
   $minimalLyricsMode,
+  $pinnedFooterMode,
   $rightAlignLyrics,
   $showScrollToActiveButton,
   $simpleLyricsMode,
@@ -84,6 +85,12 @@ import {
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
+
+function applyPinnedFooterMode(element: HTMLElement): void {
+  const mode = $pinnedFooterMode.get();
+  element.classList.toggle("PinnedFooterMode_NoWriters", mode === "No Writers");
+  element.classList.toggle("PinnedFooterMode_Full", mode === "Full");
+}
 
 interface TippyInstance {
   destroy: () => void;
@@ -291,6 +298,7 @@ async function OpenPage(
   }
 
   ApplyExperimentClasses(elem);
+  applyPinnedFooterMode(elem);
 
   const contentBox = elem.querySelector<HTMLElement>(
     ".ContentBox"
@@ -971,6 +979,12 @@ onExperimentChange((experiment) => {
   if (!PageContainer) return;
   ApplyExperimentClasses(PageContainer);
   if (experiment.rebuildsLyrics) ReapplyCurrentLyrics();
+});
+
+$pinnedFooterMode.listen(() => {
+  if (!PageContainer) return;
+  applyPinnedFooterMode(PageContainer);
+  ReapplyCurrentLyrics();
 });
 
 $viewControlsPosition.listen((v) => {

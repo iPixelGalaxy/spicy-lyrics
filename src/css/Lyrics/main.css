@@ -127,7 +127,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   display: none;
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsPinnedFooter {
+#SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsPinnedFooter {
   --DefaultLyricsSize: clamp(1.85rem, calc(1cqw * 7), 3.5rem);
   position: absolute;
   z-index: 10;
@@ -140,16 +140,16 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   font-weight: 700;
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
+#SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
   --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 32px);
   --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) - 16px);
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+#SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
   margin-bottom: var(--SL-PinnedFooterBottomMargin, calc(8cqh + 98px));
 }
 
-#SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .simplebar-track.simplebar-vertical {
+#SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .simplebar-track.simplebar-vertical {
   bottom: var(--SL-PinnedFooterTrackBottom, 0px);
 }
 
@@ -158,7 +158,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   left: calc(var(--LyricsRightSidePadding) * 1.45);
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.Exp_PinLyricsFooter:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsPinnedFooter {
+.spicy-pip-wrapper #SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsPinnedFooter {
   --DefaultLyricsSize: clamp(1.7rem, calc(1cqw * 5.5), 2.6rem);
 }
 

@@ -4,6 +4,7 @@ import {
   resolveProfileIdentity,
   showIframeProfileModal,
 } from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
+import { PinFooterDetailWithoutWriters } from "./CreateLyricsFooter.ts";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
@@ -180,6 +181,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     uploaderUsernameSpan = createProfileSection("Uploader", labelText, uploaderUsername, uploaderAvatar);
   }
   LyricsContainer.appendChild(songInfoElement);
+  PinFooterDetailWithoutWriters(songInfoElement, LyricsContainer);
 
   const communityCreditElements = [
     ...Array.from(LyricsContainer.children).filter((element) =>

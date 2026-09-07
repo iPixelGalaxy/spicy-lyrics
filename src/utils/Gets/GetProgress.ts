@@ -22,6 +22,14 @@ let lastLocalSample: {
   SampledAt: number;
   TrackUri: string | null;
 } | null = null;
+// Previous raw local reading, separate from the anchor which may use player state.
+let lastRawLocalSample: number | null = null;
+// Tracks whether the local source is stalled and playback state is in use.
+let localSourceHealth: {
+  LastChangeAt: number;
+  ConsecutiveChanges: number;
+  UsingState: boolean;
+} | null = null;
 // Previous poll's reading of the player state, used only to spot a
 // discontinuity (seek/track change) in the state itself. See getLocalPosition.
 let lastStateReading: {
@@ -50,6 +58,10 @@ const JITTER_TIME_CONSTANT = 300;
 // Sits above a deliberate seek (>=1s) so ordinary state-update noise never
 // discards a healthy anchor.
 const LOCAL_ANCHOR_RESYNC_THRESHOLD = 1000;
+// Stall timeout (ms) before using player state.
+const LOCAL_SOURCE_STALL_TIMEOUT = 500;
+// Fresh local readings needed before switching back from player state.
+const LOCAL_SOURCE_RECOVERY_STREAK = 3;
 
 function clampToTrack(position: number): number {
   const duration = SpotifyPlayer.GetDuration();
@@ -183,6 +195,57 @@ export const requestPositionSync = () => {
               Position: stateReading,
               ReadAt: sampledAt,
               WasPlaying: isPlaying,
+            };
+          }
+
+          const rawChangedSinceLastPoll = lastRawLocalSample !== sampled;
+          lastRawLocalSample = sampled;
+
+          // Use timestamped player state while local position source is stalled.
+          if (isPlaying) {
+            const changed = rawChangedSinceLastPoll;
+            if (!localSourceHealth) {
+              localSourceHealth = {
+                LastChangeAt: sampledAt,
+                ConsecutiveChanges: changed ? 1 : 0,
+                UsingState: false,
+              };
+            } else {
+              localSourceHealth.ConsecutiveChanges = changed
+                ? localSourceHealth.ConsecutiveChanges + 1
+                : 0;
+              if (changed) localSourceHealth.LastChangeAt = sampledAt;
+            }
+
+            const stalled =
+              sampledAt - localSourceHealth.LastChangeAt >
+              LOCAL_SOURCE_STALL_TIMEOUT;
+            if (localSourceHealth.UsingState) {
+              if (
+                localSourceHealth.ConsecutiveChanges >=
+                LOCAL_SOURCE_RECOVERY_STREAK
+              ) {
+                localSourceHealth.UsingState = false;
+              }
+            } else if (stalled) {
+              localSourceHealth.UsingState = true;
+            }
+          }
+          // Paused local positions are expected to freeze.
+
+          if (
+            localSourceHealth?.UsingState &&
+            isPlaying &&
+            Number.isFinite(stateReading)
+          ) {
+            lastLocalSample = {
+              Position: stateReading,
+              SampledAt: sampledAt,
+              TrackUri: trackUri,
+            };
+            return {
+              StartedSyncAt: sampledAt,
+              Position: stateReading,
             };
           }
 

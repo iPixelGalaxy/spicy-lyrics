@@ -527,16 +527,19 @@ window._spicy_lyrics_channels = {
   getMap: getFullChannelMap,
 };
 
-// ─── Settings Page Injection ───
-// Injects a "Build Channel" button at the top of the Spicetify settings page.
-// This stays available even when the official plugin loads, because official
-// builds may not expose custom-channel management.
+// ─── Stable Settings Injection ───
+// Stable exposes this SettingsSection itself. Add a row to its rendered DOM so
+// the upstream bundle remains untouched.
 
-const SETTINGS_SECTION_ID = "spicy-lyrics-entry-channel-settings";
+const STABLE_SETTINGS_ID = "spicy-lyrics-settings";
+const CHANNEL_SETTING_ROW_ID = "spicy-lyrics-entry-channel-row";
 let channelSettingsRenderInterval = null;
+let channelSettingsObserver = null;
 
 const removeChannelSettingsSection = () => {
-  document.getElementById(SETTINGS_SECTION_ID)?.remove();
+  document.getElementById(CHANNEL_SETTING_ROW_ID)?.remove();
+  channelSettingsObserver?.disconnect();
+  channelSettingsObserver = null;
 };
 
 const renderChannelSettings = () => {
@@ -558,34 +561,55 @@ const renderChannelSettings = () => {
       return;
     }
 
-    const sentinel = document.getElementById("desktop.settings.selectLanguage");
-    if (!sentinel) return;
+    const stableContainer = document.getElementById(STABLE_SETTINGS_ID);
+    const stableSection = stableContainer?.querySelector(".x-settings-section") ?? stableContainer;
+    if (!stableSection || document.getElementById(CHANNEL_SETTING_ROW_ID)) return;
+
+    const channels = getCustomChannelAccessEnabled() ? getFullChannelMap() : CHANNEL_MAP;
+    const current = channels[getCurrentChannel()] ? getCurrentChannel() : "Stable";
+    const row = document.createElement("div");
+    row.id = CHANNEL_SETTING_ROW_ID;
+    row.className = "x-settings-row eguwzH_QWTBXry7hiNj3";
+
+    const firstColumn = document.createElement("div");
+    firstColumn.className = "x-settings-firstColumn lfXDZUXLhhKhFPjDO8by";
+    const label = document.createElement("label");
+    label.className = "TypeElement-viola-textSubdued-type e-91000-text encore-text-body-small encore-internal-color-text-subdued";
+    label.htmlFor = "spicy-lyrics-entry-channel-select";
+    label.textContent = "Build Channel";
+    firstColumn.appendChild(label);
+
+    const secondColumn = document.createElement("div");
+    secondColumn.className = "x-settings-secondColumn jKCZodyn7H2Trr7dhvGm";
+    const select = document.createElement("select");
+    select.id = "spicy-lyrics-entry-channel-select";
+    select.className = "main-dropDown-dropDown FQupgLGfMkp1dOYvUeuQ x-settings-dropdown";
+    for (const name of Object.keys(channels)) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      option.selected = name === current;
+      select.appendChild(option);
+    }
+    select.addEventListener("change", () => {
+      setCurrentChannel(select.value);
+      window.location.reload();
+    });
+    secondColumn.appendChild(select);
+    row.append(firstColumn, secondColumn);
+    stableSection.appendChild(row);
+
+    // SettingsSection rerenders its React subtree. Reinsert the external row
+    // after a settings change without patching the upstream plugin.
+    channelSettingsObserver?.disconnect();
+    channelSettingsObserver = new MutationObserver(() => {
+      if (Spicetify.Platform.History.location.pathname === "/preferences" && !document.getElementById(CHANNEL_SETTING_ROW_ID)) {
+        renderChannelSettings();
+      }
+    });
+    channelSettingsObserver.observe(stableSection, { childList: true });
     clearInterval(channelSettingsRenderInterval);
     channelSettingsRenderInterval = null;
-
-    const container = document.querySelector(".main-view-container__scroll-node-child main div");
-    if (!container || document.getElementById(SETTINGS_SECTION_ID)) return;
-
-    const section = document.createElement("div");
-    section.id = SETTINGS_SECTION_ID;
-    section.className = "x-settings-section";
-    section.style.cssText = "border:1px solid var(--hairline,rgba(255,255,255,0.1));border-radius:var(--radius-md,10px);padding:12px 16px;margin-bottom:8px;background:var(--accent-tint-bg,rgba(255,255,255,.045));";
-    section.innerHTML = `
-      <h2 class="x-settings-title main-shelf-title TypeElement-cello-textBase-type encore-text-body-medium-bold" style="color:var(--color-text-primary,#fff);padding-bottom:4px;">
-        Spicy Lyrics - Build
-      </h2>
-      <div class="x-settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
-        <div class="x-settings-firstColumn">
-          <label id="sl-entry-channel-label" class="x-settings-label" style="font-size:0.875rem;color:var(--color-text-primary,#fff);">Build Channel (Current: ${getCurrentChannel()})</label>
-        </div>
-        <div class="x-settings-secondColumn">
-          <button id="sl-entry-manage-btn" type="button" class="sl-btn">Manage</button>
-        </div>
-      </div>
-    `;
-    container.insertBefore(section, container.firstChild);
-    attachSecretToggleGesture(document.getElementById("sl-entry-channel-label"));
-    document.getElementById("sl-entry-manage-btn").addEventListener("click", showChannelSwitcher);
   }, 100);
 };
 

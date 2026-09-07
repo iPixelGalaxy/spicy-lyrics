@@ -83,19 +83,24 @@ export function BuildChannelSettingControl({ onManage }: { onManage: () => void 
   return (
     <div className="sl-sp-btn-group">
       <button className="sl-sp-btn" onClick={onManage} type="button">Manage</button>
-      <select
-        className="sl-sp-select"
-        aria-label="Build Channel"
-        value={selectedChannel}
-        onChange={(event) => {
-          persistBuildChannel(event.currentTarget.value);
-          window.location.reload();
-        }}
-      >
-        {Object.keys(channelMap).map((channelName) => (
-          <option key={channelName} value={channelName}>{channelName}</option>
-        ))}
-      </select>
+      <span className="sl-sp-select-wrap">
+        <span className="sl-sp-select-sizer" aria-hidden="true">
+          {Object.keys(channelMap).map((channelName) => <span key={channelName}>{channelName}</span>)}
+        </span>
+        <select
+          className="sl-sp-select"
+          aria-label="Build Channel"
+          value={selectedChannel}
+          onChange={(event) => {
+            persistBuildChannel(event.currentTarget.value);
+            window.location.reload();
+          }}
+        >
+          {Object.keys(channelMap).map((channelName) => (
+            <option key={channelName} value={channelName}>{channelName}</option>
+          ))}
+        </select>
+      </span>
     </div>
   );
 }

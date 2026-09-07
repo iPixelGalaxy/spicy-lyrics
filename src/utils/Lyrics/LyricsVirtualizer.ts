@@ -165,6 +165,7 @@ class LyricsVirtualizer {
     ) {
       scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");
       lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
+      lyricsContent?.style.removeProperty("--SL-PinnedFooterFadeHeight");
       return;
     }
 
@@ -175,6 +176,10 @@ class LyricsVirtualizer {
 
     const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
     lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+    // A one-line source stays compact; each additional wrapped footer line
+    // widens the fade so lyrics do not abruptly meet the pinned block.
+    const fadeHeight = Math.max(48, Math.min(120, footerLayer.offsetHeight * 0.75));
+    lyricsContent.style.setProperty("--SL-PinnedFooterFadeHeight", `${Math.ceil(fadeHeight)}px`);
     lyricsContent.classList.toggle("PinnedFooterSingleLine", footerLayer.childElementCount === 1);
 
     if (page.classList.contains("PinnedFooterMode_NoWriters")) {

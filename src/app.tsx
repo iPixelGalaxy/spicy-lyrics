@@ -173,7 +173,9 @@ function bindForkDefaults() {
   bindDefault($coverArtAnimation, (value) => { Defaults.CoverArtAnimation = value; });
   bindDefault($staticBackgroundMode, syncLegacyStaticBackgroundSettings);
   bindDefault($memeFormat, (value) => {
-    Defaults.MemeFormat = value === "Gibberish" ? "Gibberish" : "Off";
+    Defaults.MemeFormat = ["Gibberish", "all lowercase", "ALL UPPERCASE"].includes(value)
+      ? value
+      : "Off";
     reapplyCurrentLyrics();
   });
   bindDefault($animateFullscreenClose, (value) => { Defaults.AnimateFullscreenClose = value; });

@@ -5,7 +5,6 @@ import {
   $customFont,
   $customFontEnabled,
   $showNpvDynamicBg,
-  $spaceGravityMode,
   $staticBackgroundBlur,
   $staticBackgroundMode,
 } from "../../../utils/stores.ts";
@@ -27,7 +26,6 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
   const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
   const coverArtAnimation = useStore($coverArtAnimation);
-  const spaceGravityMode = useStore($spaceGravityMode);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
@@ -38,13 +36,8 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
   const r5 = matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
   const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
   const r6 = blurApplies && matches(query, "Background Blur", "Soften the static background image.");
-  const r7 = matches(
-    query,
-    "Space Gravity Mode",
-    "Let word-synced lyrics drift and tumble freely while their timing animations continue."
-  );
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !r7) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6) return null;
 
   return (
     <>
@@ -106,15 +99,6 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       {r5 && (
         <Row label="Cover Art Animation" description="Animate cover art changes in the NowBar.">
           <Toggle checked={coverArtAnimation} onChange={(v) => $coverArtAnimation.set(v)} />
-        </Row>
-      )}
-
-      {r7 && (
-        <Row
-          label="Space Gravity Mode"
-          description="Let word-synced lyrics drift and tumble freely while their timing animations continue."
-        >
-          <Toggle checked={spaceGravityMode} onChange={(v) => $spaceGravityMode.set(v)} />
         </Row>
       )}
 

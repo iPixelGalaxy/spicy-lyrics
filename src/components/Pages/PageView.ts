@@ -156,6 +156,12 @@ function applyCustomFontSetting(fontFamily: string, targetDocument: Document = P
   } else {
     targetDocument.documentElement.style.removeProperty("--spicy-custom-font");
   }
+  const page = PageContainer;
+  if (page?.ownerDocument === targetDocument) {
+    targetDocument.defaultView?.requestAnimationFrame(() => {
+      if (PageContainer === page && page.isConnected) triggerRemeasureLV();
+    });
+  }
 }
 
 async function OpenPage(

@@ -75,8 +75,6 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .letter,
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .word,
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letter,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.static {
   background-image: linear-gradient(
     var(--gradient-degrees),
@@ -111,8 +109,8 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line {
   --BlurAmount: 0px;
 
-  --DefaultLyricsScale: 0.95;
-  --DefaultEmphasisLyricsScale: 0.95;
+  --DefaultLyricsScale: 1;
+  --DefaultEmphasisLyricsScale: 1;
   --DefaultLineScale: 1;
 
   --Vocal-NotSung-opacity: 0.51;
@@ -206,9 +204,8 @@
   transform-origin: right center;
 }
 
-/* The virtualizer marks actual wrapped-row starts using unscaled layout offsets.
-   Only those tokens anchor inside the overhang padding; interior words retain
-   their original centered/split-word animation origins. */
+/* Anchor only actual wrapped-row starts inside the font-overhang padding.
+   Interior tokens keep upstream centered and split-syllable animation origins. */
 #SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
@@ -328,13 +325,6 @@
   --BlurAmount: 0px !important;
 }
 
-#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover,
-#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .word,
-#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .letter,
-#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .letterGroup {
-  text-shadow: var(--StrongerTextGlowDef) !important;
-}
-
 #SpicyLyricsPage.SpicyRenderer
   .LyricsContainer
   .LyricsContent
@@ -387,6 +377,26 @@
 
 #SpicyLyricsPage.SpicyRenderer .OppositeAligned .word-group {
   justify-content: flex-end;
+}
+
+/* Joined syllables have no spacing to absorb independent scale expansion.
+   Keep their size fixed when more text follows, including nested emphasis
+   letters; lift and glow still animate. Final syllables, standalone words,
+   and Space Gravity retain their scale effects. */
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .line
+  .word-group
+  > :is(.word, .letterGroup):not(:only-child, .LastWordInLine),
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .line
+  .word-group
+  > .letterGroup:not(:only-child, .LastWordInLine)
+  > .letter {
+  scale: 1 !important;
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Sung .word,

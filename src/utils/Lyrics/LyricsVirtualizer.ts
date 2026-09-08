@@ -227,15 +227,20 @@ class LyricsVirtualizer {
   }
 
   private _syncRowStartOrigins(line: HTMLElement | undefined): void {
-    if (!line?.isConnected || line.offsetWidth === 0 ||
-        line.matches(".rtl, .OppositeAligned, .musical-line")) return;
+    if (!line?.isConnected || line.offsetWidth === 0) return;
+    if (line.matches(".rtl, .OppositeAligned, .musical-line")) {
+      for (const token of line.querySelectorAll(".LyricsRowStart")) {
+        token.classList.remove("LyricsRowStart");
+      }
+      return;
+    }
     const view = line.ownerDocument.defaultView;
     if (!view) return;
     const lineLeft = parseFloat(view.getComputedStyle(line).paddingLeft) || 0;
     const updates: Array<[HTMLElement, boolean]> = [];
 
-    // offsetLeft ignores animated scale/translate. Include nested letter groups
-    // and padding so classification follows the text edge, not the padded box.
+    // Layout offsets ignore animated transforms. Walk offset parents so both a
+    // boundary letter group and its first visible letter share the text anchor.
     for (const token of line.querySelectorAll<HTMLElement>(".word, .letterGroup, .letter")) {
       let left = token.clientLeft + (parseFloat(view.getComputedStyle(token).paddingLeft) || 0);
       let ancestor: HTMLElement | null = token;
@@ -244,13 +249,13 @@ class LyricsVirtualizer {
         ancestor = ancestor.offsetParent as HTMLElement | null;
         if (ancestor && ancestor !== line) left += ancestor.clientLeft;
       }
-      // offsetLeft is integer-rounded at each level of nested emphasis markup.
-      const startsRow = ancestor === line && Math.abs(left - lineLeft) <= 1;
+      // Nested offsetLeft readings are integer-rounded; allow two CSS pixels.
+      const startsRow = ancestor === line && Math.abs(left - lineLeft) <= 2;
       if (token.classList.contains("LyricsRowStart") !== startsRow) {
         updates.push([token, startsRow]);
       }
     }
-    // Finish layout reads before applying transform-only class changes.
+    // Finish geometry reads before writing transform-only markers.
     for (const [token, startsRow] of updates) {
       token.classList.toggle("LyricsRowStart", startsRow);
     }
@@ -588,6 +593,25 @@ class LyricsVirtualizer {
       observeElementOffset,
       onChange: (v) => this._onVirtualizerChange(v),
       measureElement: this._measureHeight,
+    });
+
+    const fontDocument = virtualContainer.ownerDocument;
+    const fontWindow = fontDocument.defaultView;
+    const fontSet = fontDocument.fonts;
+    const fontVirtualizer = this._virtualizer;
+    let fontFrame: number | null = null;
+    const remeasureAfterFonts = () => {
+      if (!fontWindow || this._virtualizer !== fontVirtualizer || fontFrame !== null) return;
+      fontFrame = fontWindow.requestAnimationFrame(() => {
+        fontFrame = null;
+        if (this._virtualizer === fontVirtualizer) this._remeasureVisible();
+      });
+    };
+    fontSet.addEventListener("loadingdone", remeasureAfterFonts);
+    void fontSet.ready.then(remeasureAfterFonts);
+    this._maid.Give(() => {
+      fontSet.removeEventListener("loadingdone", remeasureAfterFonts);
+      if (fontFrame !== null) fontWindow?.cancelAnimationFrame(fontFrame);
     });
 
     if (viewportAnchor) {

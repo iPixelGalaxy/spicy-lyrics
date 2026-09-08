@@ -7,7 +7,6 @@ type ExtendedLyricsType = LyricsType | "None";
 
 // Define a type for the word/syllable status
 type ElementStatus = "NotSung" | "Active" | "Sung";
-const DOT_LINE_LAYOUT_RELEASE_MS = 120;
 
 // Define interfaces for the objects we're working with
 interface _SyllableLead {
@@ -26,13 +25,6 @@ function getElementStatus(
   if (currentTime < startTime) return "NotSung";
   if (currentTime >= endTime) return "Sung";
   return "Active";
-}
-
-function getLineStatus(currentTime: number, line: any): ElementStatus {
-  const endTime = line.DotLine
-    ? Math.max(line.StartTime, line.EndTime - DOT_LINE_LAYOUT_RELEASE_MS)
-    : line.EndTime;
-  return getElementStatus(currentTime, line.StartTime, endTime);
 }
 
 export function TimeSetter(PreCurrentPosition: number): void {
@@ -55,7 +47,7 @@ export function TimeSetter(PreCurrentPosition: number): void {
         total: line.EndTime - line.StartTime,
       };
 
-      if (getLineStatus(CurrentPosition, line) === "Active") {
+      if (getElementStatus(CurrentPosition, lineTimes.start, lineTimes.end) === "Active") {
         line.Status = "Active";
 
         // Check if Syllables exists
@@ -91,7 +83,7 @@ export function TimeSetter(PreCurrentPosition: number): void {
             }
           }
         }
-      } else if (getLineStatus(CurrentPosition, line) === "Sung") {
+      } else if (lineTimes.end <= CurrentPosition) {
         line.Status = "Sung";
 
         // Check if Syllables exists
@@ -122,7 +114,7 @@ export function TimeSetter(PreCurrentPosition: number): void {
         total: line.EndTime - line.StartTime,
       };
 
-      if (getLineStatus(CurrentPosition, line) === "Active") {
+      if (getElementStatus(CurrentPosition, lineTimes.start, lineTimes.end) === "Active") {
         line.Status = "Active";
         if (line.DotLine) {
           const leads = line.Syllables.Lead;
@@ -140,7 +132,7 @@ export function TimeSetter(PreCurrentPosition: number): void {
             dot.Status = "NotSung";
           }
         }
-      } else if (getLineStatus(CurrentPosition, line) === "Sung") {
+      } else if (lineTimes.end <= CurrentPosition) {
         line.Status = "Sung";
         if (line.DotLine) {
           const leads = line.Syllables.Lead;

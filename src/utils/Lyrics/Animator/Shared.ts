@@ -1,5 +1,6 @@
-const IdleLyricsScale = 0.95;
-const IdleEmphasisLyricsScale = 0.95;
+// Unsung text occupies the same visual width as its completed resting state.
+const IdleLyricsScale = 1;
+const IdleEmphasisLyricsScale = 1;
 const timeOffset = 0;
 const DurationTimeOffset = 0;
 const BlurMultiplier = 1.25;

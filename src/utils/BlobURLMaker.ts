@@ -1,4 +1,5 @@
 const BlobURLCache = new Map<string, { blobUrl: string; expiresAt: number }>();
+const pendingBlobURLs = new Map<string, Promise<string | null>>();
 
 export default async function BlobURLMaker(url: string): Promise<string | null> {
   if (!url) throw new Error("SpicyLyrics: BlobURLMaker: url Missing");
@@ -12,12 +13,22 @@ export default async function BlobURLMaker(url: string): Promise<string | null> 
 
   const existingBlobURL = BlobURLCache.get(normalizedUrl);
   if (existingBlobURL) {
-    const expiresAt = existingBlobURL.expiresAt;
-    if (expiresAt < Date.now()) {
-      BlobURLCache.delete(normalizedUrl);
-    }
-    return existingBlobURL.blobUrl;
+    if (existingBlobURL.expiresAt > Date.now()) return existingBlobURL.blobUrl;
+    // Existing artwork may still reference this URL; only expire the lookup.
+    BlobURLCache.delete(normalizedUrl);
   }
+
+  const pending = pendingBlobURLs.get(normalizedUrl);
+  if (pending) return pending;
+
+  const request = fetchBlobURL(normalizedUrl).finally(() => {
+    pendingBlobURLs.delete(normalizedUrl);
+  });
+  pendingBlobURLs.set(normalizedUrl, request);
+  return request;
+}
+
+async function fetchBlobURL(normalizedUrl: string): Promise<string | null> {
   try {
     const response = await fetch(normalizedUrl);
     if (!response.ok) {

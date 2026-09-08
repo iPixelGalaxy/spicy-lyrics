@@ -1429,6 +1429,10 @@ function UpdateNowBar(force = false) {
     ? `https://i.scdn.co/image/${coverArt.slice("spotify:image:".length)}`
     : coverArt;
 
+  // Returning to an already-painted cover must invalidate another track's load.
+  const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
+  MediaImageContainer.setAttribute("data-update-token", updateToken);
+
   // Avoid re-running if the artwork hasn't changed
   if (previousCoverArt === coverArt) {
     // DOM can temporarily lose its background/classes between rapid updates/remounts.
@@ -1438,11 +1442,9 @@ function UpdateNowBar(force = false) {
     const restoredUrl = previousCoverArtUrl ?? finalUrl;
 
     if (fromImage) {
-      const hasBg = !!fromImage.style.backgroundImage && fromImage.style.backgroundImage !== "none";
-      if (!fromImage.classList.contains("containsImage") || !hasBg) {
-        fromImage.style.backgroundImage = `url("${restoredUrl}")`;
-        fromImage.classList.add("containsImage");
-      }
+      // Finish any interrupted crossfade before hiding its destination layer.
+      fromImage.style.backgroundImage = `url("${restoredUrl}")`;
+      fromImage.classList.add("containsImage");
       fromImage.classList.remove("MB_anim_fimg");
     }
 
@@ -1452,16 +1454,12 @@ function UpdateNowBar(force = false) {
     }
     MediaImageContainer.setAttribute("data-cover-initialized", "1");
   } else {
-    // Capture a token for this specific update so we can ignore stale async work
-    const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
-    MediaImageContainer.setAttribute("data-update-token", updateToken);
-
     // Local files don't have a remote scdn URL to fetch; use the cover URL directly.
     const displayUrlPromise = isLocalCover
       ? Promise.resolve(finalUrl)
       : BlobURLMaker(finalUrl)
-          .then((blobUrl) => blobUrl ?? coverArt)
-          .catch(() => coverArt);
+          .then((blobUrl) => blobUrl ?? finalUrl)
+          .catch(() => finalUrl);
 
     displayUrlPromise
       .then((displayUrl) => {

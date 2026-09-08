@@ -68,9 +68,7 @@ const LYRICS_SOURCE_LABELS: Record<string, string> = {
   genius: "Genius",
 };
 
-export function normalizeLyricsSourceOrder(
-  value: unknown
-): LyricsSourceProviderId[] {
+function normalizeProviderIds(value: unknown): LyricsSourceProviderId[] {
   let parsed: unknown = value;
 
   if (typeof value === "string") {
@@ -89,7 +87,13 @@ export function normalizeLyricsSourceOrder(
       )
     : [];
 
-  const deduped = Array.from(new Set(normalized));
+  return Array.from(new Set(normalized));
+}
+
+export function normalizeLyricsSourceOrder(
+  value: unknown
+): LyricsSourceProviderId[] {
+  const deduped = normalizeProviderIds(value);
 
   if (!deduped.includes("musixmatch")) {
     const spicyIndex = deduped.indexOf("spicy");
@@ -102,12 +106,7 @@ export function normalizeLyricsSourceOrder(
 
   if (!deduped.includes("apple")) {
     const musixmatchIndex = deduped.indexOf("musixmatch");
-    if (musixmatchIndex >= 0) {
-      deduped.splice(musixmatchIndex + 1, 0, "apple");
-    } else {
-      const spicyIndex = deduped.indexOf("spicy");
-      deduped.splice(spicyIndex >= 0 ? spicyIndex + 1 : 0, 0, "apple");
-    }
+    deduped.splice(musixmatchIndex + 1, 0, "apple");
   }
 
   DEFAULT_LYRICS_SOURCE_ORDER.forEach((id) => {
@@ -128,25 +127,7 @@ export function stringifyLyricsSourceOrder(
 export function normalizeDisabledLyricsSourceIds(
   value: unknown
 ): LyricsSourceProviderId[] {
-  let parsed: unknown = value;
-
-  if (typeof value === "string") {
-    try {
-      parsed = JSON.parse(value);
-    } catch {
-      parsed = value.split(",").map((e) => e.trim());
-    }
-  }
-
-  const validIds = new Set(DEFAULT_LYRICS_SOURCE_ORDER);
-  const normalized = Array.isArray(parsed)
-    ? parsed.filter(
-        (e): e is LyricsSourceProviderId =>
-          typeof e === "string" && validIds.has(e as LyricsSourceProviderId)
-      )
-    : [];
-
-  return Array.from(new Set(normalized));
+  return normalizeProviderIds(value);
 }
 
 export function stringifyDisabledLyricsSourceIds(

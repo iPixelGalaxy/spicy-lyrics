@@ -2,11 +2,13 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import {
   $coverArtAnimation,
+  $allowHidingSettings,
   $customFont,
   $customFontEnabled,
   $showNpvDynamicBg,
   $staticBackgroundBlur,
   $staticBackgroundMode,
+  $hiddenSettingIds,
 } from "../../../utils/stores.ts";
 import { matches, Row, SectionTitle, Select, Slider, Toggle } from "./components.tsx";
 
@@ -17,25 +19,29 @@ const bgModeLabels = ["Default", "Legacy", "Auto", "Artist Header", "Cover Art",
 interface Props {
   query: string;
   sectionFilter: string;
+  showHidden?: boolean;
 }
 
-export default function AppearanceSection({ query, sectionFilter }: Props) {
+export default function AppearanceSection({ query, sectionFilter, showHidden = false }: Props) {
   const customFontEnabled = useStore($customFontEnabled);
   const customFont = useStore($customFont);
   const staticBackgroundMode = useStore($staticBackgroundMode);
   const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
   const coverArtAnimation = useStore($coverArtAnimation);
+  const allowHidingSettings = useStore($allowHidingSettings);
+  const hiddenSettingIds = useStore($hiddenSettingIds);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
-  const r1 = matches(query, "Use Custom Font", "Use a custom font instead of the bundled Spicy Lyrics font.");
-  const r2 = customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
-  const r3 = matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
-  const r4 = matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
-  const r5 = matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
+  const visible = (id: string) => showHidden ? hiddenSettingIds.includes(id) : !allowHidingSettings || !hiddenSettingIds.includes(id) || Boolean(query.trim());
+  const r1 = visible("appearance-custom-font") && matches(query, "Use Custom Font", "Use a custom font instead of the bundled Spicy Lyrics font.");
+  const r2 = visible("appearance-custom-font") && customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
+  const r3 = visible("appearance-background-type") && matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
+  const r4 = visible("appearance-npv-background") && matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
+  const r5 = visible("appearance-cover-art-animation") && matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
   const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
-  const r6 = blurApplies && matches(query, "Background Blur", "Soften the static background image.");
+  const r6 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
 
   if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6) return null;
 
@@ -44,7 +50,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       <SectionTitle>Appearance</SectionTitle>
 
       {r1 && (
-        <Row label="Use Custom Font" description="Use a custom font instead of the bundled Spicy Lyrics font.">
+        <Row settingId="appearance-custom-font" label="Use Custom Font" description="Use a custom font instead of the bundled Spicy Lyrics font.">
           <Toggle checked={customFontEnabled} onChange={(v) => $customFontEnabled.set(v)} />
         </Row>
       )}
@@ -63,7 +69,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       )}
 
       {r3 && (
-        <Row label="Background Type" description="Choose the dynamic, legacy, static image, or color background.">
+        <Row settingId="appearance-background-type" label="Background Type" description="Choose the dynamic, legacy, static image, or color background.">
           <Select
             value={staticBackgroundMode === "off" ? "default" : staticBackgroundMode}
             options={bgModeOptions}
@@ -74,7 +80,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       )}
 
       {r6 && (
-        <Row label="Background Blur" description="Soften the static background image." stacked>
+        <Row settingId="appearance-background-blur" label="Background Blur" description="Soften the static background image." stacked>
           <Slider
             value={staticBackgroundBlur}
             min={0}
@@ -88,7 +94,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       )}
 
       {r4 && (
-        <Row
+        <Row settingId="appearance-npv-background"
           label="Display Dynamic Background in Now Playing View"
           description="Show the animated background in the Now Playing panel."
         >
@@ -97,7 +103,7 @@ export default function AppearanceSection({ query, sectionFilter }: Props) {
       )}
 
       {r5 && (
-        <Row label="Cover Art Animation" description="Animate cover art changes in the NowBar.">
+        <Row settingId="appearance-cover-art-animation" label="Cover Art Animation" description="Animate cover art changes in the NowBar.">
           <Toggle checked={coverArtAnimation} onChange={(v) => $coverArtAnimation.set(v)} />
         </Row>
       )}

@@ -30,3 +30,13 @@ export function OpenBuildChannelPanel() {
     PopupModal.display({ ...options, isLarge: true });
   }
 }
+
+/** Opens the entrypoint branch manager when it is available. */
+export function OpenBuildChannelManager() {
+  const entrypointChannels = (window as any)._spicy_lyrics_channels;
+  if (entrypointChannels?.showManage) {
+    entrypointChannels.showManage();
+    return;
+  }
+  OpenBuildChannelPanel();
+}

@@ -7,9 +7,6 @@ const CHANNEL_MAP = {
 const BUILT_IN_CHANNELS = Object.keys(CHANNEL_MAP);
 const DEFAULT_API_HOST = CHANNEL_MAP.Stable[0];
 const DEFAULT_STORAGE_HOST = CHANNEL_MAP.Stable[1];
-const CUSTOM_CHANNELS_ENABLED_KEY = "customChannelsEnabled";
-const SECRET_ENABLE_RIGHT_CLICKS = 7;
-const SECRET_DISABLE_LEFT_CLICKS = 6;
 
 const LS_PREFIX = "SpicyLyrics-";
 const lsGet = (key) => Spicetify.LocalStorage.get(`${LS_PREFIX}${key}`);
@@ -43,115 +40,6 @@ const getFullChannelMap = () => ({ ...CHANNEL_MAP, ...getCustomChannels() });
 const getCurrentChannel = () => lsGet("buildChannel") ?? "Stable";
 
 const setCurrentChannel = (name) => lsSet("buildChannel", name);
-
-const getCustomChannelAccessEnabled = () => {
-  const saved = lsGet(CUSTOM_CHANNELS_ENABLED_KEY);
-  if (saved != null) return saved === "true";
-
-  const enabled = Object.keys(getCustomChannels()).length > 0;
-  lsSet(CUSTOM_CHANNELS_ENABLED_KEY, enabled ? "true" : "false");
-  return enabled;
-};
-
-const setCustomChannelAccessEnabled = (enabled) => {
-  lsSet(CUSTOM_CHANNELS_ENABLED_KEY, enabled ? "true" : "false");
-
-  if (!enabled && !BUILT_IN_CHANNELS.includes(getCurrentChannel())) {
-    setCurrentChannel("Stable");
-    return { switchedToStable: true };
-  }
-
-  return { switchedToStable: false };
-};
-
-const showCustomChannelAccessNotification = (enabled, switchedToStable = false) => {
-  const suffix = !enabled && switchedToStable ? " Switched back to Stable." : "";
-  Spicetify.showNotification(`Custom build channels ${enabled ? "enabled" : "disabled"}.${suffix}`);
-};
-
-const attachSecretToggleGesture = (element, onStateChange) => {
-  if (!element || element.__spicy_custom_channel_gesture) return;
-  element.__spicy_custom_channel_gesture = true;
-
-  let rightClickCount = 0;
-  let leftClickCount = 0;
-  let clickTimeout = null;
-
-  const resetCounts = () => {
-    rightClickCount = 0;
-    leftClickCount = 0;
-  };
-
-  const queueReset = () => {
-    if (clickTimeout) clearTimeout(clickTimeout);
-    clickTimeout = setTimeout(resetCounts, 3000);
-  };
-
-  element.addEventListener("contextmenu", (e) => {
-    e.preventDefault();
-    rightClickCount++;
-    leftClickCount = 0;
-    queueReset();
-
-    if (rightClickCount < SECRET_ENABLE_RIGHT_CLICKS) return;
-
-    resetCounts();
-    const result = setCustomChannelAccessEnabled(true);
-    showCustomChannelAccessNotification(true, result.switchedToStable);
-    onStateChange?.(true, result);
-  });
-
-  element.addEventListener("click", (e) => {
-    if (e.button !== 0) return;
-
-    leftClickCount++;
-    rightClickCount = 0;
-    queueReset();
-
-    if (leftClickCount < SECRET_DISABLE_LEFT_CLICKS) return;
-
-    resetCounts();
-    const result = setCustomChannelAccessEnabled(false);
-    showCustomChannelAccessNotification(false, result.switchedToStable);
-    onStateChange?.(false, result);
-  });
-};
-
-const registerSettingsPageUnlockGesture = () => {
-  const selectors = [
-    'label[for="spicy-lyrics-settings.build-channel"]',
-    "#sl-entry-channel-label",
-  ];
-
-  const waitAndAttach = () => {
-    let attempts = 0;
-    const interval = setInterval(() => {
-      attempts++;
-
-      let attachedCount = 0;
-      for (const selector of selectors) {
-        const element = document.querySelector(selector);
-        if (!element) continue;
-        attachedCount++;
-        attachSecretToggleGesture(element);
-      }
-
-      if (attachedCount === selectors.length || attempts > 100) {
-        clearInterval(interval);
-      }
-    }, 50);
-  };
-
-  Spicetify.Platform.History.listen((e) => {
-    if (e.pathname === "/preferences") {
-      waitAndAttach();
-    }
-  });
-
-  if (Spicetify.Platform.History.location.pathname === "/preferences") {
-    waitAndAttach();
-  }
-};
 
 // ─── Style injection ───
 // The entrypoint runs independently of the plugin bundle, so it injects its
@@ -220,7 +108,7 @@ const showPanel = (title, buildContent) => {
   const container = document.createElement("div");
   container.className = "SpicyLyricsSettingsContainer";
 
-  const panelWidth = 500;
+  const panelWidth = 540;
 
   function updatePosition() {
     const safeInset = 24;
@@ -335,11 +223,10 @@ const reopenPanel = (close, next) => {
 // ─── Channel Management UI ───
 
 const showChannelSwitcher = () => {
-  showPanel("Build Channel", (scroll, close, panel) => {
-    const map = getCustomChannelAccessEnabled() ? getFullChannelMap() : CHANNEL_MAP;
+  showPanel("Build Channel", (scroll, close) => {
+    const map = getFullChannelMap();
     const allNames = Object.keys(map);
     const current = getCurrentChannel();
-    attachSecretToggleGesture(panel?.titleEl, () => reopenPanel(close, showChannelSwitcher));
     const select = document.createElement("select");
     select.className = "sl-select";
     for (const name of allNames) {
@@ -354,11 +241,13 @@ const showChannelSwitcher = () => {
     selectWrap.className = "sl-select-wrap";
     selectWrap.appendChild(select);
 
-    const buildChannelRow = makeRow("Build Channel", selectWrap);
-    const buildChannelLabel = buildChannelRow.querySelector(".sl-settings-label");
+    const channelControl = document.createElement("span");
+    channelControl.style.cssText = "display:inline-flex;align-items:center;gap:8px;";
+    const manageBtn = makeBtn("Manage");
+    manageBtn.addEventListener("click", () => reopenPanel(close, showChannelManager));
+    channelControl.append(selectWrap, manageBtn);
+    const buildChannelRow = makeRow("Build Channel", channelControl);
     scroll.appendChild(buildChannelRow);
-
-    attachSecretToggleGesture(buildChannelLabel, () => reopenPanel(close, showChannelSwitcher));
 
     const info = document.createElement("p");
     info.style.cssText = "margin:2px 8px 10px;font-size:0.72rem;color:rgba(255,255,255,0.35);line-height:1.5;";
@@ -380,16 +269,6 @@ const showChannelSwitcher = () => {
 
     const btnRow = makeBtnRow();
 
-    if (getCustomChannelAccessEnabled()) {
-      const addBtn = makeBtn("Add Custom");
-      addBtn.addEventListener("click", () => reopenPanel(close, showAddCustomChannel));
-      btnRow.appendChild(addBtn);
-
-      const removeBtn = makeBtn("Remove Custom", "sl-btn-danger");
-      removeBtn.addEventListener("click", () => reopenPanel(close, showRemoveCustomChannel));
-      btnRow.appendChild(removeBtn);
-    }
-
     const applyBtn = makeBtn("Apply & Reload", "sl-btn-primary");
     applyBtn.addEventListener("click", () => { setCurrentChannel(select.value); close(); window.location.reload(); });
     btnRow.appendChild(applyBtn);
@@ -403,7 +282,7 @@ const showAddCustomChannel = () => {
     scroll.appendChild(makeGroup("Channel Details"));
 
     const nameInput = makeInput("e.g. My-Test-Server");
-    scroll.appendChild(makeRow("Channel Name", nameInput));
+    scroll.appendChild(makeRow("Branch Name", nameInput));
 
     const apiInput = makeInput(`Default: ${DEFAULT_API_HOST}`);
     scroll.appendChild(makeRow("API Host", apiInput));
@@ -437,10 +316,10 @@ const showAddCustomChannel = () => {
     const btnRow = makeBtnRow();
 
     const cancelBtn = makeBtn("Cancel");
-    cancelBtn.addEventListener("click", () => reopenPanel(close, showChannelSwitcher));
+    cancelBtn.addEventListener("click", () => reopenPanel(close, showChannelManager));
     btnRow.appendChild(cancelBtn);
 
-    const saveBtn = makeBtn("Save Channel", "sl-btn-primary");
+    const saveBtn = makeBtn("Save Branch", "sl-btn-primary");
     saveBtn.addEventListener("click", () => {
       const name = nameInput.value.trim();
       const apiHostRaw = apiInput.value.trim();
@@ -458,8 +337,8 @@ const showAddCustomChannel = () => {
       saveCustomChannels(channels);
 
       close();
-      Spicetify.showNotification(`Channel "${name}" added`);
-      setTimeout(showChannelSwitcher, 100);
+      Spicetify.showNotification(`Branch "${name}" added`);
+      setTimeout(showChannelManager, 100);
     });
     btnRow.appendChild(saveBtn);
 
@@ -467,19 +346,12 @@ const showAddCustomChannel = () => {
   });
 };
 
-const showRemoveCustomChannel = () => {
-  const channels = getCustomChannels();
+const showChannelManager = () => {
+  const channels = getFullChannelMap();
   const names = Object.keys(channels);
+  const selected = getCurrentChannel();
 
-  if (names.length === 0) {
-    Spicetify.showNotification("No custom channels to remove", true);
-    setTimeout(showChannelSwitcher, 100);
-    return;
-  }
-
-  showPanel("Manage Channels", (scroll, close) => {
-    scroll.appendChild(makeGroup("Custom Channels"));
-
+  showPanel("Manage Branches", (scroll, close) => {
     for (const name of names) {
       const row = document.createElement("div");
       row.className = "sl-settings-row";
@@ -494,25 +366,45 @@ const showRemoveCustomChannel = () => {
       info.appendChild(nameEl);
       info.appendChild(hostEl);
 
-      const removeBtn = makeBtn("Remove", "sl-btn-danger");
-      removeBtn.addEventListener("click", () => {
-        delete channels[name];
-        saveCustomChannels(channels);
-        if (getCurrentChannel() === name) setCurrentChannel("Stable");
-        close();
-        Spicetify.showNotification(`Channel "${name}" removed`);
-        setTimeout(showChannelSwitcher, 100);
-      });
+      const actions = document.createElement("div");
+      actions.style.cssText = "display:flex;gap:8px;align-items:center;";
+      if (name === selected) {
+        const selectedBtn = makeBtn("Selected");
+        selectedBtn.disabled = true;
+        selectedBtn.style.cssText = "opacity:.45;cursor:default;";
+        actions.appendChild(selectedBtn);
+      } else {
+        const switchBtn = makeBtn("Switch");
+        switchBtn.addEventListener("click", () => {
+          setCurrentChannel(name);
+          close();
+          window.location.reload();
+        });
+        actions.appendChild(switchBtn);
+
+        if (!BUILT_IN_CHANNELS.includes(name)) {
+          const removeBtn = makeBtn("Remove", "sl-btn-danger");
+          removeBtn.addEventListener("click", () => {
+            const customChannels = getCustomChannels();
+            delete customChannels[name];
+            saveCustomChannels(customChannels);
+            close();
+            Spicetify.showNotification(`Branch "${name}" removed`);
+            setTimeout(showChannelManager, 100);
+          });
+          actions.appendChild(removeBtn);
+        }
+      }
 
       row.appendChild(info);
-      row.appendChild(removeBtn);
+      row.appendChild(actions);
       scroll.appendChild(row);
     }
 
     const btnRow = makeBtnRow();
-    const backBtn = makeBtn("Back");
-    backBtn.addEventListener("click", () => reopenPanel(close, showChannelSwitcher));
-    btnRow.appendChild(backBtn);
+    const addBtn = makeBtn("Add Branch", "sl-btn-primary");
+    addBtn.addEventListener("click", () => reopenPanel(close, showAddCustomChannel));
+    btnRow.appendChild(addBtn);
     scroll.appendChild(btnRow);
   });
 };
@@ -522,81 +414,87 @@ const showRemoveCustomChannel = () => {
 window._spicy_lyrics_channels = {
   showSwitcher: showChannelSwitcher,
   showAdd: showAddCustomChannel,
-  showRemove: showRemoveCustomChannel,
+  showManage: showChannelManager,
   getCurrent: getCurrentChannel,
   getMap: getFullChannelMap,
 };
 
-// ─── Settings Page Injection ───
-// Injects a "Build Channel" button at the top of the Spicetify settings page.
-// This stays available even when the official plugin loads, because official
-// builds may not expose custom-channel management.
+// ─── Stable Settings Injection ───
+// Stable renders its own settings modal. Observe that modal and add one native
+// row without importing or patching the upstream bundle.
 
-const SETTINGS_SECTION_ID = "spicy-lyrics-entry-channel-settings";
-let channelSettingsRenderInterval = null;
-
-const removeChannelSettingsSection = () => {
-  document.getElementById(SETTINGS_SECTION_ID)?.remove();
-};
+const CHANNEL_SETTING_ROW_ID = "spicy-lyrics-entry-channel-row";
+let channelSettingsObserver = null;
+let channelSettingsRenderQueued = false;
 
 const renderChannelSettings = () => {
-  if (channelSettingsRenderInterval) {
-    clearInterval(channelSettingsRenderInterval);
-    channelSettingsRenderInterval = null;
+  const modal = document.querySelector(
+    "sl-generic-modal.SpicyLyricsModal .slmodal-settingsPanel"
+  );
+  if (!modal || document.getElementById(CHANNEL_SETTING_ROW_ID)) return;
+
+  const developerTitle = Array.from(modal.querySelectorAll(".sl-sp-section-title"))
+    .find((element) => element.textContent?.trim() === "Developer");
+  if (!developerTitle) return;
+
+  const channels = getFullChannelMap();
+  const current = channels[getCurrentChannel()] ? getCurrentChannel() : "Stable";
+  const row = document.createElement("div");
+  row.id = CHANNEL_SETTING_ROW_ID;
+  row.className = "sl-sp-row sl-list-row";
+
+  const labelWrap = document.createElement("div");
+  labelWrap.className = "sl-sp-label-wrap";
+  const label = document.createElement("span");
+  label.className = "sl-sp-label";
+  label.textContent = "Build Channel";
+  const description = document.createElement("span");
+  description.className = "sl-sp-description";
+  description.textContent = "Choose the release stream used after reload.";
+  labelWrap.append(label, description);
+
+  const control = document.createElement("div");
+  control.className = "sl-sp-control";
+  control.style.display = "flex";
+  control.style.alignItems = "center";
+  control.style.gap = "8px";
+  const manage = document.createElement("button");
+  manage.type = "button";
+  manage.className = "sl-sp-btn";
+  manage.textContent = "Manage";
+  manage.addEventListener("click", showChannelManager);
+  const select = document.createElement("select");
+  select.className = "sl-sp-select";
+  select.setAttribute("aria-label", "Build Channel");
+  for (const name of Object.keys(channels)) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    option.selected = name === current;
+    select.appendChild(option);
   }
-
-  if (Spicetify.Platform.History.location.pathname !== "/preferences") {
-    removeChannelSettingsSection();
-    return;
-  }
-
-  channelSettingsRenderInterval = setInterval(() => {
-    if (Spicetify.Platform.History.location.pathname !== "/preferences") {
-      clearInterval(channelSettingsRenderInterval);
-      channelSettingsRenderInterval = null;
-      removeChannelSettingsSection();
-      return;
-    }
-
-    const sentinel = document.getElementById("desktop.settings.selectLanguage");
-    if (!sentinel) return;
-    clearInterval(channelSettingsRenderInterval);
-    channelSettingsRenderInterval = null;
-
-    const container = document.querySelector(".main-view-container__scroll-node-child main div");
-    if (!container || document.getElementById(SETTINGS_SECTION_ID)) return;
-
-    const section = document.createElement("div");
-    section.id = SETTINGS_SECTION_ID;
-    section.className = "x-settings-section";
-    section.style.cssText = "border:1px solid var(--hairline,rgba(255,255,255,0.1));border-radius:var(--radius-md,10px);padding:12px 16px;margin-bottom:8px;background:var(--accent-tint-bg,rgba(255,255,255,.045));";
-    section.innerHTML = `
-      <h2 class="x-settings-title main-shelf-title TypeElement-cello-textBase-type encore-text-body-medium-bold" style="color:var(--color-text-primary,#fff);padding-bottom:4px;">
-        Spicy Lyrics - Build
-      </h2>
-      <div class="x-settings-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
-        <div class="x-settings-firstColumn">
-          <label id="sl-entry-channel-label" class="x-settings-label" style="font-size:0.875rem;color:var(--color-text-primary,#fff);">Build Channel (Current: ${getCurrentChannel()})</label>
-        </div>
-        <div class="x-settings-secondColumn">
-          <button id="sl-entry-manage-btn" type="button" class="sl-btn">Manage</button>
-        </div>
-      </div>
-    `;
-    container.insertBefore(section, container.firstChild);
-    attachSecretToggleGesture(document.getElementById("sl-entry-channel-label"));
-    document.getElementById("sl-entry-manage-btn").addEventListener("click", showChannelSwitcher);
-  }, 100);
+  select.addEventListener("change", () => {
+    setCurrentChannel(select.value);
+    window.location.reload();
+  });
+  control.append(select, manage);
+  row.append(labelWrap, control);
+  developerTitle.after(row);
 };
 
 const registerChannelSettings = () => {
-  const waitForHistory = setInterval(() => {
-    if (Spicetify?.Platform?.History?.listen) {
-      clearInterval(waitForHistory);
-      Spicetify.Platform.History.listen(renderChannelSettings);
+  if (channelSettingsObserver) return;
+  const scheduleRender = () => {
+    if (channelSettingsRenderQueued) return;
+    channelSettingsRenderQueued = true;
+    queueMicrotask(() => {
+      channelSettingsRenderQueued = false;
       renderChannelSettings();
-    }
-  }, 100);
+    });
+  };
+  channelSettingsObserver = new MutationObserver(scheduleRender);
+  channelSettingsObserver.observe(document.body, { childList: true, subtree: true });
+  scheduleRender();
 };
 
 // ─── Loading Logic ───
@@ -683,12 +581,8 @@ const load = async () => {
   // Inject styles so the panel works regardless of which plugin version is loaded
   injectStyles();
 
-  // Initialize the custom-channel gate before any UI tries to read it
-  getCustomChannelAccessEnabled();
-
-  // Register channel settings in the settings page (works even if plugin fails)
+  // Register channel settings in the stable plugin modal.
   registerChannelSettings();
-  registerSettingsPageUnlockGesture();
 
   const { apiHost, storageHost, fixedVersion } = selectVersionFromChannel();
   let lastError;

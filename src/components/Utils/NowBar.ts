@@ -796,7 +796,7 @@ function OpenNowBar(skipSaving: boolean = false) {
       };
 
       const SetupVolumeControl = () => {
-        const VolumeElement = document.createElement("div");
+        const VolumeElement = (PageContainer?.ownerDocument ?? document).createElement("div");
         VolumeElement.classList.add("VolumeControl");
         // A vertical capsule in both progress-bar skins — same box, same drag axis.
         // Only the paint differs, so both the fill (new skin) and the handle
@@ -824,9 +824,12 @@ function OpenNowBar(skipSaving: boolean = false) {
         }
 
         const volumeMaid = new Maid();
+        const volumeDocument = VolumeElement.ownerDocument;
+        const volumeWindow = volumeDocument.defaultView ?? window;
 
         let isDragging = false;
         let currentLevel = 0;
+        let previousUserSelect = "";
 
         const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -879,6 +882,7 @@ function OpenNowBar(skipSaving: boolean = false) {
             clientY = (event as MouseEvent).clientY;
           }
 
+          if (!Number.isFinite(clientY)) return currentLevel;
           const rect = VolumeElement.getBoundingClientRect();
           if (rect.height === 0) return currentLevel;
           return clamp(1 - (clientY - rect.top) / rect.height);
@@ -888,45 +892,58 @@ function OpenNowBar(skipSaving: boolean = false) {
         // on release like the timeline does. A plain click is covered too — mousedown
         // starts the drag and immediately commits the position under the cursor.
         const handleDragStart = (event: MouseEvent | TouchEvent) => {
+          if (isDragging || ("button" in event && event.button !== 0)) return;
           // The glyph zone at the foot of the capsule is the mute button, not part
           // of the track — starting a drag there would slam the volume to ~5% on
           // every mute click.
           if ((event.target as HTMLElement | null)?.closest?.(".VolumeIcon")) return;
+          if (event.cancelable) event.preventDefault();
           isDragging = true;
           // .Dragging keeps the capsule expanded and turns off the fill's eased
           // glide so it tracks the pointer 1:1.
           VolumeElement.classList.add("Dragging");
-          document.body.style.userSelect = "none";
+          previousUserSelect = volumeDocument.body.style.userSelect;
+          volumeDocument.body.style.userSelect = "none";
           // Keep the overlay from fading out when the pointer leaves the artwork
           // while the fill is still held.
           SetControlsDragLock(true);
 
-          document.addEventListener("mousemove", handleDragMove);
-          document.addEventListener("touchmove", handleDragMove);
-          document.addEventListener("mouseup", handleDragEnd);
-          document.addEventListener("touchend", handleDragEnd);
+          volumeDocument.addEventListener("mousemove", handleDragMove);
+          volumeDocument.addEventListener("touchmove", handleDragMove, { passive: false });
+          volumeDocument.addEventListener("mouseup", handleDragEnd);
+          volumeDocument.addEventListener("touchend", handleDragEnd);
+          volumeDocument.addEventListener("touchcancel", handleDragCancel);
+          volumeWindow.addEventListener("blur", handleDragCancel);
 
           handleDragMove(event);
         };
 
         const handleDragMove = (event: MouseEvent | TouchEvent) => {
           if (!isDragging) return;
+          if (event.cancelable) event.preventDefault();
           commit(percentageFromEvent(event));
+        };
+
+        const handleDragCancel = () => {
+          if (isDragging) {
+            isDragging = false;
+            VolumeElement.classList.remove("Dragging");
+            volumeDocument.body.style.userSelect = previousUserSelect;
+            SetControlsDragLock(false);
+          }
+          volumeDocument.removeEventListener("mousemove", handleDragMove);
+          volumeDocument.removeEventListener("touchmove", handleDragMove);
+          volumeDocument.removeEventListener("mouseup", handleDragEnd);
+          volumeDocument.removeEventListener("touchend", handleDragEnd);
+          volumeDocument.removeEventListener("touchcancel", handleDragCancel);
+          volumeWindow.removeEventListener("blur", handleDragCancel);
         };
 
         const handleDragEnd = (event: MouseEvent | TouchEvent) => {
           if (!isDragging) return;
-          isDragging = false;
-          VolumeElement.classList.remove("Dragging");
-          document.body.style.userSelect = "";
-
-          document.removeEventListener("mousemove", handleDragMove);
-          document.removeEventListener("touchmove", handleDragMove);
-          document.removeEventListener("mouseup", handleDragEnd);
-          document.removeEventListener("touchend", handleDragEnd);
-
-          commit(percentageFromEvent(event));
-          SetControlsDragLock(false);
+          const percentage = percentageFromEvent(event);
+          handleDragCancel();
+          commit(percentage);
         };
 
         const iconHandler = () => {
@@ -939,14 +956,15 @@ function OpenNowBar(skipSaving: boolean = false) {
 
           // The `volume` event normally drives the icon on its own; this one-shot
           // resync covers the case where that internal emitter isn't available.
-          const resync = window.setTimeout(() => {
+          const resync = volumeWindow.setTimeout(() => {
             if (isDragging) return;
             render(Spicetify.Player.getVolume() ?? 0);
           }, 60);
-          volumeMaid.Give(() => clearTimeout(resync), "MuteResync");
+          volumeMaid.Give(() => volumeWindow.clearTimeout(resync), "MuteResync");
         };
 
         const wheelHandler = (event: WheelEvent) => {
+          if (event.deltaY === 0) return;
           // Without this the lyrics underneath scroll along with the volume change.
           event.preventDefault();
           event.stopPropagation();
@@ -955,25 +973,16 @@ function OpenNowBar(skipSaving: boolean = false) {
         };
 
         VolumeElement.addEventListener("mousedown", handleDragStart);
-        VolumeElement.addEventListener("touchstart", handleDragStart);
+        VolumeElement.addEventListener("touchstart", handleDragStart, { passive: false });
         IconElement.addEventListener("click", iconHandler);
         VolumeElement.addEventListener("wheel", wheelHandler, { passive: false });
 
         volumeMaid.Give(() => {
+          handleDragCancel();
           VolumeElement.removeEventListener("mousedown", handleDragStart);
           VolumeElement.removeEventListener("touchstart", handleDragStart);
           IconElement.removeEventListener("click", iconHandler);
           VolumeElement.removeEventListener("wheel", wheelHandler);
-          document.removeEventListener("mousemove", handleDragMove);
-          document.removeEventListener("touchmove", handleDragMove);
-          document.removeEventListener("mouseup", handleDragEnd);
-          document.removeEventListener("touchend", handleDragEnd);
-          if (isDragging) {
-            isDragging = false;
-            VolumeElement.classList.remove("Dragging");
-            document.body.style.userSelect = "";
-            SetControlsDragLock(false);
-          }
         });
 
         // The `volume` event only fires on change, so seed the initial state here

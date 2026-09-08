@@ -1,249 +1,266 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React from "react";
 import ReactDOM from "react-dom/client";
 import { Query } from "../../../utils/API/Query.ts";
-import storage from "../../../utils/storage.ts";
 
 const IFRAME_ORIGIN = "https://spicylyrics.org";
-
-const devLog = (...args: any[]) => {
-  if (storage.get("developerMode") === "true") console.log("[IframeProfile]", ...args);
-};
-
-interface IframeProfileModalProps {
-  userId: string;
-  onClose: () => void;
-  messageWindow: Window;
+const PROFILE_READY_TIMEOUT_MS = 8_000;
+const USERNAME_CACHE_MS = 5 * 60_000;
+const USERNAME_RETRY_MS = 30_000;
+export interface ProfileIdentity {
+  username: string;
+  displayName?: string;
 }
 
-function IframeProfileModal({ userId, onClose, messageWindow }: IframeProfileModalProps) {
-  const [username, setUsername] = useState<string | null>(null);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(true);
+const usernameCache = new Map<string, { profile: ProfileIdentity | null; expires: number }>();
+const usernameRequests = new Map<string, Promise<ProfileIdentity | null>>();
 
-  devLog("render —", { loading, username, error });
+const readString = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+};
 
-  useEffect(() => {
-    devLog("mount, userId:", userId);
-    let cancelled = false;
-    Query([{
-      operation: "ttmlProfile",
-      variables: { userId, referrer: "lyricsCreditsView" },
-    }])
-      .then((req) => {
-        if (cancelled) return;
-        devLog("query result:", req.get("0"));
-        const name = req.get("0")?.data?.profile?.data?.username;
-        devLog("resolved username:", name);
-        if (name) {
-          setUsername(name);
-        } else {
-          setError(true);
-        }
-      })
-      .catch((err) => {
-        devLog("query error:", err);
-        if (!cancelled) setError(true);
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
+export function resolveProfileIdentity(userId: string): Promise<ProfileIdentity | null> {
+  const cached = usernameCache.get(userId);
+  if (cached && cached.expires > Date.now()) return Promise.resolve(cached.profile);
+  const pending = usernameRequests.get(userId);
+  if (pending) return pending;
 
-    return () => { cancelled = true; };
-  }, [userId]);
+  const request = Query([{
+    operation: "ttmlProfile",
+    variables: { userId, referrer: "lyricsCreditsView" },
+  }])
+    .then((result) => {
+      const profile = result.get("0")?.data?.profile?.data;
+      const username = readString(profile?.username, profile?.user?.username);
+      if (!username) return null;
+      return {
+        username,
+        displayName: readString(
+          profile?.globalName,
+          profile?.global_name,
+          profile?.displayName,
+          profile?.display_name,
+          profile?.user?.globalName,
+          profile?.user?.global_name,
+          profile?.user?.displayName,
+          profile?.user?.display_name,
+        ),
+      };
+    })
+    .catch((): ProfileIdentity | null => null)
+    .then((profile) => {
+      usernameCache.set(userId, {
+        profile,
+        expires: Date.now() + (profile ? USERNAME_CACHE_MS : USERNAME_RETRY_MS),
+      });
+      return profile;
+    })
+    .finally(() => usernameRequests.delete(userId));
+  usernameRequests.set(userId, request);
+  return request;
+}
 
-  const handleMessage = useCallback((e: MessageEvent) => {
-    if (e.origin !== IFRAME_ORIGIN) return;
-    if (e.data?.type !== "events") return;
-    for (const event of (e.data?.data?.events ?? [])) {
-      if (event.action === "PATCH_PLAYBACK") {
-        const uri = event.patches?.[0]?.playback_uri;
-        if (typeof uri === "string" && /^spotify:[a-z]+:[A-Za-z0-9]+$/.test(uri)) {
-          onClose();
-          Spicetify.Player.playUri(uri);
-        }
-      } else if (
-        event.action === "MODIFY_APP_STATE" &&
-        event.patches?.some((p: any) => p.ttml_profile_modal_open_state === false)
-      ) {
-        onClose();
-      }
-    }
-  }, [onClose]);
+export function resolveProfileUsername(userId: string): Promise<string | null> {
+  return resolveProfileIdentity(userId).then((profile) => profile?.username ?? null);
+}
 
-  useEffect(() => {
-    messageWindow.addEventListener("message", handleMessage);
-    return () => messageWindow.removeEventListener("message", handleMessage);
-  }, [handleMessage, messageWindow]);
+type ProfileState = "loading" | "ready" | "failed" | "closed";
+interface ProfileOptions {
+  signal: AbortSignal;
+  onState: (state: ProfileState) => void;
+}
 
+interface ProfileSession {
+  userId: string;
+  document: Document;
+  pending: boolean;
+  close: () => void;
+  reveal: () => void;
+}
+
+let activeSession: ProfileSession | null = null;
+
+export function closeIframeProfileModal(userId?: string) {
+  if (!userId || activeSession?.userId === userId) activeSession?.close();
+}
+
+function IframeProfileModal({ onClose, attachFrame }: {
+  onClose: () => void;
+  attachFrame: (frame: HTMLIFrameElement | null) => void;
+}) {
   return (
     <div
       onClick={onClose}
       style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        zIndex: 9999,
-        background: "rgba(0,0,0,0.6)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)",
+        display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="TTML profile"
+        onClick={(event) => event.stopPropagation()}
         style={{
-          position: "relative",
-          background: "#0e0e0e",
-          border: "1px solid rgba(255,255,255,0.12)",
-          borderRadius: 12,
-          overflow: "hidden",
-          boxShadow: "0 16px 60px rgba(0,0,0,0.8)",
-          display: "flex",
-          flexDirection: "column",
+          position: "relative", background: "#0e0e0e",
+          border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12,
+          overflow: "hidden", boxShadow: "0 16px 60px rgba(0,0,0,0.8)",
+          display: "flex", flexDirection: "column",
           width: "min(1100px, calc(100% - 48px))",
           height: "min(72%, calc(100% - 48px))",
         }}
       >
         <button
+          type="button"
+          ref={(element) => {
+            if (!element) return;
+            element.style.setProperty("position", "absolute", "important");
+            element.style.setProperty("right", "2px", "important");
+            element.style.setProperty("left", "auto", "important");
+            element.style.setProperty("transform", "none", "important");
+          }}
           onClick={onClose}
-          aria-label="Close"
+          aria-label="Close profile"
           style={{
-            position: "absolute",
-            top: 12,
-            right: 12,
-            zIndex: 1,
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(255,255,255,0.08)",
-            border: "none",
-            borderRadius: "50%",
-            cursor: "pointer",
-            color: "rgba(255,255,255,0.7)",
+            position: "absolute", top: 6, right: 2, zIndex: 1,
+            width: 32, height: 32, display: "flex", alignItems: "center",
+            justifyContent: "center", background: "transparent", border: "none",
+            borderRadius: "50%", cursor: "pointer", color: "rgba(255,255,255,0.8)",
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M31.098 29.794L16.955 15.65 31.097 1.51 29.683.093 15.54 14.237 1.4.094-.016 1.508 14.126 15.65-.016 29.795l1.414 1.414L15.54 17.065l14.144 14.143"
-              fill="currentColor"
-              fillRule="evenodd"
-            />
+          <svg width="13" height="13" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M31.098 29.794L16.955 15.65 31.097 1.51 29.683.093 15.54 14.237 1.4.094-.016 1.508 14.126 15.65-.016 29.795l1.414 1.414L15.54 17.065l14.144 14.143" fill="currentColor" fillRule="evenodd" />
           </svg>
         </button>
-
-        {loading && (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: "0.85rem", fontFamily: "sans-serif" }}>
-            Loading profile…
-          </div>
-        )}
-        {!loading && error && (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.35)", fontSize: "0.85rem", fontFamily: "sans-serif" }}>
-            Failed to load profile.
-          </div>
-        )}
-        {!loading && username && (
-          <iframe
-            src={`${IFRAME_ORIGIN}/embed/${encodeURIComponent(username)}`}
-            allow="clipboard-write"
-            // allow-same-origin is safe: IFRAME_ORIGIN differs from Spicetify's parent
-            // origin, so the sandbox-escape cannot be triggered. Remove if the embed
-            // URL ever becomes same-origin with the parent.
-            sandbox="allow-scripts allow-same-origin allow-popups"
-            style={{ flex: 1, width: "100%", border: "none", display: "block", minHeight: 0 }}
-          />
-        )}
+        <iframe
+          ref={attachFrame}
+          title="TTML profile"
+          allow="clipboard-write"
+          sandbox="allow-scripts allow-same-origin allow-popups"
+          style={{ flex: 1, width: "100%", border: "none", display: "block", minHeight: 0 }}
+        />
       </div>
     </div>
   );
 }
 
-// ── Mount / unmount helpers ──────────────────────────────────────────────────
-
-let _profileRoot: ReturnType<typeof ReactDOM.createRoot> | null = null;
-let _profileContainer: HTMLElement | null = null;
-let _profileHost: HTMLElement | null = null;
-let _profileHostPrevPosition: string = "";
-let _resizeHandler: (() => void) | null = null;
-let _profileWindow: Window | null = null;
-
-export function closeIframeProfileModal() {
-  if (_resizeHandler) {
-    (_profileWindow ?? window).removeEventListener("resize", _resizeHandler);
-    _resizeHandler = null;
-  }
-  _profileRoot?.unmount();
-  _profileRoot = null;
-  _profileContainer?.remove();
-  _profileContainer = null;
-  if (_profileHost) {
-    _profileHost.style.position = _profileHostPrevPosition;
-    _profileHost = null;
-    _profileHostPrevPosition = "";
-  }
-  _profileWindow = null;
-}
-
-export function showIframeProfileModal(userId: string | undefined, targetDocument: Document = document) {
-  devLog("showIframeProfileModal called, userId:", userId);
-  if (!userId) {
-    devLog("userId is falsy, aborting");
-    return;
-  }
-
+/** One lifecycle owns lookup, the hidden frame, the deadline, and loading feedback. */
+export function showIframeProfileModal(
+  userId: string,
+  targetDocument: Document,
+  options: ProfileOptions,
+) {
+  if (options.signal.aborted) return;
+  if (activeSession?.userId === userId && activeSession.document === targetDocument) return;
   closeIframeProfileModal();
 
-  // Use document.documentElement (<html>) as host — body's CSS layout height is 0
-  // in Spotify's rendering context (all children are absolutely/fixed positioned),
-  // so absolutely-positioned children of body end up with 0×0 rects even with
-  // explicit pixel dimensions. The html element retains real layout dimensions.
-  const host = targetDocument.documentElement;
   const targetWindow = targetDocument.defaultView ?? window;
+  let container: HTMLDivElement | null = null;
+  let root: ReturnType<typeof ReactDOM.createRoot> | null = null;
+  let iframe: HTMLIFrameElement | null = null;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  let closed = false;
 
-  // Ensure the host is a positioning context for our absolute overlay
-  _profileHost = host;
-  _profileHostPrevPosition = host.style.position;
-  if (!host.style.position || host.style.position === "static") {
-    host.style.position = "relative";
-  }
-
-  const container = targetDocument.createElement("div");
-  const setContainerSize = () => {
-    const rect = host.getBoundingClientRect();
-    devLog("setContainerSize — host rect:", JSON.stringify(rect));
-    container.style.cssText = `position:absolute;top:0;left:0;width:${rect.width}px;height:${rect.height}px;z-index:9999;`;
+  const stopTimers = () => {
+    clearTimeout(deadline);
   };
-  setContainerSize();
-  host.appendChild(container);
-  _profileContainer = container;
-
-  _resizeHandler = setContainerSize;
-  _profileWindow = targetWindow;
-  targetWindow.addEventListener("resize", _resizeHandler);
-  devLog("container appended to", host.id || host.tagName);
-
-  try {
-    const root = ReactDOM.createRoot(container);
-    _profileRoot = root;
-    root.render(React.createElement(IframeProfileModal, { userId, onClose: closeIframeProfileModal, messageWindow: targetWindow }));
-    devLog("React root created and rendered");
-
-    setTimeout(() => {
-      devLog("container cssText at t+500ms:", container.style.cssText);
-      devLog("host rect:", JSON.stringify(host.getBoundingClientRect()));
-      devLog("container rect:", JSON.stringify(container.getBoundingClientRect()));
-      const overlay = container.firstElementChild as HTMLElement | null;
-      if (overlay) {
-        const cs = targetWindow.getComputedStyle(overlay);
-        devLog("overlay rect:", JSON.stringify(overlay.getBoundingClientRect()));
-        devLog("overlay computed — position:", cs.position, "zIndex:", cs.zIndex, "display:", cs.display, "visibility:", cs.visibility);
-      } else {
-        devLog("no overlay element found inside container");
+  const onAbort = () => {
+    if (session.pending) close();
+  };
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    stopTimers();
+    options.signal.removeEventListener("abort", onAbort);
+    targetWindow.removeEventListener("message", onMessage);
+    targetWindow.removeEventListener("keydown", onKeyDown, true);
+    if (iframe) iframe.removeEventListener("load", reveal);
+    root?.unmount();
+    container?.remove();
+    if (activeSession === session) activeSession = null;
+    options.onState("closed");
+  };
+  const reveal = () => {
+    if (closed || !container || !iframe || !session.pending) return;
+    stopTimers();
+    session.pending = false;
+    container.inert = false;
+    container.removeAttribute("aria-hidden");
+    container.style.visibility = "visible";
+    container.style.pointerEvents = "auto";
+    options.onState("ready");
+  };
+  const fail = () => {
+    if (closed) return;
+    close();
+    options.onState("failed");
+  };
+  const onMessage = (event: MessageEvent) => {
+    if (closed || event.origin !== IFRAME_ORIGIN || !iframe ||
+        event.source !== iframe.contentWindow) return;
+    const message = event.data;
+    if (session.pending || message?.type !== "events" || !Array.isArray(message.data?.events)) return;
+    for (const item of message.data.events) {
+      const patches = Array.isArray(item?.patches) ? item.patches : [];
+      if (item?.action === "PATCH_PLAYBACK") {
+        const uri = patches[0]?.playback_uri;
+        if (typeof uri === "string" && /^spotify:[a-z]+:[A-Za-z0-9]+$/.test(uri)) {
+          close();
+          Spicetify.Player.playUri(uri);
+          return;
+        }
+      } else if (item?.action === "MODIFY_APP_STATE" &&
+          patches.some((patch: any) => patch?.ttml_profile_modal_open_state === false)) {
+        close();
+        return;
       }
-    }, 500);
-  } catch (err) {
-    devLog("ReactDOM.createRoot/render threw:", err);
-    closeIframeProfileModal();
-  }
+    }
+  };
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    close();
+  };
+  const session: ProfileSession = { userId, document: targetDocument, pending: true, close, reveal };
+  activeSession = session;
+  options.signal.addEventListener("abort", onAbort, { once: true });
+  targetWindow.addEventListener("keydown", onKeyDown, true);
+  // Register before creating/navigating the iframe, including cached page loads.
+  targetWindow.addEventListener("message", onMessage);
+  options.onState("loading");
+  deadline = setTimeout(() => {
+    if (closed || !session.pending) return;
+    fail();
+  }, PROFILE_READY_TIMEOUT_MS);
+
+  void resolveProfileUsername(userId).then((username) => {
+    if (closed || options.signal.aborted) return;
+    if (!username) {
+      fail();
+      return;
+    }
+    try {
+      container = targetDocument.createElement("div");
+      // The outermost host must not intercept clicks or keyboard focus while loading.
+      container.style.cssText = "position:fixed;inset:0;z-index:9999;visibility:hidden;pointer-events:none;";
+      container.inert = true;
+      container.setAttribute("aria-hidden", "true");
+      targetDocument.documentElement.appendChild(container);
+      root = ReactDOM.createRoot(container);
+      root.render(React.createElement(IframeProfileModal, {
+        onClose: close,
+        attachFrame: (frame: HTMLIFrameElement | null) => {
+          iframe = frame;
+          if (!frame || closed) return;
+          frame.addEventListener("load", reveal, { once: true });
+          frame.src = `${IFRAME_ORIGIN}/embed/${encodeURIComponent(username)}`;
+        },
+      }));
+    } catch {
+      fail();
+    }
+  });
 }

@@ -12,6 +12,7 @@ import Logger from "../Logger.ts";
 // different trailing gaps without any virtualizer-level workaround.
 const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
+const PINNED_FOOTER_BOTTOM_OFFSET = 64;
 
 const ESTIMATE: Record<string, number> = {
   // Inactive musical-lines have line-height: 0 → measured height ~0.
@@ -23,6 +24,12 @@ const ESTIMATE: Record<string, number> = {
 };
 
 const virtualizerLogger = new Logger("Lyrics Virtualizer");
+
+export type LyricsViewportAnchor = {
+  index: number;
+  /** Item top relative to scroll viewport. Negative means item starts above it. */
+  offset: number;
+};
 
 class LyricsVirtualizer {
   private _virtualizer: Virtualizer<HTMLElement, HTMLElement> | null = null;
@@ -66,6 +73,8 @@ class LyricsVirtualizer {
 
   // MutationObserver that watches class attribute changes on musical-line elements.
   private _classObserver: MutationObserver | null = null;
+
+  private _pinnedFooterObserver: ResizeObserver | null = null;
 
   // Permanent spacer appended after the virtual container so the last item can
   // always be scrolled to center without temporarily inflating container height.
@@ -135,6 +144,62 @@ class LyricsVirtualizer {
   // layout height and is unaffected by translateY, scrollTop, or paint clipping.
   private _measureHeight(el: HTMLElement): number {
     return el.offsetHeight;
+  }
+
+  private _bottomSpacerHeight(clientHeight: number): number {
+    return Math.min(24, Math.max(8, clientHeight * 0.03));
+  }
+
+  private _updatePinnedFooterLayout(): void {
+    const virtualContainer = this._virtualContainer;
+    if (!virtualContainer) return;
+
+    const scrollContainer = virtualContainer.parentElement;
+    const lyricsContent = scrollContainer?.closest<HTMLElement>(".LyricsContent");
+    const page = lyricsContent?.closest<HTMLElement>("#SpicyLyricsPage");
+    if (
+      !scrollContainer ||
+      !lyricsContent ||
+      !page?.classList.contains("Exp_PinLyricsFooter") ||
+      page.classList.contains("CardMode")
+    ) {
+      scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");
+      lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
+      return;
+    }
+
+    const footerLayer = lyricsContent.parentElement?.querySelector<HTMLElement>(
+      ".LyricsPinnedFooter"
+    );
+    if (!footerLayer) return;
+
+    const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
+    lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+
+    const scrollEl = this._scrollEl;
+    const lastMeasurement = this._virtualizer?.measurementsCache[
+      this._allElements.length - 1
+    ] as { end: number } | undefined;
+    if (!scrollEl || !lastMeasurement) return;
+
+    const scrollRect = scrollEl.getBoundingClientRect();
+    const containerOffset =
+      virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
+    const terminalBottomAtMaxScroll =
+      scrollRect.top + containerOffset + lastMeasurement.end -
+      Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+    const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - 32;
+
+    const currentMargin = parseFloat(getComputedStyle(scrollContainer).marginBottom);
+    if (!Number.isFinite(currentMargin)) return;
+    const requiredMargin = Math.max(
+      0,
+      currentMargin + terminalBottomAtMaxScroll - terminalOpaqueBoundary
+    );
+    scrollContainer.style.setProperty(
+      "--SL-PinnedFooterBottomMargin",
+      `${Math.ceil(requiredMargin)}px`
+    );
   }
 
   private _remeasureVisible(): void {
@@ -239,7 +304,7 @@ class LyricsVirtualizer {
       });
       this._containerWidth = clientWidth;
       this._containerHeight = clientHeight;
-      if (this._spacer) this._spacer.style.height = `${clientHeight / 2}px`;
+      if (this._spacer) this._spacer.style.height = `${this._bottomSpacerHeight(clientHeight)}px`;
       this._remeasureVisible();
       v._willUpdate();
       return;
@@ -252,7 +317,7 @@ class LyricsVirtualizer {
         current: clientHeight,
       });
       this._containerHeight = clientHeight;
-      if (this._spacer) this._spacer.style.height = `${clientHeight / 2}px`;
+      if (this._spacer) this._spacer.style.height = `${this._bottomSpacerHeight(clientHeight)}px`;
       v._willUpdate();
       return;
     }
@@ -294,10 +359,57 @@ class LyricsVirtualizer {
     }, 200);
   };
 
+  captureViewportAnchor(): LyricsViewportAnchor | null {
+    const v = this._virtualizer;
+    const scrollEl = this._scrollEl;
+    const container = this._virtualContainer;
+    if (!v || !scrollEl || !container || this._allElements.length === 0) return null;
+
+    const containerOffset =
+      container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+    const contentOffset = scrollEl.scrollTop - containerOffset;
+    const measurements = v.measurementsCache as Array<
+      { index: number; start: number; end: number } | undefined
+    >;
+    const item = measurements.find((measurement) =>
+      measurement != null && measurement.end > contentOffset
+    );
+    if (!item) return null;
+
+    return {
+      index: item.index,
+      offset: item.start - contentOffset,
+    };
+  }
+
+  private _restoreViewportAnchor(anchor: LyricsViewportAnchor): void {
+    const v = this._virtualizer;
+    const scrollEl = this._scrollEl;
+    const container = this._virtualContainer;
+    if (!v || !scrollEl || !container) return;
+    if (anchor.index < 0 || anchor.index >= this._allElements.length) return;
+
+    const cached = v.measurementsCache[anchor.index] as
+      | { start: number; size: number }
+      | undefined;
+    const itemStart = cached?.start ?? anchor.index * this._estimateSize(anchor.index);
+    const containerOffset =
+      container.getBoundingClientRect().top - scrollEl.getBoundingClientRect().top + scrollEl.scrollTop;
+    const target = Math.max(0, containerOffset + itemStart - anchor.offset);
+
+    // SimpleBar globally enables smooth scrolling. Anchor restoration is state
+    // recovery, not user-visible navigation, so it must never animate.
+    scrollEl.classList.add("InstantScroll");
+    scrollEl.scrollTo({ top: target, behavior: "instant" });
+    v.scrollOffset = scrollEl.scrollTop;
+    this._onVirtualizerChange(v);
+  }
+
   init(
     scrollEl: HTMLElement,
     virtualContainer: HTMLElement,
-    lineElements: HTMLElement[]
+    lineElements: HTMLElement[],
+    viewportAnchor: LyricsViewportAnchor | null = null
   ): void {
     virtualizerLogger.info("Initializing lyrics virtualizer", {
       lineCount: lineElements.length,
@@ -385,6 +497,16 @@ class LyricsVirtualizer {
       attributeFilter: ["class"],
     });
 
+    const footerLayer = virtualContainer
+      .closest<HTMLElement>(".LyricsContent")
+      ?.parentElement?.querySelector<HTMLElement>(".LyricsPinnedFooter");
+    if (footerLayer) {
+      this._pinnedFooterObserver = this._maid!.Give(new ResizeObserver(() => {
+        this._updatePinnedFooterLayout();
+      }));
+      this._pinnedFooterObserver.observe(footerLayer);
+    }
+
     this._virtualizer = new Virtualizer<HTMLElement, HTMLElement>({
       count: lineElements.length,
       getScrollElement: () => scrollEl,
@@ -398,9 +520,17 @@ class LyricsVirtualizer {
       measureElement: this._measureHeight,
     });
 
-    scrollEl.scrollTop = 0;
-    virtualizerLogger.debug("Scroll position reset to top during init");
+    if (viewportAnchor) {
+      this._restoreViewportAnchor(viewportAnchor);
+      virtualizerLogger.debug("Restored viewport anchor during init", viewportAnchor);
+    } else {
+      scrollEl.scrollTop = 0;
+      virtualizerLogger.debug("Scroll position reset to top during init");
+    }
     this._virtualizer._willUpdate();
+    this._updatePinnedFooterLayout();
+
+    if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -423,6 +553,17 @@ class LyricsVirtualizer {
       })
     });
 
+    if (viewportAnchor) {
+      // Keep the CSS smooth-scroll override disabled through the first layout
+      // frame, then hand normal automatic scrolling back to SimpleBar.
+      const initializedVirtualizer = this._virtualizer;
+      requestAnimationFrame(() => {
+        if (this._virtualizer === initializedVirtualizer) {
+          scrollEl.classList.remove("InstantScroll");
+        }
+      });
+    }
+
     scrollEl.addEventListener("scrollend", this._onScrollEnd, { passive: true });
     scrollEl.addEventListener("scroll", this._onScrollDebounced, { passive: true });
     this._maid!.Give(() => {
@@ -430,13 +571,13 @@ class LyricsVirtualizer {
       this._scrollEl?.removeEventListener("scroll", this._onScrollDebounced);
     });
 
-    // Permanent bottom spacer at half the viewport height so the last item can be
-    // centered without temporary container-height inflation (which flickers the scrollbar).
+    // Permanent bottom spacer gives the footer a little breathing room without
+    // letting lyrics scroll far off-screen.
     const spacer = document.createElement("div");
     spacer.style.flexShrink = "0";
     spacer.style.pointerEvents = "none";
     spacer.setAttribute("aria-hidden", "true");
-    spacer.style.height = `${scrollEl.clientHeight / 2}px`;
+    spacer.style.height = `${this._bottomSpacerHeight(scrollEl.clientHeight)}px`;
     scrollEl.appendChild(spacer);
     this._spacer = spacer;
     this._maid!.Give(() => spacer.parentElement?.removeChild(spacer));
@@ -451,7 +592,7 @@ class LyricsVirtualizer {
         virtualizerLogger.debug("Ignoring width change to 0 (likely minimized)");
         return;
       }
-      if (this._spacer) this._spacer.style.height = `${el.clientHeight / 2}px`;
+      if (this._spacer) this._spacer.style.height = `${this._bottomSpacerHeight(el.clientHeight)}px`;
       if (Math.abs(newWidth - this._containerWidth) < 1) {
         // Width unchanged, but a height-only resize (vertical-only window resize,
         // PIP) still changes the visible window. The early return would otherwise
@@ -660,10 +801,25 @@ class LyricsVirtualizer {
         }
       });
     }
+    this._updatePinnedFooterLayout();
   }
 
   getVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {
     return this._virtualizer;
+  }
+
+  /**
+   * Detach every lyric line before shutting down the virtualizer. Another
+   * renderer can reuse the existing DOM without mounting a whole song at once.
+   */
+  releaseElements(): HTMLElement[] {
+    const container = this._virtualContainer;
+    if (!container) return [];
+
+    const fragment = document.createDocumentFragment();
+    for (const element of this._allElements) fragment.appendChild(element);
+    container.replaceChildren();
+    return this._allElements;
   }
 
   /**
@@ -944,6 +1100,7 @@ class LyricsVirtualizer {
     this._containerWidth = 0;
     this._containerHeight = 0;
     this._classObserver = null;
+    this._pinnedFooterObserver = null;
     this._spacer = null;
 
     try {
@@ -976,9 +1133,14 @@ export const lyricsVirtualizer = new LyricsVirtualizer();
 export function initLyricsVirtualizer(
   scrollEl: HTMLElement,
   virtualContainer: HTMLElement,
-  lineElements: HTMLElement[]
+  lineElements: HTMLElement[],
+  viewportAnchor: LyricsViewportAnchor | null = null
 ): void {
-  lyricsVirtualizer.init(scrollEl, virtualContainer, lineElements);
+  lyricsVirtualizer.init(scrollEl, virtualContainer, lineElements, viewportAnchor);
+}
+
+export function captureLyricsViewportAnchor(): LyricsViewportAnchor | null {
+  return lyricsVirtualizer.captureViewportAnchor();
 }
 
 export function getLyricsVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {
@@ -996,6 +1158,10 @@ export function scrollLyricsToIndex(
 
 export function destroyLyricsVirtualizer(): void {
   lyricsVirtualizer.destroy();
+}
+
+export function releaseLyricsVirtualizerElements(): HTMLElement[] {
+  return lyricsVirtualizer.releaseElements();
 }
 
 export function setOnNewElementMounted(cb: (() => void) | null): void {

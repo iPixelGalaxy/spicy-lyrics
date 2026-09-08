@@ -9,7 +9,6 @@ function parseArgs(args) {
   let version;
   let targetDir;
   let testBuild = false;
-  let versionFromOption = false;
   const positional = [];
 
   for (let i = 0; i < args.length; i += 1) {
@@ -22,14 +21,12 @@ function parseArgs(args) {
 
     if (arg === "--version" || arg === "-v") {
       version = args[i + 1];
-      versionFromOption = true;
       i += 1;
       continue;
     }
 
     if (arg.startsWith("--version=")) {
       version = arg.slice("--version=".length);
-      versionFromOption = true;
       continue;
     }
 
@@ -62,10 +59,8 @@ function parseArgs(args) {
   } else if (!version) {
     version = positional[0];
     targetDir ??= positional[1];
-  } else if (versionFromOption) {
-    targetDir ??= positional[0];
   } else {
-    targetDir ??= positional[1];
+    targetDir ??= positional[0];
   }
 
   return { version, targetDir, testBuild };

@@ -35,6 +35,10 @@ function isAudioAnalysisData(data: unknown): data is AudioAnalysisData {
     return !!parsed.track && Array.isArray(parsed.sections) && Array.isArray(parsed.beats);
 }
 
+function isSpotifyTrackId(trackId: string): boolean {
+    return /^[A-Za-z0-9]{22}$/.test(trackId);
+}
+
 /**
  * Gets and validates the Spotify audio analysis for a given track URI.
  * * @param uri The Spotify track URI (e.g., 'spotify:track:4uLU6hMCjMI75M1A2tKUQC')
@@ -53,6 +57,10 @@ export async function getDynamicAudioAnalysis(uri: string): Promise<AudioAnalysi
 
     const trackId = uri.split(":")[2];
     if (!trackId) {
+        return null;
+    }
+
+    if (!isSpotifyTrackId(trackId)) {
         return null;
     }
 

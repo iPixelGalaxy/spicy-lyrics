@@ -4,7 +4,6 @@ import { LocalLyricsManager } from "./Lyrics/manager";
 import { openSettingsPanel } from "./settings";
 import { OpenLyricsDBPanel } from "./openLyricsDBPanel";
 import { DeepFreeze } from "./utils";
-import { triggerSpicyLyricsFakeUpdate } from "./version/CheckForUpdates";
 import { BreakerDebug } from "./API/CircuitBreaker";
 
 export function exposeToWindow() {
@@ -26,9 +25,6 @@ export function exposeToWindow() {
             }
         },
         testing: {
-            autoUpdate: {
-                triggerFakeUpdate: triggerSpicyLyricsFakeUpdate,
-            },
             toaster: toast,
             // Escape hatch: a bad persisted breaker state would otherwise mean
             // telling users to clear localStorage by hand.

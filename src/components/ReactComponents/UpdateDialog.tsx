@@ -16,7 +16,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ fromVersion, spicyLyricsVer
       {(fromVersion || spicyLyricsVersion) && (
         <div className="uc-version-row">
           {fromVersion && <span className="uc-ver">{fromVersion}</span>}
-          {fromVersion && spicyLyricsVersion && <span className="uc-arrow">→</span>}
+          {fromVersion && spicyLyricsVersion && <span className="uc-arrow">-&gt;</span>}
           {spicyLyricsVersion && <span className="uc-ver new">{spicyLyricsVersion}</span>}
         </div>
       )}
@@ -30,7 +30,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ fromVersion, spicyLyricsVer
           )
         }
       >
-        See what's new →
+        See what's new -&gt;
       </button>
       <button
         className="btn-discord"

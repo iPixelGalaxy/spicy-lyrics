@@ -31,10 +31,6 @@ function openProfile(userId: string | undefined, profileElement: HTMLElement, si
   if (!userId || signal.aborted) return;
   const profileDocument = profileElement.ownerDocument;
   const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
-  if (IsPIP) {
-    globalThis.open?.(url, "_blank", "noopener,noreferrer");
-    return;
-  }
 
   const feedback = profileDocument.createElement("span");
   feedback.className = "sl-profile-feedback";

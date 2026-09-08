@@ -157,13 +157,8 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
-  --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 32px);
-  --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) - 16px);
-}
-
-#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
-  --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 64px);
-  --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 16px);
+  --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + var(--SL-PinnedFooterFadeHeight, 48px));
+  --SL-LyricsContent_MaskBottomFadeEnd: var(--SL-PinnedFooterTrackBottom, 0px);
 }
 
 #SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.LyricsScrollAtBottom {

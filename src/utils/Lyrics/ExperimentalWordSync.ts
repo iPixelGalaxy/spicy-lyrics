@@ -3,6 +3,7 @@ import type {
   Beat,
   Segment as AudioSegment,
 } from "../../components/DynamicBG/BackgroundAnimationController.ts";
+import { getCjkSegmentationLocale } from "./Cjk.ts";
 
 type LineLyricsEntry = {
   Type?: "Vocal" | string;
@@ -178,12 +179,6 @@ function splitTokenIntoWordUnits(token: string): WordUnit[] {
           isPartOfWord: false,
         },
       ];
-}
-
-function getCjkSegmentationLocale(text: string): "ja" | "ko" | "zh" {
-  if (/\p{Script=Hangul}/u.test(text)) return "ko";
-  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return "ja";
-  return "zh";
 }
 
 function splitConnectedCjkToken(token: string, splitHangulGraphemes: boolean): WordUnit[] {

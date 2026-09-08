@@ -1,3 +1,5 @@
+import { getCjkSegmentationLocale } from "./Cjk.ts";
+
 type GravitySyllable = {
   HTMLElement: HTMLElement;
   StartTime: number;
@@ -512,12 +514,6 @@ function trackCoverTransition(): void {
     else coverTrackingFrame = null;
   };
   coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
-}
-
-function getCjkSegmentationLocale(text: string): "ja" | "ko" | "zh" {
-  if (/\p{Script=Hangul}/u.test(text)) return "ko";
-  if (/\p{Script=Hiragana}|\p{Script=Katakana}/u.test(text)) return "ja";
-  return "zh";
 }
 
 function splitGraphemes(text: string): string[] {

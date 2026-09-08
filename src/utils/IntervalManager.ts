@@ -1,10 +1,9 @@
-import { Maid } from "../modules/Maid";
 import Logger from "./Logger";
 
 const intervalLogger = new Logger("Interval Manager");
 
 class IntervalManager {
-  private maid: Maid;
+  private generation = 0;
   private callback: () => void;
   private duration: number; // Duration in milliseconds
   private lastTimestamp: number | null;
@@ -20,7 +19,6 @@ class IntervalManager {
       throw new Error("Duration cannot be NaN.");
     }
 
-    this.maid = new Maid();
     this.callback = callback;
     this.duration = duration === Infinity ? 0 : duration * 1000; // Convert seconds to milliseconds or set to 0 for immediate execution
     this.lastTimestamp = null;
@@ -46,44 +44,52 @@ class IntervalManager {
 
     this.Running = true;
     this.lastTimestamp = null;
+    const generation = ++this.generation;
 
     if (this.duration > 0 && Number.isFinite(this.duration)) {
       this.activeWindow = this.targetWindowProvider();
       this.intervalId = this.activeWindow.setInterval(() => {
-        if (!this.Running || this.Destroyed) return;
+        if (!this.Running || this.Destroyed || generation !== this.generation) return;
         this.callback();
       }, this.duration);
 
-      this.maid.Give(() => this.Stop());
       return;
     }
 
     const loop = (timestamp: number) => {
-      if (!this.Running || this.Destroyed) return;
+      if (!this.Running || this.Destroyed || generation !== this.generation) return;
+      this.animationFrameId = null;
 
-      if (this.lastTimestamp === null) {
-        this.lastTimestamp = timestamp;
+      try {
+        if (this.lastTimestamp === null) {
+          this.lastTimestamp = timestamp;
+        }
+
+        const elapsed = timestamp - this.lastTimestamp;
+
+        if (this.duration === 0 || elapsed >= this.duration) {
+          this.callback();
+          if (generation === this.generation) {
+            this.lastTimestamp = this.duration === 0 ? null : timestamp;
+          }
+        }
+      } finally {
+        // A callback may stop or restart the manager. Only its own run can
+        // schedule another frame, including when the callback throws.
+        if (this.Running && !this.Destroyed && generation === this.generation) {
+          this.animationFrameId = (this.activeWindow ?? this.targetWindowProvider()).requestAnimationFrame(loop);
+        }
       }
-
-      const elapsed = timestamp - this.lastTimestamp;
-
-      if (this.duration === 0 || elapsed >= this.duration) {
-        this.callback();
-        this.lastTimestamp = this.duration === 0 ? null : timestamp; // Reset timestamp for immediate execution when duration is infinite
-      }
-
-      this.animationFrameId = (this.activeWindow ?? this.targetWindowProvider()).requestAnimationFrame(loop);
     };
 
     this.activeWindow = this.targetWindowProvider();
     this.animationFrameId = this.activeWindow.requestAnimationFrame(loop);
 
-    // Register cleanup with the Maid
-    this.maid.Give(() => this.Stop());
   }
 
   // Stops the animation frame loop without destroying the manager
   public Stop() {
+    this.generation++;
     if (this.intervalId !== null) {
       (this.activeWindow ?? window).clearInterval(this.intervalId);
       this.intervalId = null;
@@ -116,7 +122,6 @@ class IntervalManager {
     }
 
     this.Stop();
-    this.maid.CleanUp();
     this.Destroyed = true;
     this.Running = false;
   }

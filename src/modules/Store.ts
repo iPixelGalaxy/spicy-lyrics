@@ -52,8 +52,14 @@ const topUp = (
 			continue
 		}
 
-		if (typeof tplValue !== typeof tgtValue) {
-			throw new Error(`Template Type mismatch at ${subPath}`)
+		if (
+			typeof tplValue !== typeof tgtValue ||
+			tplIsObj !== tgtIsObj ||
+			Array.isArray(tplValue) !== Array.isArray(tgtValue) ||
+			(tplValue === null) !== (tgtValue === null)
+		) {
+			console.warn(`Invalid stored value at ${subPath}; restoring its default`)
+			target[key] = deepClone(tplValue)
 		}
 	}
 }
@@ -95,18 +101,18 @@ export function GetInstantStore<T extends Record<string, unknown>>(
 	if (forceNewData) {
 		items = deepClone(template)
 	} else {
-		const raw = localStorage.getItem(storeName)
 		let parsed: InstantEnvelope<T> | null = null
 
-		if (raw !== null) {
-			try {
+		try {
+			const raw = localStorage.getItem(storeName)
+			if (raw !== null) {
 				parsed = JSON.parse(raw) as InstantEnvelope<T>
-			} catch {
-				parsed = null
 			}
+		} catch {
+			parsed = null
 		}
 
-		if (parsed !== null && parsed.Version === version) {
+		if (isPlainObject(parsed) && parsed.Version === version && isPlainObject(parsed.Items)) {
 			items = parsed.Items
 			topUp(
 				items as Record<string, unknown>,
@@ -121,7 +127,11 @@ export function GetInstantStore<T extends Record<string, unknown>>(
 	const envelope: InstantEnvelope<T> = { Version: version, Items: items }
 
 	const SaveChanges = (): void => {
-		localStorage.setItem(storeName, JSON.stringify(envelope))
+		try {
+			localStorage.setItem(storeName, JSON.stringify(envelope))
+		} catch (err) {
+			console.warn(`InstantStore "${storeName}": failed to save changes`, err)
+		}
 	}
 
 	return Object.freeze({ Items: items, SaveChanges })
@@ -165,15 +175,25 @@ export function GetExpireStore<ItemType>(
 	const GetItem = async (itemName: string): Promise<ItemType | undefined> => {
 		if (forceNewData) return undefined
 
-		const cache = await caches.open(storeName)
-		const response = await cache.match(requestUrl(itemName))
-		if (!response) return undefined
+		try {
+			const cache = await caches.open(storeName)
+			const response = await cache.match(requestUrl(itemName))
+			if (!response) return undefined
 
-		const wrapped = (await response.json()) as ExpireItem<ItemType>
-		if (wrapped.CacheVersion !== version) return undefined
-		if (wrapped.ExpiresAt < Date.now()) return undefined
+			const wrapped: unknown = await response.json()
+			if (
+				!isPlainObject(wrapped) ||
+				wrapped.CacheVersion !== version ||
+				typeof wrapped.ExpiresAt !== "number" ||
+				!Number.isFinite(wrapped.ExpiresAt) ||
+				wrapped.ExpiresAt <= Date.now()
+			) return undefined
 
-		return wrapped.Content
+			return wrapped.Content as ItemType
+		} catch (err) {
+			console.warn(`ExpireStore "${storeName}": failed to read item "${itemName}"`, err)
+			return undefined
+		}
 	}
 
 	const SetItem = async (

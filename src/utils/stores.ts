@@ -5,17 +5,24 @@ import { SETTING_IDS } from "../components/ReactComponents/SettingsPanel/hiddenS
 export const SETTINGS_KEY = "SL:settings";
 
 function readSettingsBlob(): Record<string, any> {
-  const raw = Spicetify.LocalStorage.get(SETTINGS_KEY);
-  if (raw === null || raw === undefined) return {};
   try {
-    return JSON.parse(raw);
+    const raw = Spicetify.LocalStorage.get(SETTINGS_KEY);
+    if (raw === null || raw === undefined) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, any>
+      : {};
   } catch {
     return {};
   }
 }
 
 function saveSettingsBlob(obj: Record<string, any>) {
-  Spicetify.LocalStorage.set(SETTINGS_KEY, JSON.stringify(obj));
+  try {
+    Spicetify.LocalStorage.set(SETTINGS_KEY, JSON.stringify(obj));
+  } catch (error) {
+    console.warn("Spicy Lyrics: could not save settings", error);
+  }
 }
 
 function migrateSettingsKeys(blob: Record<string, any>): Record<string, any> {

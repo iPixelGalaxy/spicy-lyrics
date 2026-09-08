@@ -3,17 +3,24 @@ import { atom } from "nanostores";
 export const UI_STATE_KEY = "SL:uiState";
 
 function readUiStateBlob(): Record<string, any> {
-  const raw = Spicetify.LocalStorage.get(UI_STATE_KEY);
-  if (raw === null || raw === undefined) return {};
   try {
-    return JSON.parse(raw) as Record<string, any>;
+    const raw = Spicetify.LocalStorage.get(UI_STATE_KEY);
+    if (raw === null || raw === undefined) return {};
+    const parsed: unknown = JSON.parse(raw);
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, any>
+      : {};
   } catch {
     return {};
   }
 }
 
 function saveUiStateBlob(obj: Record<string, any>) {
-  Spicetify.LocalStorage.set(UI_STATE_KEY, JSON.stringify(obj));
+  try {
+    Spicetify.LocalStorage.set(UI_STATE_KEY, JSON.stringify(obj));
+  } catch (error) {
+    console.warn("Spicy Lyrics: could not save interface state", error);
+  }
 }
 
 function migrateUiStateKeys(blob: Record<string, any>): Record<string, any> {
@@ -26,7 +33,7 @@ function migrateUiStateKeys(blob: Record<string, any>): Record<string, any> {
   let changed = false;
   for (const [oldKey, newKey] of Object.entries(renames)) {
     if (oldKey in blob) {
-      blob[newKey] = blob[oldKey];
+      if (!(newKey in blob)) blob[newKey] = blob[oldKey];
       delete blob[oldKey];
       changed = true;
     }

@@ -5,6 +5,28 @@ import fetchLyrics, { LyricsStore } from "./Lyrics/fetchLyrics.ts";
 import ApplyLyrics from "./Lyrics/Global/Applyer.ts";
 import { $currentLyricsData } from "./stores.ts";
 
+export type LyricsCacheAction = "all-current" | "current-state" | "stored-cache";
+
+export const LYRICS_CACHE_ACTIONS: Array<{
+  value: LyricsCacheAction;
+  label: string;
+}> = [
+  { value: "all-current", label: "Clear All Current Caches" },
+  { value: "current-state", label: "Clear Current State" },
+  { value: "stored-cache", label: "Clear Stored Cache" },
+];
+
+export function normalizeLyricsCacheAction(value: string): LyricsCacheAction {
+  return LYRICS_CACHE_ACTIONS.some((action) => action.value === value)
+    ? value as LyricsCacheAction
+    : "all-current";
+}
+
+export function getLyricsCacheActionLabel(action: LyricsCacheAction): string {
+  return LYRICS_CACHE_ACTIONS.find((item) => item.value === action)?.label
+    ?? "Clear All Current Caches";
+}
+
 export const RemoveCurrentLyrics_AllCaches = async (ui: boolean = false) => {
   const currentSongId = SpotifyPlayer.GetId();
   if (!currentSongId || currentSongId === undefined) {
@@ -72,3 +94,19 @@ export const RemoveCurrentLyrics_StateCache = (ui: boolean = false) => {
     console.error("SpicyLyrics:", error);
   }
 };
+
+export async function RunLyricsCacheAction(
+  action: LyricsCacheAction,
+  ui: boolean = false
+): Promise<void> {
+  switch (action) {
+    case "current-state":
+      RemoveCurrentLyrics_StateCache(ui);
+      return;
+    case "stored-cache":
+      await RemoveLyricsCache(ui);
+      return;
+    case "all-current":
+      await RemoveCurrentLyrics_AllCaches(ui);
+  }
+}

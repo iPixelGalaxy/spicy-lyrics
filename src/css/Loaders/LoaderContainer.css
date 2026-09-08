@@ -15,13 +15,120 @@
 }
 
 #SpicyLyricsPage .LyricsContainer .loaderContainer.active {
-  position: relative;
+  position: absolute;
   opacity: 1;
   z-index: 9;
 }
 
+#SpicyLyricsPage .LyricsContainer .loaderContainer.active.leaving {
+  opacity: 0;
+}
+
+/* Match the real lyric column instead of centering a generic skeleton. */
+#SpicyLyricsPage .LyricsContainer .loaderContainer.active:not(.queued) {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+#SpicyLyricsPage .LyricsContainer.LoadingLyrics .LyricsContent,
 #SpicyLyricsPage .LyricsContainer .loaderContainer:is(.active) + .LyricsContent {
+  visibility: hidden;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs {
+  --LyricsLoadingRowHeight: clamp(2rem, 5.8cqh, 3.3rem);
+  --LyricsLoadingRowGap: clamp(0.9rem, 2.3cqh, 1.5rem);
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-self: stretch;
+  margin-top: 25cqh;
+  margin-bottom: 8cqh;
+  padding-right: var(--LyricsRightSidePadding);
+  padding-left: var(--LyricsLeftSidePadding);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--LyricsLoadingRowGap);
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 64px),
+    transparent calc(100% - 16px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0,
+    #000 calc(100% - 64px),
+    transparent calc(100% - 16px),
+    transparent
+  );
+}
+
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span {
+  position: relative;
+  width: var(--LyricsLoadingBlobWidth, 76%);
+  height: var(--LyricsLoadingRowHeight);
+  margin-top: var(--LyricsLoadingBlobGap, 0px);
+  overflow: hidden;
+  border-radius: clamp(0.24rem, 0.6cqh, 0.45rem);
+  background: rgba(255, 255, 255, 0.16);
+  transition: width 0.24s ease-out, margin-top 0.24s ease-out, opacity 0.18s ease-out;
+}
+
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span::after {
+  position: absolute;
+  inset: 0;
+  width: 54%;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.34),
+    rgba(255, 255, 255, 0)
+  );
+  transform: translateX(-190%);
+  animation: spicy-lyrics-loading-shimmer 1.65s ease-in-out infinite;
+}
+
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(2) { --LyricsLoadingBlobWidth: 47%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(3) { --LyricsLoadingBlobWidth: 91%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(4) { --LyricsLoadingBlobWidth: 63%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(5) { --LyricsLoadingBlobWidth: 84%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(6) { --LyricsLoadingBlobWidth: 38%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(7) { --LyricsLoadingBlobWidth: 69%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(8) { --LyricsLoadingBlobWidth: 54%; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(9) { --LyricsLoadingBlobWidth: 72%; }
+
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(2)::after { animation-delay: -0.23s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(3)::after { animation-delay: -0.46s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(4)::after { animation-delay: -0.69s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(5)::after { animation-delay: -0.92s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(6)::after { animation-delay: -1.15s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(7)::after { animation-delay: -1.38s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(8)::after { animation-delay: -1.61s; }
+#SpicyLyricsPage .LyricsContainer .LyricsLoadingBlobs span:nth-child(9)::after { animation-delay: -1.84s; }
+
+#SpicyLyricsPage .LyricsContainer .loaderContainer #DotLoader {
   display: none;
+}
+
+#SpicyLyricsPage .LyricsContainer .loaderContainer.queued .LyricsLoadingBlobs {
+  display: none;
+}
+
+#SpicyLyricsPage .LyricsContainer .loaderContainer.queued #DotLoader {
+  display: block;
+}
+
+@keyframes spicy-lyrics-loading-shimmer {
+  to {
+    transform: translateX(285%);
+  }
 }
 
 /* Queued state (HTTP 503): stack the spinner above an explanatory message. */

@@ -62,6 +62,32 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.42
+
+### Reliability
+
+- **Recover from damaged settings and cache data**
+  Invalid settings, interface state, and cache records no longer block startup or lyric fetching. Valid stored fields remain intact when missing or incompatible fields are repaired.
+
+- **Keep animation loops alive**
+  Interval-driven UI no longer creates duplicate loops after a restart. A callback failure no longer freezes later updates.
+
+- **Prevent stale lyrics after database changes**
+  Deleting local TTML while changing tracks no longer applies results to the wrong song. Old database errors also clear when the track list becomes empty.
+
+### Artwork
+
+- **Prevent stale cover art**
+  Rapid track changes no longer allow an older artwork request to replace the current cover. Repeated loads share pending requests, expired entries refresh correctly, and failed blob conversions fall back to the original image URL.
+
+### Playback controls
+
+- **Fix interrupted volume drags**
+  Fullscreen and Cinema volume controls now release correctly after pointer cancellation, touch cancellation, window blur, or teardown. Right-clicks and horizontal-only wheel input no longer change volume.
+
+- **Fix interrupted and duplicate seeks**
+  Timeline drags now release their control lock after cancellation or blur, stop when the track changes, and avoid sending the same seek twice. Invalid timing and zero-width timelines are ignored.
+
 ## v100.10.41
 
 - **Pinned Lyrics Footer**

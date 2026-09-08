@@ -146,5 +146,3 @@ export const $lyricsContainerExists = atom<boolean>(false);
 export const $lyricsRendererPaused = atom<boolean>(false);
 export const $currentlyFetching = atom<boolean>(false);
 export const $currentLyricsData = atom<string>("");
-
-export const $ttmlUploadMode = persistAtom<string>("ttmlUploadMode", "persistent");

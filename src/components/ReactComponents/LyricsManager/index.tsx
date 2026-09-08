@@ -6,21 +6,22 @@ import { useCurrentUri } from "./hooks/useCurrentUri";
 import { SearchBar } from "./components/SearchBar";
 import { TrackRow } from "./components/TrackRow";
 import { IconButton } from "./components/IconButton";
-import { UploadIcon, ResetIcon } from "./components/Icons";
+import { ArrowLeftIcon, ResetIcon } from "./components/Icons";
 import { SpotifyPlayer } from "../../Global/SpotifyPlayer";
-import fetchLyrics from "../../../utils/Lyrics/fetchLyrics";
-import ApplyLyrics from "../../../utils/Lyrics/Global/Applyer";
+import fetchLyrics, { getSongKey, SessionTTMLStore } from "../../../utils/Lyrics/fetchLyrics";
+import { ApplyLyricsIfCurrent } from "../../../utils/Lyrics/Global/Applyer";
 import { $currentLyricsData } from "../../../utils/stores";
-
-type LyricsDBPanelProps = {
-  onUploadClick: () => void;
-};
+import { $lastFetchedUri } from "../../../utils/uiState";
 
 function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9_\- .]/g, "_").slice(0, 100);
 }
 
-export default function LyricsDBPanel({ onUploadClick }: LyricsDBPanelProps) {
+type LyricsDBPanelProps = {
+  onBack: () => void;
+};
+
+export default function LyricsDBPanel({ onBack }: LyricsDBPanelProps) {
   const [query, setQuery] = useState("");
   const { uris, loading: dbLoading, remove, getRaw } = useLyricsDB();
   const { tracksByUri, loading: tracksLoading } = useTracks(uris);
@@ -85,11 +86,14 @@ export default function LyricsDBPanel({ onUploadClick }: LyricsDBPanelProps) {
       toast.error("No track is currently playing.", { duration: 4000 });
       return;
     }
+    const songKey = getSongKey(uri);
+    if (songKey) SessionTTMLStore.delete(songKey);
+    $lastFetchedUri.set(null);
     $currentLyricsData.set("");
     toast("TTML has been reset.", { duration: 4000 });
     setTimeout(() => {
       fetchLyrics(uri)
-        .then(ApplyLyrics)
+        .then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics))
         .catch((err) => {
           toast.error("Error applying lyrics", { duration: 4000 });
           console.error("Error applying lyrics:", err);
@@ -100,6 +104,13 @@ export default function LyricsDBPanel({ onUploadClick }: LyricsDBPanelProps) {
   return (
     <div className="sl-ldb-root">
       <div className="sl-ldb-toolbar">
+        <IconButton
+          icon={<ArrowLeftIcon size={14} />}
+          label="Back"
+          variant="default"
+          onClick={onBack}
+          title="Back to Load TTML"
+        />
         <SearchBar value={query} onChange={setQuery} placeholder="Search saved lyrics…" />
         <IconButton
           icon={<ResetIcon size={14} />}
@@ -107,12 +118,6 @@ export default function LyricsDBPanel({ onUploadClick }: LyricsDBPanelProps) {
           variant="danger"
           onClick={handleResetTTML}
           title="Clear loaded TTML for the currently playing song"
-        />
-        <IconButton
-          icon={<UploadIcon size={14} />}
-          label="Upload TTML"
-          variant="primary"
-          onClick={onUploadClick}
         />
       </div>
 

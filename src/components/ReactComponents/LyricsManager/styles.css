@@ -3,7 +3,7 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay .sl-ldb-root {
   display: flex;
   flex-direction: column;
   gap: 0;
-  min-height: 0;
+  min-height: 420px;
   height: 100%;
   padding: 4px 2px;
 
@@ -260,89 +260,70 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay .sl-ldb-icon-btn {
   }
 }
 
-/* ── Upload TTML Modal ───────────────────────────────────────── */
-/* One screen, one gesture: pick the mode (or leave the default) and drop /
-   click the file — selecting the file performs the upload. */
+/* ── Load TTML Modal ───────────────────────────────────────── */
 sl-generic-modal.SpicyLyricsModal .sl-modal-overlay .sl-ldb-upload-root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: 2px 4px 4px;
+  gap: var(--space-5);
+  padding: var(--space-2) 4px;
 
-  .sl-ldb-upload-bar {
+  .sl-ldb-upload-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: var(--space-3);
-  }
 
-  .sl-ldb-upload-back {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    flex-shrink: 0;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background: var(--accent-tint-bg);
-    box-shadow: inset 0 0 0 1px var(--hairline);
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    transition:
-      background var(--dur-fast) var(--ease-standard),
-      color var(--dur-fast) var(--ease-standard);
-
-    &:hover:not(:disabled) {
-      background: var(--accent-tint-bg-hover);
-      color: var(--color-text-primary);
+    .sl-ldb-upload-subtitle {
+      margin: 0;
+      min-width: 0;
+      font-size: var(--text-body-size) !important;
+      color: var(--color-text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
-    &:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-  }
-
-  /* Segmented mode switch — replaces the two full-width choice cards. */
-  .sl-ldb-upload-modes {
-    display: inline-flex;
-    gap: 2px;
-    padding: 2px;
-    border-radius: var(--radius-sm);
-    background: var(--accent-tint-bg);
-    box-shadow: inset 0 0 0 1px var(--hairline);
-
-    .sl-ldb-upload-mode {
+    .sl-ldb-upload-actions {
+      flex: 0 0 auto;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      height: 28px;
+      justify-content: flex-end;
+      gap: var(--space-2);
+      min-width: 0;
+    }
+
+    .sl-ldb-database-link {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      height: 32px;
       padding: 0 12px;
       border: 0;
-      border-radius: calc(var(--radius-sm) - 2px);
-      background: transparent;
-      color: var(--color-text-secondary);
+      border-radius: var(--radius-sm);
+      background: var(--accent-tint-bg);
+      box-shadow: inset 0 0 0 1px var(--hairline);
+      color: var(--color-text-primary);
+      cursor: pointer;
       font-size: var(--text-caption-size) !important;
       font-weight: var(--w-medium);
-      cursor: pointer;
-      white-space: nowrap;
       transition:
-        background var(--dur-fast) var(--ease-standard),
-        color var(--dur-fast) var(--ease-standard);
+        background 0.18s var(--ease-standard),
+        box-shadow 0.18s var(--ease-standard),
+        transform 0.12s ease;
 
-      &:hover:not(:disabled) {
-        color: var(--color-text-primary);
+      &:hover {
+        background: var(--accent-tint-bg-hover);
+        box-shadow: inset 0 0 0 1px var(--hairline-strong);
       }
 
-      &.sl-ldb-upload-mode--active {
-        background: rgba(255, 255, 255, 0.14);
-        color: var(--color-text-primary);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+      &:active {
+        transform: scale(0.99);
       }
 
       &:disabled {
-        opacity: 0.5;
-        cursor: default;
+        cursor: wait;
+        opacity: 0.62;
       }
     }
   }
@@ -355,73 +336,74 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay .sl-ldb-upload-root {
     pointer-events: none;
   }
 
-  .sl-ldb-dropzone {
+  .sl-ldb-upload-mode-section {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: 30px var(--space-4);
-    border-radius: var(--radius-md);
-    background: var(--accent-tint-bg);
-    box-shadow: inset 0 0 0 1.5px var(--hairline);
-    text-align: center;
-    cursor: pointer;
-    transition:
-      background var(--dur-fast) var(--ease-standard),
-      box-shadow var(--dur-fast) var(--ease-standard),
-      transform 0.12s ease;
+    gap: var(--space-3);
+    align-items: stretch;
 
-    &:hover {
-      background: var(--accent-tint-bg-hover);
-      box-shadow: inset 0 0 0 1.5px var(--hairline-strong);
+    .sl-ldb-upload-mode-card {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr);
+      align-items: start;
+      gap: 10px;
+      padding: 16px 18px;
+      border-radius: var(--radius-md);
+      background: var(--accent-tint-bg);
+      box-shadow: inset 0 0 0 1px var(--hairline);
+      cursor: pointer;
+      text-align: left;
+      transition:
+        background 0.18s var(--ease-standard),
+        box-shadow 0.18s var(--ease-standard),
+        transform 0.12s ease;
+      border: 0;
+
+      &:hover {
+        background: var(--accent-tint-bg-hover);
+        box-shadow: inset 0 0 0 1px var(--hairline-strong);
+      }
+
+      &:active {
+        transform: scale(0.99);
+      }
+
+      &:disabled {
+        cursor: wait;
+        opacity: 0.62;
+      }
+
+      .sl-ldb-upload-mode-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: var(--radius-sm);
+        color: var(--color-text-primary);
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: inset 0 0 0 1px var(--hairline);
+      }
+
+      .sl-ldb-upload-mode-copy {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .sl-ldb-upload-mode-title {
+        font-size: var(--text-body-size) !important;
+        font-weight: var(--w-semibold);
+        color: var(--color-text-primary);
+      }
+
+      .sl-ldb-upload-mode-desc {
+        font-size: var(--text-caption-size) !important;
+        font-weight: var(--w-regular);
+        color: var(--color-text-secondary);
+        line-height: 1.4;
+      }
     }
-
-    &:active {
-      transform: scale(0.995);
-    }
-
-    &.sl-ldb-dropzone--dragging {
-      background: var(--accent-tint-bg-hover);
-      box-shadow:
-        inset 0 0 0 2px rgba(255, 255, 255, 0.6),
-        0 0 0 4px rgba(255, 255, 255, 0.06);
-    }
-
-    &.sl-ldb-dropzone--busy {
-      pointer-events: none;
-      opacity: 0.75;
-    }
-
-    .sl-ldb-dropzone-icon {
-      display: inline-flex;
-      color: var(--color-text-primary);
-      opacity: 0.85;
-    }
-
-    .sl-ldb-dropzone-title {
-      font-size: var(--text-body-size) !important;
-      font-weight: var(--w-semibold);
-      color: var(--color-text-primary);
-    }
-
-    .sl-ldb-dropzone-sub {
-      font-size: var(--text-caption-size) !important;
-      color: var(--color-text-secondary);
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .sl-ldb-spinner {
-    animation: sl-ldb-spin 0.8s linear infinite;
-  }
-}
-
-@keyframes sl-ldb-spin {
-  to {
-    transform: rotate(360deg);
   }
 }

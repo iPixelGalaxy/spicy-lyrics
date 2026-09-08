@@ -1,210 +1,235 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useStore } from "@nanostores/react";
+import React, { useRef, useState } from "react";
 import { toast } from "sonner";
 import { SpotifyPlayer } from "../../../../components/Global/SpotifyPlayer";
-import fetchLyrics from "../../../../utils/Lyrics/fetchLyrics";
-import ApplyLyrics from "../../../../utils/Lyrics/Global/Applyer";
+import fetchLyrics, { getSongKey, SessionTTMLStore } from "../../../../utils/Lyrics/fetchLyrics";
+import ApplyLyrics, { ApplyLyricsIfCurrent } from "../../../../utils/Lyrics/Global/Applyer";
 import { ParseTTML } from "../../../../utils/Lyrics/manager/parseTTML";
 import { ProcessLyrics } from "../../../../utils/Lyrics/ProcessLyrics";
-import { $currentLyricsData, $ttmlUploadMode } from "../../../../utils/stores";
+import { $currentLyricsData } from "../../../../utils/stores";
+import { $lastFetchedUri } from "../../../../utils/uiState";
 import { LocalLyricsManager } from "../../../../utils/Lyrics/manager";
-import { ArrowLeftIcon, ClockIcon, DatabaseIcon, SpinnerIcon, UploadIcon } from "./Icons";
+import { DatabaseIcon, GuideIcon, ResetIcon, UploadIcon } from "./Icons";
 
-type UploadMode = "persistent" | "temporary";
+type UploadMode = "persistent" | "session" | "temporary";
 
 type UploadTTMLModalProps = {
-  onBack: () => void;
+  onOpenDB: () => void;
   onDone: (mode: UploadMode) => void;
 };
 
-const MODES: { id: UploadMode; label: string; hint: string; icon: React.ReactNode }[] = [
-  {
-    id: "persistent",
-    label: "Save",
-    hint: "Store in the local DB — survives restarts",
-    icon: <DatabaseIcon size={14} />,
-  },
-  {
-    id: "temporary",
-    label: "Just once",
-    hint: "Apply to the current song only, until refresh",
-    icon: <ClockIcon size={14} />,
-  },
-];
-
-export default function UploadTTMLModal({ onBack, onDone }: UploadTTMLModalProps) {
-  // Persisted, so the screen reopens on whichever mode was used last.
-  const storedMode = useStore($ttmlUploadMode);
-  const mode: UploadMode = storedMode === "temporary" ? "temporary" : "persistent";
-  const setMode = (m: UploadMode) => $ttmlUploadMode.set(m);
-
+export default function UploadTTMLModal({ onOpenDB, onDone }: UploadTTMLModalProps) {
   const [uploading, setUploading] = useState(false);
-  const [dragging, setDragging] = useState(false);
-
-  // The handlers below are re-created on every render, so keep the live values
-  // in refs — the paste listener is bound once.
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-  const uploadingRef = useRef(uploading);
-  uploadingRef.current = uploading;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingModeRef = useRef<UploadMode>("persistent");
 
   const songName = SpotifyPlayer.GetName() ?? "Unknown Song";
 
-  /** Read + apply a file straight away — picking the file *is* the upload. */
-  const startUpload = useCallback(
-    (file: File | null | undefined) => {
-      if (!file || uploadingRef.current) return;
-
-      // `accept` only filters the picker — drag & drop and paste bypass it.
-      if (!file.name.toLowerCase().endsWith(".ttml")) {
-        toast.error("Only .ttml files are supported.", { duration: 5000 });
-        return;
-      }
-
-      const uri = SpotifyPlayer.GetUri();
-      if (!uri) {
-        toast.error("No track is currently playing.", { duration: 5000 });
-        return;
-      }
-
-      const uploadMode = modeRef.current;
-      setUploading(true);
-
-      const reader = new FileReader();
-      reader.onerror = () => {
-        toast.error("Error reading TTML file.", { duration: 5000 });
-        setUploading(false);
-      };
-      reader.onload = async (e) => {
-        try {
-          const ttml = e.target?.result as string;
-
-          if (uploadMode === "persistent") {
-            await LocalLyricsManager.put(uri, ttml);
-            $currentLyricsData.set("");
-            setTimeout(() => {
-              fetchLyrics(uri).then(ApplyLyrics);
-            }, 25);
-            toast.success("TTML saved to Local DB!", { duration: 5000 });
-            onDone("persistent");
-          } else {
-            const result = ParseTTML(ttml);
-            if (!result) {
-              toast.error("Failed to parse TTML.", { duration: 5000 });
-              setUploading(false);
-              return;
-            }
-            const dataToSave = { ...result, uri };
-            await ProcessLyrics(dataToSave);
-            $currentLyricsData.set(JSON.stringify(dataToSave));
-            setTimeout(() => {
-              fetchLyrics(uri)
-                .then((lyrics) => {
-                  ApplyLyrics(lyrics);
-                  toast.success("Lyrics Parsed and Applied!", { duration: 5000 });
-                })
-                .catch((err) => {
-                  toast.error("Error applying lyrics", { duration: 5000 });
-                  console.error("Error applying lyrics:", err);
-                });
-            }, 25);
-            onDone("temporary");
-          }
-        } catch (err) {
-          toast.error("Upload failed.", { duration: 5000 });
-          console.error("TTML upload error:", err);
-          setUploading(false);
-        }
-      };
-      reader.readAsText(file);
-    },
-    [onDone]
-  );
-
-  // Ctrl+V a copied .ttml file to upload it without touching the picker.
-  useEffect(() => {
-    function onPaste(e: ClipboardEvent) {
-      const file = e.clipboardData?.files?.[0];
-      if (!file) return;
-      e.preventDefault();
-      startUpload(file);
+  function openFilePicker(mode: UploadMode) {
+    if (uploading) return;
+    pendingModeRef.current = mode;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
     }
-    document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
-  }, [startUpload]);
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    startUpload(e.dataTransfer.files?.[0]);
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    startUpload(e.target.files?.[0]);
-    // Allow re-picking the same file after a failed attempt.
-    e.target.value = "";
+    const file = e.target.files?.[0] ?? null;
+    if (!file) return;
+    void handleUpload(file, pendingModeRef.current);
+  }
+
+  function handleOpenGuide() {
+    window.open("https://lyrprep.spicylyrics.org/guide", "_blank", "noopener,noreferrer");
+  }
+
+  function handleResetTTML() {
+    const uri = SpotifyPlayer.GetUri();
+    if (!uri) {
+      toast.error("No track is currently playing.", { duration: 4000 });
+      return;
+    }
+    const songKey = getSongKey(uri);
+    if (songKey) SessionTTMLStore.delete(songKey);
+    $lastFetchedUri.set(null);
+    $currentLyricsData.set("");
+    toast("TTML has been reset.", { duration: 4000 });
+    setTimeout(() => {
+      fetchLyrics(uri)
+        .then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics))
+        .catch((err) => {
+          toast.error("Error applying lyrics", { duration: 4000 });
+          console.error("Error applying lyrics:", err);
+        });
+    }, 25);
+  }
+
+  async function handleUpload(file: File, mode: UploadMode) {
+    if (uploading) return;
+
+    if (!file.name.toLowerCase().endsWith(".ttml")) {
+      toast.error("Choose a .ttml file.", { duration: 5000 });
+      return;
+    }
+
+    const uri = SpotifyPlayer.GetUri();
+    if (!uri) {
+      toast.error("No track is currently playing.", { duration: 5000 });
+      return;
+    }
+
+    setUploading(true);
+
+    const reader = new FileReader();
+    reader.onerror = () => {
+      toast.error("Error reading TTML file.", { duration: 5000 });
+      setUploading(false);
+    };
+    reader.onload = async (e) => {
+      try {
+        const ttml = e.target?.result as string;
+        if (SpotifyPlayer.GetUri() !== uri) {
+          toast.error("Track changed before TTML finished loading.", { duration: 5000 });
+          return;
+        }
+
+        const songKey = getSongKey(uri);
+        const lyricsId = uri.startsWith("spotify:local:") ? songKey : SpotifyPlayer.GetId();
+
+        if (mode === "persistent") {
+          await LocalLyricsManager.put(uri, ttml);
+          if (SpotifyPlayer.GetUri() !== uri) {
+            toast.error("TTML saved for original track. Current track unchanged.", { duration: 5000 });
+            return;
+          }
+          $lastFetchedUri.set(null);
+          $currentLyricsData.set("");
+          setTimeout(() => {
+            fetchLyrics(uri)
+              .then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics))
+          }, 25);
+          toast.success("TTML saved to Local DB!", { duration: 5000 });
+          onDone("persistent");
+        } else {
+          toast("Found TTML, Parsing...", { duration: 3000 });
+          const result = await ParseTTML(ttml);
+          if (!result) {
+            toast.error("Failed to parse TTML.", { duration: 5000 });
+            setUploading(false);
+            return;
+          }
+          const dataToSave = {
+            ...result?.Result,
+            id: lyricsId,
+            userUploaded: true,
+          };
+          await ProcessLyrics(dataToSave);
+          if (mode === "session" && songKey) {
+            SessionTTMLStore.set(songKey, dataToSave);
+          }
+          if (SpotifyPlayer.GetUri() !== uri) {
+            toast.error("Track changed before TTML could be applied.", { duration: 5000 });
+            return;
+          }
+          $currentLyricsData.set(JSON.stringify(dataToSave));
+          await ApplyLyricsIfCurrent(uri, [dataToSave, 200]);
+          toast.success(
+            mode === "session" ? "Lyrics applied for this session!" : "Lyrics parsed and applied!",
+            { duration: 5000 }
+          );
+          onDone(mode);
+        }
+      } catch (err) {
+        toast.error("Upload failed.", { duration: 5000 });
+        console.error("TTML upload error:", err);
+        setUploading(false);
+      }
+    };
+    reader.readAsText(file);
   }
 
   return (
     <div className="sl-ldb-upload-root">
-      <div className="sl-ldb-upload-bar">
-        <button
-          type="button"
-          className="sl-ldb-upload-back"
-          onClick={onBack}
-          disabled={uploading}
-          title="Back to Local Lyrics DB"
-          aria-label="Back"
-        >
-          <ArrowLeftIcon size={14} />
-        </button>
-
-        <div className="sl-ldb-upload-modes" role="radiogroup" aria-label="Upload mode">
-          {MODES.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              role="radio"
-              aria-checked={mode === m.id}
-              className={`sl-ldb-upload-mode${mode === m.id ? " sl-ldb-upload-mode--active" : ""}`}
-              onClick={() => setMode(m.id)}
-              disabled={uploading}
-              title={m.hint}
-            >
-              {m.icon}
-              <span>{m.label}</span>
-            </button>
-          ))}
+      <div className="sl-ldb-upload-header">
+        <p className="sl-ldb-upload-subtitle">For: {songName}</p>
+        <div className="sl-ldb-upload-actions">
+          <button
+            type="button"
+            className="sl-ldb-database-link"
+            onClick={handleOpenGuide}
+            disabled={uploading}
+          >
+            <GuideIcon size={14} />
+            <span>Guide</span>
+          </button>
+          <button
+            type="button"
+            className="sl-ldb-database-link"
+            onClick={handleResetTTML}
+            disabled={uploading}
+          >
+            <ResetIcon size={14} />
+            <span>Reset TTML</span>
+          </button>
+          <button
+            type="button"
+            className="sl-ldb-database-link"
+            onClick={onOpenDB}
+            disabled={uploading}
+          >
+            <DatabaseIcon size={14} />
+            <span>TTML Database</span>
+          </button>
         </div>
       </div>
 
       <input
+        ref={fileInputRef}
         type="file"
         accept=".ttml"
         id="sl-ldb-file-input"
         className="sl-ldb-file-input"
         onChange={handleFileChange}
       />
-      <label
-        htmlFor="sl-ldb-file-input"
-        className={`sl-ldb-dropzone${dragging ? " sl-ldb-dropzone--dragging" : ""}${uploading ? " sl-ldb-dropzone--busy" : ""}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (!uploading) setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-      >
-        <span className="sl-ldb-dropzone-icon">
-          {uploading ? <SpinnerIcon size={26} /> : <UploadIcon size={26} />}
-        </span>
-        <span className="sl-ldb-dropzone-title">
-          {uploading ? "Uploading…" : dragging ? "Drop to upload" : "Drop a .ttml file or click to browse"}
-        </span>
-        <span className="sl-ldb-dropzone-sub">
-          {mode === "persistent" ? "Saves to Local DB for" : "Applies once to"} {songName}
-        </span>
-      </label>
+
+      <div className="sl-ldb-upload-mode-section">
+        <button
+          type="button"
+          className="sl-ldb-upload-mode-card"
+          onClick={() => openFilePicker("persistent")}
+          disabled={uploading}
+        >
+          <span className="sl-ldb-upload-mode-icon"><UploadIcon size={16} /></span>
+          <span className="sl-ldb-upload-mode-copy">
+            <span className="sl-ldb-upload-mode-title">Persistent Load</span>
+            <span className="sl-ldb-upload-mode-desc">Stored in local DB, survives restarts</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className="sl-ldb-upload-mode-card"
+          onClick={() => openFilePicker("temporary")}
+          disabled={uploading}
+        >
+          <span className="sl-ldb-upload-mode-icon"><UploadIcon size={16} /></span>
+          <span className="sl-ldb-upload-mode-copy">
+            <span className="sl-ldb-upload-mode-title">Temporary Load</span>
+            <span className="sl-ldb-upload-mode-desc">Applied only to current song until refresh</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          className="sl-ldb-upload-mode-card"
+          onClick={() => openFilePicker("session")}
+          disabled={uploading}
+        >
+          <span className="sl-ldb-upload-mode-icon"><UploadIcon size={16} /></span>
+          <span className="sl-ldb-upload-mode-copy">
+            <span className="sl-ldb-upload-mode-title">Session Load</span>
+            <span className="sl-ldb-upload-mode-desc">Used for this track until Spotify restarts</span>
+          </span>
+        </button>
+      </div>
     </div>
   );
 }

@@ -225,11 +225,9 @@ async function fetchLyricsInternal(
     }
   }
 
-  if (songKey && SessionTTMLStore.has(songKey)) {
-    const sessionLyric = SessionTTMLStore.get(songKey);
-    if (sessionLyric) {
-      return presentStoredLyrics(uri, { ...sessionLyric, id: trackId, fromCache: true }, options);
-    }
+  const sessionLyric = songKey ? SessionTTMLStore.get(songKey) : undefined;
+  if (sessionLyric) {
+    return presentStoredLyrics(uri, { ...sessionLyric, id: trackId, fromCache: true }, options);
   }
 
   const localLyric = await LocalLyricsManager.get(uri);
@@ -249,29 +247,23 @@ async function fetchLyricsInternal(
 
   if (LyricsStore) {
     try {
-      const lyricsFromCacheRes = await LyricsStore.GetItem(trackId);
-      if (lyricsFromCacheRes) {
-        if (lyricsFromCacheRes?.Value === "NO_LYRICS") {
+      const lyricsFromCache = await LyricsStore.GetItem(trackId);
+      if (lyricsFromCache) {
+        if (lyricsFromCache.Value === "NO_LYRICS") {
           finishFetching(uri);
           HideLoaderContainer(uri);
           return ["lyrics-not-found", 404];
         }
-        const lyricsFromCache = lyricsFromCacheRes ?? {};
-        if (!isLyricsCacheCompatible(lyricsFromCache)) {
-          void LyricsStore.RemoveItem(trackId).catch(() => {});
-          throw { isOutdatedLyricsCache: true };
+        if (isLyricsCacheCompatible(lyricsFromCache)) {
+          return await presentStoredLyrics(uri, { ...lyricsFromCache, fromCache: true }, options);
         }
-        return await presentStoredLyrics(uri, { ...lyricsFromCache, fromCache: true }, options);
+        void LyricsStore.RemoveItem(trackId).catch(() => {});
       }
     } catch (error) {
-      if ((error as any)?.isOutdatedLyricsCache) {
-        // fall through to fresh provider fetch
-      } else {
-        lyricsCacheLogger.error("Error parsing cache entry", error);
-        finishFetching(uri);
-        HideLoaderContainer(uri);
-        return ["unknown-error", 0];
-      }
+      lyricsCacheLogger.error("Error parsing cache entry", error);
+      finishFetching(uri);
+      HideLoaderContainer(uri);
+      return ["unknown-error", 0];
     }
   }
 

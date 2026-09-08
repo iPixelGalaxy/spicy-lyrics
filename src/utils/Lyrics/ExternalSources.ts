@@ -106,14 +106,18 @@ export async function fetchLyricsFromProviders(
     spicyRawPromise ??= fetchSpicyLyricsRaw(trackInfo.id);
     return spicyRawPromise;
   };
-  const fetchers = new Map<LyricsSourceProviderId, () => Promise<ExternalLyricsResult | null>>([
-    ["spicy", () => fetchSpicyLyrics(getSpicyRaw())],
-    ["musixmatch", () => fetchMusixmatchLyrics(trackInfo, getSpicyRaw)],
-    ["apple", () => fetchAppleMusicLyrics(getSpicyRaw())],
-    ["spotify", () => fetchSpotifyLyrics(trackInfo)],
-    ["lrclib", () => withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)],
-    ["netease", () => withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS)],
-  ]);
+
+  function startProviderRequest(provider: LyricsSourceProviderId): Promise<ExternalLyricsResult | null> {
+    switch (provider) {
+      case "spicy": return fetchSpicyLyrics(getSpicyRaw());
+      case "musixmatch": return fetchMusixmatchLyrics(trackInfo, getSpicyRaw);
+      case "apple": return fetchAppleMusicLyrics(getSpicyRaw());
+      case "spotify": return fetchSpotifyLyrics(trackInfo);
+      case "lrclib": return withProviderTimeout(fetchLRCLIBLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS);
+      case "netease": return withProviderTimeout(fetchNeteaseLyrics(trackInfo), FALLBACK_PROVIDER_TIMEOUT_MS);
+      default: return Promise.resolve(null);
+    }
+  }
 
   // Start every enabled provider now. Results are still consumed in configured
   // order below, so this removes serial fallback wait without changing source
@@ -124,7 +128,7 @@ export async function fetchLyricsFromProviders(
   >();
   let firstLyricsDelivered = false;
   for (const provider of order) {
-    const request = fetchers.get(provider)?.() ?? Promise.resolve(null);
+    const request = startProviderRequest(provider);
     providerRequests.set(provider, request);
     void request
       .then((result) => {

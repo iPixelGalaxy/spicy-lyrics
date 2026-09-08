@@ -56,6 +56,7 @@ class IntervalManager {
       return;
     }
 
+    let reportedCallbackError = false;
     const loop = (timestamp: number) => {
       if (!this.Running || this.Destroyed || generation !== this.generation) return;
       this.animationFrameId = null;
@@ -69,9 +70,15 @@ class IntervalManager {
 
         if (this.duration === 0 || elapsed >= this.duration) {
           this.callback();
+          reportedCallbackError = false;
           if (generation === this.generation) {
             this.lastTimestamp = this.duration === 0 ? null : timestamp;
           }
+        }
+      } catch (error) {
+        if (!reportedCallbackError) {
+          intervalLogger.error("Animation frame callback failed", error);
+          reportedCallbackError = true;
         }
       } finally {
         // A callback may stop or restart the manager. Only its own run can

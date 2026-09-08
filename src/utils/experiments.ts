@@ -52,14 +52,6 @@ export const EXPERIMENTS = [
     pageClass: "Exp_NewProgressBar",
   },
   {
-    id: "pinLyricsFooter",
-    label: "Pin footer at all times",
-    description: "Keep lyric credits and source details visible while scrolling normal lyrics.",
-    default: false,
-    pageClass: "Exp_PinLyricsFooter",
-    rebuildsLyrics: true,
-  },
-  {
     id: "duetLinePadding",
     label: "Wide duet line padding",
     description: "Separate duet voices into wider columns. Disable for compact padding.",

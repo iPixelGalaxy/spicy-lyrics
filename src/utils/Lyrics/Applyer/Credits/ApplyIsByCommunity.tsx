@@ -4,6 +4,7 @@ import {
   resolveProfileIdentity,
   showIframeProfileModal,
 } from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
+import { PinFooterDetailWithoutWriters } from "./CreateLyricsFooter.ts";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
@@ -104,8 +105,6 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
 
   const songInfoElement = PageDocument.createElement("div");
   songInfoElement.classList.add("SongInfo");
-  songInfoElement.style.opacity = "0";
-  songInfoElement.style.transition = "opacity 120ms ease";
 
   const preferredProfileName = (username?: string, displayName?: string) => {
     const cleanUsername = username?.trim();
@@ -182,15 +181,44 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     uploaderUsernameSpan = createProfileSection("Uploader", labelText, uploaderUsername, uploaderAvatar);
   }
   LyricsContainer.appendChild(songInfoElement);
+  PinFooterDetailWithoutWriters(songInfoElement, LyricsContainer);
 
-  if (!data.TTMLUploadMetadata) return;
+  const communityCreditElements = [
+    ...Array.from(LyricsContainer.children).filter((element) =>
+      element.classList.contains("Credits") || element.classList.contains("LyricsProvider"),
+    ),
+    songInfoElement,
+  ];
+  const isPinnedFooter = LyricsContainer.classList.contains("LyricsPinnedFooter");
+  const targetOpacities = new Map(
+    communityCreditElements.map((element) => [element, getComputedStyle(element).opacity]),
+  );
+  communityCreditElements.forEach((element) => {
+    const creditElement = element as HTMLElement;
+    creditElement.style.opacity = "0";
+    creditElement.style.transition = isPinnedFooter
+      ? "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1)"
+      : "opacity 120ms ease";
+    if (isPinnedFooter) creditElement.style.transform = "translateY(4px)";
+  });
 
   let creditsRevealed = false;
   const revealCredits = () => {
     if (creditsRevealed) return;
     creditsRevealed = true;
-    songInfoElement.style.opacity = "1";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      communityCreditElements.forEach((element) => {
+        const creditElement = element as HTMLElement;
+        creditElement.style.opacity = targetOpacities.get(element) ?? "1";
+        if (isPinnedFooter) creditElement.style.transform = "translateY(0)";
+      });
+    }));
   };
+
+  if (!data.TTMLUploadMetadata) {
+    setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
+    return;
+  }
 
   const updateDiscordUsername = (
     userId: string | undefined,

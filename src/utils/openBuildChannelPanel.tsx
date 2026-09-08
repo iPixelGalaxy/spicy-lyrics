@@ -1,7 +1,6 @@
-import ReactDOM from "react-dom/client";
-import { flushSync } from "react-dom";
 import { PopupModal } from "../components/Modal.ts";
 import BuildChannelPanel from "../components/ReactComponents/BuildChannelPanel.tsx";
+import { createReactModalContent } from "./reactModalContent.tsx";
 
 export function OpenBuildChannelPanel() {
   const entrypointChannels = (window as any)._spicy_lyrics_channels;
@@ -10,18 +9,10 @@ export function OpenBuildChannelPanel() {
     return;
   }
 
-  const container = PopupModal.ownerDocument.createElement("div");
-  const root = ReactDOM.createRoot(container);
-
-  flushSync(() => {
-    root.render(<BuildChannelPanel />);
-  });
-
   const options = {
     title: "Build Channel",
-    content: container,
+    ...createReactModalContent(<BuildChannelPanel />),
     modalId: "buildChannelPanel",
-    onClose: () => root.unmount(),
   };
 
   if (PopupModal.isConnected) {

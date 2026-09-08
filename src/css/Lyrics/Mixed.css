@@ -206,14 +206,14 @@
   transform-origin: right center;
 }
 
-/* Any syllable can start a wrapped row; :first-child only covers the first row.
-   Anchor every scaled token at its text edge, inside the 0.3em overhang padding.
-   Nested emphasis letters need the same origin as their scaled parent group. */
+/* The virtualizer marks actual wrapped-row starts using unscaled layout offsets.
+   Only those tokens anchor inside the overhang padding; interior words retain
+   their original centered/split-word animation origins. */
 #SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line:not(.rtl, .OppositeAligned, .musical-line)
-  :is(.word, .letterGroup, .letter) {
+  :is(.word, .letterGroup, .letter).LyricsRowStart {
   transform-origin: 0.3em center;
 }
 

@@ -7,6 +7,7 @@
 import PageView from "../Pages/PageView.ts";
 import Fullscreen from "./Fullscreen.ts";
 import { IsPIP, _IsPIP_after, IsPIPOpening } from "./PopupLyrics.ts";
+import { IsExternalCinemaLyrics, IsExternalCinemaOpening } from "./ExternalCinemaLyrics.ts";
 import Session from "../Global/Session.ts";
 import Global from "../Global/Global.ts";
 import { Icons } from "../Styling/Icons.ts";
@@ -17,9 +18,11 @@ import {
   $currentLyricsData,
   $disableNpvLyrics,
   $hideNpvLyricsWhenUnavailable,
+  $lyricsRendererPaused,
 } from "../../utils/stores.ts";
-import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
+import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
 import Logger from "../../utils/Logger.ts";
+import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 
 const cardLogger = new Logger("NPV Lyrics");
 
@@ -96,6 +99,8 @@ function desiredState(): CardState {
     IsPIP ||
     _IsPIP_after ||
     IsPIPOpening ||
+    IsExternalCinemaLyrics ||
+    IsExternalCinemaOpening ||
     Fullscreen.IsOpen ||
     Fullscreen.CinemaViewOpen ||
     Spicetify.Platform.History.location.pathname === "/SpicyLyrics";
@@ -105,6 +110,7 @@ function desiredState(): CardState {
 }
 
 async function teardownCard(): Promise<void> {
+  $lyricsRendererPaused.set(false);
   if (cardOwnsPage) {
     // Drop ownership first so PageView's card guard doesn't recurse into us.
     cardOwnsPage = false;
@@ -235,6 +241,15 @@ function refreshCardUI(): void {
       toggle.innerHTML = open ? Icons.Collapse : Icons.Uncollapse;
       setTooltip(toggle, open ? "Hide Lyrics" : "Show Lyrics", "toggle-tip");
     }
+
+    if (cardOwnsPage) {
+      $lyricsRendererPaused.set(!open);
+      if (open) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => triggerRemeasureLV());
+        });
+      }
+    }
   }
   if (lastExpanded !== expanded) {
     lastExpanded = expanded;
@@ -295,14 +310,24 @@ function renderCardShell(npv: HTMLElement): boolean {
   const toggle = cardEl.querySelector<HTMLElement>("#NPVCardToggle");
   if (toggle) {
     toggle.addEventListener("click", () => {
-      animateStateChange(() => {
-        const open = $npvLyricsOpen.get();
-        // Collapsing an expanded card exits expanded mode for good — reopening
-        // shows the normal card again.
-        if (open && $npvLyricsExpanded.get()) $npvLyricsExpanded.set(false);
-        $npvLyricsOpen.set(!open);
-        refreshCardUI();
-      });
+      const open = $npvLyricsOpen.get();
+      // Collapsing an expanded card exits expanded mode for good — reopening
+      // shows the normal card again. The compact chevron deliberately skips
+      // the card-size FLIP animation so its observers never animate a live
+      // lyrics renderer through a zero-height transition.
+      if (open && $npvLyricsExpanded.get()) $npvLyricsExpanded.set(false);
+      $npvLyricsOpen.set(!open);
+      refreshCardUI();
+
+      if (!open && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        cardBodyEl?.animate(
+          [
+            { opacity: 0, transform: "translateY(-4px)" },
+            { opacity: 1, transform: "none" },
+          ],
+          { duration: 180, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+        );
+      }
     });
   }
 
@@ -349,8 +374,9 @@ async function reconcile(): Promise<void> {
     cardOwnsPage = true;
     await PageView.Open(cardBodyEl, { cardMode: true });
   } else if (desired === "SHELL" && cardOwnsPage) {
-    cardOwnsPage = false;
-    await PageView.Destroy();
+    // Keep the global page, SimpleBar, and virtualizer mounted while the
+    // compact card is hidden. The renderer is paused by refreshCardUI and
+    // resumes without a fetch or DOM rebuild when the chevron reopens it.
     refreshCardUI();
   } else {
     refreshCardUI();

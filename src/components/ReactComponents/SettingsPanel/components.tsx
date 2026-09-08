@@ -13,6 +13,7 @@ export function Row({
   children,
   disabled,
   disabledReason,
+  labelAccessory,
   stacked,
 }: {
   label: string;
@@ -20,6 +21,7 @@ export function Row({
   children: React.ReactNode;
   disabled?: boolean;
   disabledReason?: string;
+  labelAccessory?: React.ReactNode;
   stacked?: boolean;
 }) {
   return (
@@ -27,7 +29,10 @@ export function Row({
       className={`sl-sp-row sl-list-row${disabled ? " sl-sp-row--disabled" : ""}${stacked ? " sl-sp-row--stacked" : ""}`}
     >
       <div className="sl-sp-label-wrap">
-        <span className="sl-sp-label">{label}</span>
+        <span className="sl-sp-label-line">
+          <span className="sl-sp-label">{label}</span>
+          {labelAccessory}
+        </span>
         {description && <span className="sl-sp-description">{description}</span>}
       </div>
       <div className="sl-sp-control">{children}</div>
@@ -68,19 +73,26 @@ export function Select({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const selectedLabel = labels?.[options.indexOf(value)] ?? value;
+
   return (
-    <select
-      className="sl-sp-select"
-      value={value}
-      onChange={(e) => onChange(e.currentTarget.value)}
-      disabled={disabled}
-    >
-      {options.map((opt, i) => (
-        <option key={opt} value={opt}>
-          {labels?.[i] ?? opt}
-        </option>
-      ))}
-    </select>
+    <span className="sl-sp-select-wrap">
+      <span className="sl-sp-select-sizer" aria-hidden="true">
+        {selectedLabel}
+      </span>
+      <select
+        className="sl-sp-select"
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        disabled={disabled}
+      >
+        {options.map((opt, i) => (
+          <option key={opt} value={opt}>
+            {labels?.[i] ?? opt}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 
@@ -269,15 +281,18 @@ export function FilterDropdown({
     const btn = btnRef.current;
     if (!btn) return;
     const rect = btn.getBoundingClientRect();
+    const targetWindow = btn.ownerDocument.defaultView ?? window;
     setCoords({
       top: rect.bottom + 6,
-      right: window.innerWidth - rect.right,
+      right: targetWindow.innerWidth - rect.right,
     });
   }, []);
 
   useEffect(() => {
     if (!open) return;
     updateCoords();
+    const targetDocument = btnRef.current?.ownerDocument ?? document;
+    const targetWindow = targetDocument.defaultView ?? window;
     const handler = (e: MouseEvent) => {
       const target = e.target as Node;
       if (wrapRef.current?.contains(target)) return;
@@ -285,21 +300,21 @@ export function FilterDropdown({
       setOpen(false);
     };
     const onReflow = () => updateCoords();
-    document.addEventListener("mousedown", handler);
-    window.addEventListener("resize", onReflow);
-    window.addEventListener("scroll", onReflow, true);
+    targetDocument.addEventListener("mousedown", handler);
+    targetWindow.addEventListener("resize", onReflow);
+    targetWindow.addEventListener("scroll", onReflow, true);
     return () => {
-      document.removeEventListener("mousedown", handler);
-      window.removeEventListener("resize", onReflow);
-      window.removeEventListener("scroll", onReflow, true);
+      targetDocument.removeEventListener("mousedown", handler);
+      targetWindow.removeEventListener("resize", onReflow);
+      targetWindow.removeEventListener("scroll", onReflow, true);
     };
   }, [open, updateCoords]);
 
   const allOptions = ["All", ...sections];
 
   const portalTarget =
-    open && typeof document !== "undefined"
-      ? (document.querySelector(
+    open && btnRef.current
+      ? (btnRef.current.ownerDocument.querySelector(
           "sl-generic-modal.SpicyLyricsModal .sl-modal-overlay"
         ) as HTMLElement | null)
       : null;

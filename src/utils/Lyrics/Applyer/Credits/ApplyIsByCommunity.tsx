@@ -1,9 +1,16 @@
 import { IsPIP } from "../../../../components/Utils/PopupLyrics.ts";
+import {
+  closeIframeProfileModal,
+  showIframeProfileModal,
+} from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
 
-export function CleanUpIsByCommunity() {
+export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
+  if (closeProfileModal) {
+    closeIframeProfileModal();
+  }
   if (isByCommunityAbortController) {
     isByCommunityAbortController.abort();
     isByCommunityAbortController = null;
@@ -19,13 +26,20 @@ export function CleanUpIsByCommunity() {
 
 function openProfile(userId: string | undefined) {
   if (!userId) return;
+  if (!IsPIP) {
+    showIframeProfileModal(userId, PageDocument);
+    return;
+  }
   const url = `https://spicylyrics.org/uid/${encodeURIComponent(userId)}`;
   globalThis.open?.(url, "_blank", "noopener,noreferrer");
 }
 
+let PageDocument: Document = document;
+
 export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): void {
   if (!data.source || !LyricsContainer) return;
   if (data.source !== "spl") return;
+  PageDocument = LyricsContainer.ownerDocument;
 
   // Clean up any previous listeners before adding new ones
   if (isByCommunityAbortController) {
@@ -44,15 +58,8 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   isByCommunityAbortController = new AbortController();
   const { signal } = isByCommunityAbortController;
 
-  const songInfoElement = document.createElement("div");
+  const songInfoElement = PageDocument.createElement("div");
   songInfoElement.classList.add("SongInfo");
-
-  // Static copy – safe to set as text
-  const providedByCommunitySpan = document.createElement("span");
-  providedByCommunitySpan.style.opacity = "0.5";
-  providedByCommunitySpan.textContent =
-    "These lyrics have been provided by our community";
-  songInfoElement.appendChild(providedByCommunitySpan);
 
   const makerUsername = data.TTMLUploadMetadata?.Maker?.username;
   const makerAvatar = data.TTMLUploadMetadata?.Maker?.avatar;
@@ -66,30 +73,30 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     username: string,
     avatarUrl?: string
   ) => {
-    const wrapperSpan = document.createElement("span");
+    const wrapperSpan = PageDocument.createElement("span");
     wrapperSpan.classList.add(type);
 
-    const innerSpan = document.createElement("span");
+    const innerSpan = PageDocument.createElement("span");
 
-    const labelSpan = document.createElement("span");
+    const labelSpan = PageDocument.createElement("span");
     labelSpan.style.opacity = "0.5";
     labelSpan.textContent = `${labelText} `;
 
-    const profileSectionSpan = document.createElement("span");
+    const profileSectionSpan = PageDocument.createElement("span");
     profileSectionSpan.classList.add("song-info-profile-section");
 
     // "@username"
-    const atText = document.createTextNode("@");
+    const atText = PageDocument.createTextNode("@");
     profileSectionSpan.appendChild(atText);
 
-    const usernameSpan = document.createElement("span");
+    const usernameSpan = PageDocument.createElement("span");
     usernameSpan.textContent = username;
     profileSectionSpan.appendChild(usernameSpan);
 
     // Optional avatar image
     if (avatarUrl) {
-      const avatarWrapper = document.createElement("span");
-      const img = document.createElement("img");
+      const avatarWrapper = PageDocument.createElement("span");
+      const img = PageDocument.createElement("img");
       img.src = avatarUrl;
       img.alt = `${username}'s avatar`;
       img.onerror = () => {
@@ -124,6 +131,9 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
       madeTippys.add(
         Spicetify.Tippy(uploaderSpan, {
           ...Spicetify.TippyProps,
+          ...(uploaderSpan.ownerDocument === document
+            ? {}
+            : { appendTo: () => uploaderSpan.ownerDocument.body }),
           content: `View TTML Profile`,
         })
       )
@@ -146,6 +156,9 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
       madeTippys.add(
         Spicetify.Tippy(makerSpan, {
           ...Spicetify.TippyProps,
+          ...(makerSpan.ownerDocument === document
+            ? {}
+            : { appendTo: () => makerSpan.ownerDocument.body }),
           content: `View TTML Profile`,
         })
       )

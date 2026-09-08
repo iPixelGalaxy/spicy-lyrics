@@ -19,6 +19,7 @@ export function useTracks(uris: string[]): UseTracksResult {
     if (uris.length === 0) {
       setTracksByUri(new Map());
       setLoading(false);
+      setError(null);
       return;
     }
 

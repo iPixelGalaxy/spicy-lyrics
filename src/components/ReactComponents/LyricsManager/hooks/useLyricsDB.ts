@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LocalLyricsManager } from "../../../../utils/Lyrics/manager";
 import { $currentLyricsData } from "../../../../utils/stores";
-import ApplyLyrics from "../../../../utils/Lyrics/Global/Applyer";
+import { ApplyLyricsIfCurrent } from "../../../../utils/Lyrics/Global/Applyer";
 import fetchLyrics from "../../../../utils/Lyrics/fetchLyrics";
 import { SpotifyPlayer } from "../../../Global/SpotifyPlayer";
 
@@ -40,8 +40,12 @@ export function useLyricsDB(): UseLyricsDBResult {
     if (SpotifyPlayer.GetUri() === uri) {
       $currentLyricsData.set("");
       setTimeout(() => {
+        if (SpotifyPlayer.GetUri() !== uri) return;
         fetchLyrics(uri)
-          .then(ApplyLyrics);
+          .then((lyrics) => ApplyLyricsIfCurrent(uri, lyrics))
+          .catch((error) => {
+            console.error("Spicy Lyrics: could not refresh lyrics after deleting local TTML", error);
+          });
       }, 25);
     }
     await refresh();

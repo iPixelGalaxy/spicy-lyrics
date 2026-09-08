@@ -15,8 +15,10 @@ export class SongProgressBar {
     }
 
     // Both duration and position are expected to be in milliseconds
-    this.duration = params.duration;
-    this.position = Math.min(params.position, this.duration);
+    this.duration = Number.isFinite(params.duration) ? Math.max(0, params.duration) : 0;
+    this.position = Number.isFinite(params.position)
+      ? Math.max(0, Math.min(params.position, this.duration))
+      : 0;
   }
 
   Destroy(): void {
@@ -44,6 +46,7 @@ export class SongProgressBar {
     if (this.duration <= 0) return 0;
 
     const rect = sliderBar.getBoundingClientRect();
+    if (rect.width <= 0 || !Number.isFinite(event.clientX)) return this.position;
     const clickX = event.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, clickX / rect.width));
 

@@ -556,6 +556,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           console.error("Could not find SliderBar element");
           return null;
         }
+        SliderBar.style.touchAction = "none";
 
         // Track dragging state
         let isDragging = false;
@@ -563,6 +564,8 @@ function OpenNowBar(skipSaving: boolean = false) {
         let dragFrame: number | null = null;
         let pendingDragPercentage: number | null = null;
         let draggingDurationMs = 0;
+        let draggingUri: string | undefined;
+        let previousUserSelect = "";
         const timelineDocument = TimelineElem.ownerDocument;
         const timelineWindow = timelineDocument.defaultView ?? window;
 
@@ -602,6 +605,8 @@ function OpenNowBar(skipSaving: boolean = false) {
         };
 
         const sliderBarHandler = (event: MouseEvent) => {
+          // Physical clicks already seek on release; retain synthetic activation.
+          if (event.detail > 0) return;
           // Direct use of the SliderBar element for click calculation
           const positionMs = songProgressBar.CalculatePositionFromClick({
             sliderBar: SliderBar,
@@ -617,20 +622,27 @@ function OpenNowBar(skipSaving: boolean = false) {
         // Add drag functionality
 
         const handleDragStart = (event: MouseEvent | TouchEvent | PointerEvent) => {
-          event.preventDefault();
+          if (isDragging || ("button" in event && event.button !== 0)) return;
+          if (event.cancelable) event.preventDefault();
           isDragging = true;
-          draggingDurationMs = SpotifyPlayer.GetDuration() ?? 0;
+          const duration = SpotifyPlayer.GetDuration() ?? 0;
+          draggingDurationMs = Number.isFinite(duration) ? Math.max(0, duration) : 0;
+          draggingUri = SpotifyPlayer.GetUri();
           SliderBar.classList.add("Dragging");
+          previousUserSelect = timelineDocument.body.style.userSelect;
           timelineDocument.body.style.userSelect = "none";
           SetControlsDragLock(true);
 
           // Add the event listeners for drag movement and end
           timelineDocument.addEventListener("mousemove", handleDragMove);
-          timelineDocument.addEventListener("touchmove", handleDragMove);
+          timelineDocument.addEventListener("touchmove", handleDragMove, { passive: false });
           timelineDocument.addEventListener("mouseup", handleDragEnd);
           timelineDocument.addEventListener("touchend", handleDragEnd);
           timelineDocument.addEventListener("pointermove", handleDragMove);
           timelineDocument.addEventListener("pointerup", handleDragEnd);
+          timelineDocument.addEventListener("touchcancel", handleDragCancel);
+          timelineDocument.addEventListener("pointercancel", handleDragCancel);
+          timelineWindow.addEventListener("blur", handleDragCancel);
 
           // Emit event that dragging has started
           Global.Event.evoke("nowbar:timeline:dragging", { isDragging: true });
@@ -662,7 +674,11 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         const handleDragMove = (event: MouseEvent | TouchEvent | PointerEvent) => {
           if (!isDragging) return;
-          event.preventDefault();
+          if (SpotifyPlayer.GetUri() !== draggingUri) {
+            handleDragCancel();
+            return;
+          }
+          if (event.cancelable) event.preventDefault();
 
           // Get the mouse/touch position
           let clientX: number;
@@ -673,6 +689,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
 
           const rect = SliderBar.getBoundingClientRect();
+          if (rect.width <= 0 || !Number.isFinite(clientX)) return;
           const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
           pendingDragPercentage = percentage;
@@ -681,12 +698,13 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
         };
 
-        const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent) => {
-          if (!isDragging) return;
-          event.preventDefault();
-          isDragging = false;
-          SliderBar.classList.remove("Dragging");
-          timelineDocument.body.style.userSelect = "";
+        const releaseDrag = () => {
+          if (isDragging) {
+            isDragging = false;
+            SliderBar.classList.remove("Dragging");
+            timelineDocument.body.style.userSelect = previousUserSelect;
+            SetControlsDragLock(false);
+          }
 
           // Remove the event listeners
           timelineDocument.removeEventListener("mousemove", handleDragMove);
@@ -695,10 +713,31 @@ function OpenNowBar(skipSaving: boolean = false) {
           timelineDocument.removeEventListener("touchend", handleDragEnd);
           timelineDocument.removeEventListener("pointermove", handleDragMove);
           timelineDocument.removeEventListener("pointerup", handleDragEnd);
+          timelineDocument.removeEventListener("touchcancel", handleDragCancel);
+          timelineDocument.removeEventListener("pointercancel", handleDragCancel);
+          timelineWindow.removeEventListener("blur", handleDragCancel);
           if (dragFrame !== null) {
             timelineWindow.cancelAnimationFrame(dragFrame);
             dragFrame = null;
           }
+          dragPositionMs = null;
+          pendingDragPercentage = null;
+        };
+
+        const handleDragCancel = () => {
+          if (!isDragging) return;
+          releaseDrag();
+          Global.Event.evoke("nowbar:timeline:dragging", { isDragging: false });
+          updateTimelineState();
+        };
+
+        const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent) => {
+          if (!isDragging) return;
+          if (SpotifyPlayer.GetUri() !== draggingUri) {
+            handleDragCancel();
+            return;
+          }
+          if (event.cancelable) event.preventDefault();
 
           // Get the final position
           let clientX: number;
@@ -709,12 +748,15 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
 
           const rect = SliderBar.getBoundingClientRect();
+          if (rect.width <= 0 || !Number.isFinite(clientX)) {
+            handleDragCancel();
+            return;
+          }
           const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
           // Calculate the position in milliseconds
-          const positionMs = Math.floor(percentage * (SpotifyPlayer.GetDuration() ?? 0));
-          dragPositionMs = null; // Clear drag position
-          pendingDragPercentage = null;
+          const positionMs = Math.floor(percentage * draggingDurationMs);
+          releaseDrag();
 
           // Emit event that dragging has ended with final position
           Global.Event.evoke("nowbar:timeline:dragging", {
@@ -731,37 +773,25 @@ function OpenNowBar(skipSaving: boolean = false) {
 
           // After seeking, update the timeline state to reflect the new position
           updateTimelineState();
-
-          SetControlsDragLock(false);
         };
 
         const timelineMaid = new Maid();
 
         // Add event listeners for drag
         SliderBar.addEventListener("mousedown", handleDragStart);
-        SliderBar.addEventListener("touchstart", handleDragStart);
+        SliderBar.addEventListener("touchstart", handleDragStart, { passive: false });
         SliderBar.addEventListener("pointerdown", handleDragStart);
 
-        // Keep the click handler for simple clicks
+        // Synthetic activation has no pointer release to handle the seek.
         SliderBar.addEventListener("click", sliderBarHandler);
 
         timelineMaid.Give(() => {
+          handleDragCancel();
+          releaseDrag();
           SliderBar.removeEventListener("click", sliderBarHandler);
           SliderBar.removeEventListener("mousedown", handleDragStart);
           SliderBar.removeEventListener("touchstart", handleDragStart);
           SliderBar.removeEventListener("pointerdown", handleDragStart);
-          timelineDocument.removeEventListener("mousemove", handleDragMove);
-          timelineDocument.removeEventListener("touchmove", handleDragMove);
-          timelineDocument.removeEventListener("mouseup", handleDragEnd);
-          timelineDocument.removeEventListener("touchend", handleDragEnd);
-          timelineDocument.removeEventListener("pointermove", handleDragMove);
-          timelineDocument.removeEventListener("pointerup", handleDragEnd);
-          if (isDragging) {
-            isDragging = false;
-            SliderBar.classList.remove("Dragging");
-            timelineDocument.body.style.userSelect = "";
-            SetControlsDragLock(false);
-          }
         });
 
         // Run initial update

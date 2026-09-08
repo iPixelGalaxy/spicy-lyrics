@@ -185,36 +185,54 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     ),
     songInfoElement,
   ];
-  const isPinnedFooter = LyricsContainer.classList.contains("LyricsPinnedFooter");
-  const targetOpacities = new Map(
-    communityCreditElements.map((element) => [element, getComputedStyle(element).opacity]),
-  );
-  communityCreditElements.forEach((element) => {
-    const creditElement = element as HTMLElement;
+  const creditWindow = LyricsContainer.ownerDocument.defaultView ?? window;
+  const reducedMotion = creditWindow.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const creditStates = communityCreditElements.map((element) => ({
+    element: element as HTMLElement,
+    opacity: creditWindow.getComputedStyle(element).opacity,
+    slide: !reducedMotion && element.closest(".LyricsPinnedFooter") !== null,
+  }));
+  creditStates.forEach(({ element: creditElement, slide }) => {
+    // Commit the hidden starting state without transitioning away from visible.
+    creditElement.style.transition = "none";
     creditElement.style.opacity = "0";
-    creditElement.style.transition = isPinnedFooter
-      ? "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1)"
-      : "opacity 120ms ease";
-    if (isPinnedFooter) creditElement.style.transform = "translateY(4px)";
+    if (slide) creditElement.style.transform = "translateY(4px)";
   });
 
   let creditsRevealed = false;
+  let revealFrame: number | null = null;
+  let revealTimer: number | null = null;
+  signal.addEventListener("abort", () => {
+    if (revealFrame !== null) creditWindow.cancelAnimationFrame(revealFrame);
+    if (revealTimer !== null) creditWindow.clearTimeout(revealTimer);
+  }, { once: true });
+
   const revealCredits = () => {
-    if (creditsRevealed) return;
+    if (creditsRevealed || signal.aborted) return;
     creditsRevealed = true;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      communityCreditElements.forEach((element) => {
-        const creditElement = element as HTMLElement;
-        creditElement.style.opacity = targetOpacities.get(element) ?? "1";
-        if (isPinnedFooter) creditElement.style.transform = "translateY(0)";
+    if (revealTimer !== null) {
+      creditWindow.clearTimeout(revealTimer);
+      revealTimer = null;
+    }
+    revealFrame = creditWindow.requestAnimationFrame(() => {
+      if (signal.aborted) return;
+      revealFrame = creditWindow.requestAnimationFrame(() => {
+        revealFrame = null;
+        if (signal.aborted) return;
+        creditStates.forEach(({ element, opacity, slide }) => {
+          if (!element.isConnected) return;
+          element.style.transition = slide
+            ? "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1)"
+            : "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1)";
+          element.style.opacity = opacity;
+          if (slide) element.style.transform = "translateY(0)";
+        });
       });
-    }));
+    });
   };
 
-  if (!data.TTMLUploadMetadata) {
-    setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
-    return;
-  }
+  revealTimer = creditWindow.setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
+  if (!data.TTMLUploadMetadata) return;
 
   const updateDiscordUsername = (
     userId: string | undefined,
@@ -239,8 +257,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     updateDiscordUsername(data.TTMLUploadMetadata?.Maker?.id, makerUsernameSpan, makerDisplayName),
     updateDiscordUsername(data.TTMLUploadMetadata?.Uploader?.id, uploaderUsernameSpan, uploaderDisplayName),
   ];
-  void Promise.all(profileUpdates).then(revealCredits);
-  setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
+  void Promise.allSettled(profileUpdates).then(revealCredits);
 
   const uploaderSpan = songInfoElement.querySelector<HTMLElement>(".Uploader .song-info-profile-section");
   if (uploaderSpan) {

@@ -20,13 +20,13 @@
   initial-value: 0px;
 }
 
-#property --SL-LyricsContent_MaskBottomFadeStart {
+@property --SL-LyricsContent_MaskBottomFadeStart {
   syntax: "<length>";
   inherits: true;
   initial-value: 64px;
 }
 
-#property --SL-LyricsContent_MaskBottomFadeEnd {
+@property --SL-LyricsContent_MaskBottomFadeEnd {
   syntax: "<length>";
   inherits: true;
   initial-value: 16px;
@@ -161,7 +161,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   --SL-LyricsContent_MaskBottomFadeEnd: var(--SL-PinnedFooterTrackBottom, 0px);
 }
 
-#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.LyricsScrollAtBottom {
+#SpicyLyricsPage:not(.PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.LyricsScrollAtBottom {
   --SL-LyricsContent_MaskBottomFadeStart: 0px;
   --SL-LyricsContent_MaskBottomFadeEnd: 0px;
 }

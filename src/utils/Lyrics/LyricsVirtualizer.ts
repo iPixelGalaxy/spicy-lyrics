@@ -150,6 +150,13 @@ class LyricsVirtualizer {
     return Math.min(24, Math.max(8, clientHeight * 0.03));
   }
 
+  private _syncBottomMask = (): void => {
+    const scrollEl = this._scrollEl;
+    if (!scrollEl?.isConnected) return;
+    const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
+    scrollEl.closest<HTMLElement>(".LyricsContent")?.classList.toggle("LyricsScrollAtBottom", atBottom);
+  };
+
   private _updatePinnedFooterLayout(): void {
     const virtualContainer = this._virtualContainer;
     if (!virtualContainer) return;
@@ -205,7 +212,7 @@ class LyricsVirtualizer {
     const terminalBottomAtMaxScroll =
       scrollRect.top + containerOffset + lastMeasurement.end -
       Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-    const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - 32;
+    const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - fadeHeight;
 
     const currentMargin = parseFloat(getComputedStyle(scrollContainer).marginBottom);
     if (!Number.isFinite(currentMargin)) return;
@@ -445,16 +452,14 @@ class LyricsVirtualizer {
     this._scrollEl = scrollEl;
 
     const lyricsContent = scrollEl.closest<HTMLElement>(".LyricsContent");
-    const syncBottomMask = () => {
-      const atBottom = scrollEl.scrollTop + scrollEl.clientHeight >= scrollEl.scrollHeight - 1;
-      lyricsContent?.classList.toggle("LyricsScrollAtBottom", atBottom);
-    };
-    scrollEl.addEventListener("scroll", syncBottomMask, { passive: true });
+    scrollEl.addEventListener("scroll", this._syncBottomMask, { passive: true });
     this._maid.Give(() => {
-      scrollEl.removeEventListener("scroll", syncBottomMask);
+      scrollEl.removeEventListener("scroll", this._syncBottomMask);
       lyricsContent?.classList.remove("LyricsScrollAtBottom");
     });
-    requestAnimationFrame(syncBottomMask);
+    requestAnimationFrame(() => {
+      if (this._scrollEl === scrollEl) this._syncBottomMask();
+    });
 
     const containerWidth = scrollEl.clientWidth || virtualContainer.clientWidth || 0;
     this._containerWidth = containerWidth;
@@ -532,8 +537,12 @@ class LyricsVirtualizer {
     if (footerLayer) {
       this._pinnedFooterObserver = this._maid!.Give(new ResizeObserver(() => {
         this._updatePinnedFooterLayout();
+        this._syncBottomMask();
       }));
       this._pinnedFooterObserver.observe(footerLayer);
+      if (virtualContainer.parentElement) {
+        this._pinnedFooterObserver.observe(virtualContainer.parentElement);
+      }
     }
 
     this._virtualizer = new Virtualizer<HTMLElement, HTMLElement>({
@@ -558,6 +567,7 @@ class LyricsVirtualizer {
     }
     this._virtualizer._willUpdate();
     this._updatePinnedFooterLayout();
+    this._syncBottomMask();
 
     if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
@@ -831,6 +841,7 @@ class LyricsVirtualizer {
       });
     }
     this._updatePinnedFooterLayout();
+    this._syncBottomMask();
   }
 
   getVirtualizer(): Virtualizer<HTMLElement, HTMLElement> | null {

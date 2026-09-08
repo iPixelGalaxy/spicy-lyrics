@@ -9,6 +9,7 @@ const DEFAULT_API_HOST = CHANNEL_MAP.Stable[0];
 const DEFAULT_STORAGE_HOST = CHANNEL_MAP.Stable[1];
 
 const LS_PREFIX = "SpicyLyrics-";
+const CHANNELS_CHANGED_EVENT = "spicy-lyrics:channels-changed";
 const lsGet = (key) => Spicetify.LocalStorage.get(`${LS_PREFIX}${key}`);
 const lsSet = (key, value) => Spicetify.LocalStorage.set(`${LS_PREFIX}${key}`, value);
 
@@ -33,13 +34,29 @@ const getCustomChannels = () => {
   return {};
 };
 
-const saveCustomChannels = (channels) => lsSet("customChannels", JSON.stringify(channels));
+const saveCustomChannels = (channels) => {
+  lsSet("customChannels", JSON.stringify(channels));
+  window.dispatchEvent(new Event(CHANNELS_CHANGED_EVENT));
+};
 
 const getFullChannelMap = () => ({ ...CHANNEL_MAP, ...getCustomChannels() });
 
 const getCurrentChannel = () => lsGet("buildChannel") ?? "Stable";
 
-const setCurrentChannel = (name) => lsSet("buildChannel", name);
+const setCurrentChannel = (name) => {
+  lsSet("buildChannel", name);
+  window.dispatchEvent(new Event(CHANNELS_CHANGED_EVENT));
+};
+
+const moveCustomChannel = (name, direction) => {
+  const channels = getCustomChannels();
+  const names = Object.keys(channels);
+  const index = names.indexOf(name);
+  const nextIndex = index + direction;
+  if (index < 0 || nextIndex < 0 || nextIndex >= names.length) return;
+  [names[index], names[nextIndex]] = [names[nextIndex], names[index]];
+  saveCustomChannels(Object.fromEntries(names.map((channelName) => [channelName, channels[channelName]])));
+};
 
 // ─── Style injection ───
 // The entrypoint runs independently of the plugin bundle, so it injects its
@@ -349,6 +366,7 @@ const showAddCustomChannel = () => {
 const showChannelManager = () => {
   const channels = getFullChannelMap();
   const names = Object.keys(channels);
+  const customNames = Object.keys(getCustomChannels());
   const selected = getCurrentChannel();
 
   showPanel("Manage Branches", (scroll, close) => {
@@ -368,6 +386,30 @@ const showChannelManager = () => {
 
       const actions = document.createElement("div");
       actions.style.cssText = "display:flex;gap:8px;align-items:center;";
+      const customIndex = customNames.indexOf(name);
+      if (customNames.length > 1 && customIndex >= 0) {
+        const upBtn = makeBtn("↑");
+        upBtn.style.cssText = "padding:7px 9px;";
+        upBtn.disabled = customIndex === 0;
+        upBtn.title = "Move up";
+        upBtn.setAttribute("aria-label", `Move ${name} up`);
+        upBtn.addEventListener("click", () => {
+          moveCustomChannel(name, -1);
+          close();
+          setTimeout(showChannelManager, 100);
+        });
+        const downBtn = makeBtn("↓");
+        downBtn.style.cssText = "padding:7px 9px;";
+        downBtn.disabled = customIndex === customNames.length - 1;
+        downBtn.title = "Move down";
+        downBtn.setAttribute("aria-label", `Move ${name} down`);
+        downBtn.addEventListener("click", () => {
+          moveCustomChannel(name, 1);
+          close();
+          setTimeout(showChannelManager, 100);
+        });
+        actions.append(upBtn, downBtn);
+      }
       if (name === selected) {
         const selectedBtn = makeBtn("Selected");
         selectedBtn.disabled = true;
@@ -494,6 +536,10 @@ const registerChannelSettings = () => {
   };
   channelSettingsObserver = new MutationObserver(scheduleRender);
   channelSettingsObserver.observe(document.body, { childList: true, subtree: true });
+  window.addEventListener(CHANNELS_CHANGED_EVENT, () => {
+    document.getElementById(CHANNEL_SETTING_ROW_ID)?.remove();
+    scheduleRender();
+  });
   scheduleRender();
 };
 

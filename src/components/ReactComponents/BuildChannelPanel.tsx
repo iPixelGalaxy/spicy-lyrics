@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { $buildChannel } from "../../utils/stores.ts";
 
 type ChannelHosts = [string, string] | [string, string, string];
@@ -7,6 +7,7 @@ type ChannelMap = Record<string, ChannelHosts>;
 
 const LEGACY_PREFIX = "SpicyLyrics-";
 const CUSTOM_CHANNELS_KEY = "customChannels";
+const CHANNELS_CHANGED_EVENT = "spicy-lyrics:channels-changed";
 const DEFAULT_API_HOST = "api.spicylyrics.org";
 const DEFAULT_STORAGE_HOST = "public.storage.spicylyrics.org";
 
@@ -52,6 +53,7 @@ function readCustomChannels(): ChannelMap {
 
 function saveCustomChannels(channels: ChannelMap): void {
   legacySet(CUSTOM_CHANNELS_KEY, JSON.stringify(channels));
+  window.dispatchEvent(new Event(CHANNELS_CHANGED_EVENT));
 }
 
 function getInitialChannel(fallback: string): string {
@@ -61,6 +63,7 @@ function getInitialChannel(fallback: string): string {
 function persistBuildChannel(channel: string): void {
   $buildChannel.set(channel);
   legacySet("buildChannel", channel);
+  window.dispatchEvent(new Event(CHANNELS_CHANGED_EVENT));
 }
 
 function hostSummary(hosts: ChannelHosts): string {
@@ -74,11 +77,20 @@ function isBuiltInChannel(name: string): boolean {
 /** Compact setting control shared by Advanced settings and the channel panel. */
 export function BuildChannelSettingControl({ onManage }: { onManage: () => void }) {
   const buildChannel = useStore($buildChannel);
-  const channelMap = useMemo(
-    () => ({ ...BUILT_IN_CHANNELS, ...readCustomChannels() }),
-    [],
-  );
-  const selectedChannel = channelMap[buildChannel] ? buildChannel : "Stable";
+  const [channelMap, setChannelMap] = useState<ChannelMap>(() => ({
+    ...BUILT_IN_CHANNELS,
+    ...readCustomChannels(),
+  }));
+  useEffect(() => {
+    const refresh = () => {
+      setChannelMap({ ...BUILT_IN_CHANNELS, ...readCustomChannels() });
+      $buildChannel.set(getInitialChannel("Stable"));
+    };
+    window.addEventListener(CHANNELS_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(CHANNELS_CHANGED_EVENT, refresh);
+  }, []);
+  const persistedChannel = getInitialChannel(buildChannel);
+  const selectedChannel = channelMap[persistedChannel] ? persistedChannel : "Stable";
 
   return (
     <div className="sl-sp-btn-group">
@@ -126,8 +138,11 @@ export default function BuildChannelPanel() {
     [customChannels],
   );
 
+  const persistedChannel = getInitialChannel(buildChannel);
+  const activeChannel = channelMap[persistedChannel] ? persistedChannel : "Stable";
   const selectedHosts = channelMap[selectedChannel];
   const branchNames = Object.keys(channelMap);
+  const customNames = Object.keys(customChannels);
 
   const resetForm = () => {
     setName("");
@@ -184,6 +199,19 @@ export default function BuildChannelPanel() {
     }
 
     notify(`Branch "${channelName}" removed`);
+  };
+
+  const moveChannel = (channelName: string, direction: -1 | 1) => {
+    const index = customNames.indexOf(channelName);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= customNames.length) return;
+    const reorderedNames = [...customNames];
+    [reorderedNames[index], reorderedNames[nextIndex]] = [reorderedNames[nextIndex], reorderedNames[index]];
+    const nextChannels = Object.fromEntries(
+      reorderedNames.map((name) => [name, customChannels[name]]),
+    ) as ChannelMap;
+    saveCustomChannels(nextChannels);
+    setCustomChannels(nextChannels);
   };
 
   const applyAndReload = () => {
@@ -246,7 +274,31 @@ export default function BuildChannelPanel() {
                     <span className="sl-build-channel-option-description">{hostSummary(channelMap[channelName])}</span>
                   </span>
                   <span className="sl-build-channel-channel-control">
-                    {channelName === buildChannel ? (
+                    {customNames.length > 1 && customNames.includes(channelName) && (
+                      <>
+                        <button
+                          aria-label={`Move ${channelName} up`}
+                          className="sl-build-channel-secondary"
+                          disabled={customNames.indexOf(channelName) === 0}
+                          onClick={() => moveChannel(channelName, -1)}
+                          title="Move up"
+                          type="button"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          aria-label={`Move ${channelName} down`}
+                          className="sl-build-channel-secondary"
+                          disabled={customNames.indexOf(channelName) === customNames.length - 1}
+                          onClick={() => moveChannel(channelName, 1)}
+                          title="Move down"
+                          type="button"
+                        >
+                          ↓
+                        </button>
+                      </>
+                    )}
+                    {channelName === activeChannel ? (
                       <button className="sl-build-channel-secondary" disabled type="button">
                         Selected
                       </button>
@@ -262,7 +314,7 @@ export default function BuildChannelPanel() {
                         Switch
                       </button>
                     )}
-                    {!isBuiltInChannel(channelName) && channelName !== buildChannel && (
+                    {!isBuiltInChannel(channelName) && channelName !== activeChannel && (
                       <button
                         className="sl-build-channel-danger"
                         onClick={() => removeChannel(channelName)}

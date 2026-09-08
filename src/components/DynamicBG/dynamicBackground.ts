@@ -1,5 +1,4 @@
 import { $staticBackgroundBlur, $staticBackgroundMode } from "../../utils/stores.ts";
-import BlobURLMaker from "../../utils/BlobURLMaker.ts";
 import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import ArtistVisuals from "./ArtistVisuals/Main.ts";
@@ -32,110 +31,94 @@ const animSpeedController = new BackgroundAnimationController();
 
 interface ApplyDynamicBackgroundOpts {
   doTransitionDurationAppendWithPromise?: boolean;
+  forceRecreate?: boolean;
 }
 
-/** How long to wait for a local cover to decode before giving up on the dynamic background. */
-const LOCAL_COVER_DECODE_TIMEOUT_MS = 8000;
+const normalizeCoverUrl = (cover?: string): string => {
+  if (!cover) return "";
+  return cover.replace("spotify:image:", "https://i.scdn.co/image/");
+};
 
-/**
- * A source Kawarp can ingest: a fetchable URL (remote covers) or a decoded Blob
- * (local-file art, which can't be fetched).
- */
-type KawarpSource =
-  | { kind: "url"; value: string }
-  | { kind: "blob"; value: Blob };
+const parseCssImageUrl = (backgroundImage?: string): string => {
+  if (!backgroundImage) return "";
+  const match = backgroundImage.match(/^url\((["']?)(.*)\1\)$/);
+  return match?.[2] ?? "";
+};
 
-/**
- * Rasterize Spotify local-file artwork into a Blob.
- *
- * Local covers are served through the client's `spotify:local:` scheme: they
- * render in `<img>`/CSS but can't be `fetch()`ed (which is how `Kawarp.loadImage`
- * resolves a URL), and WebGL can't sample a raw cross-scheme `<img>` either. We
- * draw the decoded image to a canvas and export it as a same-origin Blob, which
- * `Kawarp.loadBlob` can then sample cleanly.
- *
- * Returns `null` if the art can't be decoded or the canvas is tainted.
- */
-async function rasterizeLocalCover(coverUrl: string): Promise<Blob | null> {
-  if (!coverUrl) return null;
+const getRenderedNowBarCover = (): string => {
+  const mediaImageContainer = PageContainer?.querySelector<HTMLElement>(
+    ".ContentBox .NowBar .Header .MediaBox .MediaImageContainer"
+  );
+  if (!mediaImageContainer) return "";
 
-  const img = new Image();
-  img.decoding = "async";
-  img.src = coverUrl;
+  const lastImageUrl = mediaImageContainer.getAttribute("last-image-url");
+  if (lastImageUrl) return lastImageUrl;
 
-  try {
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      img.decode(),
-      new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("decode timed out")), LOCAL_COVER_DECODE_TIMEOUT_MS);
-      }),
-    ]).finally(() => clearTimeout(timeoutId));
-  } catch (err) {
-    dynamicBgLogger.error("Local cover failed to decode for dynamic background", err);
-    return null;
+  for (const selector of [".fi_FromImage", ".ti_ToImage"]) {
+    const image = mediaImageContainer.querySelector<HTMLElement>(selector);
+    const imageUrl = parseCssImageUrl(image?.style.backgroundImage);
+    if (imageUrl) return imageUrl;
   }
 
-  const width = img.naturalWidth;
-  const height = img.naturalHeight;
-  if (!width || !height) return null;
+  const img = mediaImageContainer.querySelector<HTMLImageElement>("img");
+  return img?.currentSrc || img?.src || "";
+};
 
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return null;
-  ctx.drawImage(img, 0, 0);
+const getDynamicBackgroundCover = (): string => {
+  const renderedCover = SpotifyPlayer.IsLocalTrack() || SpotifyPlayer.IsDJ()
+    ? getRenderedNowBarCover()
+    : "";
+  return normalizeCoverUrl(renderedCover || SpotifyPlayer.GetCover("large"));
+};
 
-  try {
-    return await new Promise<Blob | null>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("toBlob produced no data"))),
-        "image/png"
-      );
-    });
-  } catch (err) {
-    // Thrown when the canvas is tainted (cross-origin art served without CORS).
-    dynamicBgLogger.error("Local cover could not be exported to a blob", err);
-    return null;
+const loadImageElement = (src: string, targetWindow: Window = window): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new (targetWindow as Window & typeof globalThis).Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.src = src;
+  });
+};
+
+const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string, targetDocument: Document = document) => {
+  const targetWindow = targetDocument.defaultView ?? window;
+  if (cover.startsWith("spotify:localfileimage:")) {
+    const img = await loadImageElement(cover, targetWindow);
+    kawarpInstance.loadImageElement(img);
+    return;
   }
-}
 
-/**
- * Resolve a cover into something Kawarp can load. Remote covers pass through as a
- * URL; local-file covers are rasterized to a Blob (see {@link rasterizeLocalCover}).
- */
-async function resolveKawarpSource(coverUrl: string, isLocalCover: boolean): Promise<KawarpSource | null> {
-  if (!isLocalCover) {
-    return { kind: "url", value: coverUrl };
-  }
-  const blob = await rasterizeLocalCover(coverUrl);
-  return blob ? { kind: "blob", value: blob } : null;
-}
+  if (cover.startsWith("blob:") || cover.startsWith("data:image/")) {
+    const response = await fetch(cover);
+    const blob = await response.blob();
+    const bitmap = await (targetWindow.createImageBitmap?.(blob) ?? createImageBitmap(blob));
+    const canvas = targetDocument.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      await kawarpInstance.loadBlob(blob);
+      return;
+    }
 
-/** Load a previously-resolved source into a Kawarp instance. */
-async function loadKawarpSource(kawarp: Kawarp, source: KawarpSource): Promise<void> {
-  if (source.kind === "blob") {
-    await kawarp.loadBlob(source.value);
-  } else {
-    await kawarp.loadImage(source.value);
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    kawarpInstance.loadFromImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    return;
   }
-}
+
+  await kawarpInstance.loadImage(cover);
+};
 
 export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}) {
   if (!element) return;
-  // The NPV lyrics card must stay transparent (the NPV's own background shows
-  // through) — covers every caller that re-applies the page bg (songchange,
-  // static-bg mode changes, etc.).
+  // The NPV lyrics card must stay transparent so the NPV background remains visible.
   if (element.closest("#SpicyLyricsPage.CardMode")) return;
+  const targetDocument = element.ownerDocument ?? document;
+  const targetWindow = targetDocument.defaultView ?? window;
   dynamicBgLogger.debug("Applying dynamic background", { tag });
-  const preCurrentImgCover = SpotifyPlayer.GetCover("large") ?? "";
-  // Local-file art is served via the `spotify:local:` scheme and isn't on scdn,
-  // so leave it untouched here and rasterize it to a Blob before handing it to Kawarp.
-  const isLocalCover = preCurrentImgCover.startsWith("spotify:local");
-  const currentImgCover = isLocalCover
-    ? preCurrentImgCover
-    : preCurrentImgCover.replace("spotify:image:", "https://i.scdn.co/image/");
+  const currentImgCover = getDynamicBackgroundCover();
   const IsEpisode = SpotifyPlayer.GetContentType() === "episode";
 
   const artists = SpotifyPlayer.GetArtists() ?? [];
@@ -145,17 +128,61 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       : undefined;
 
   const TrackId = SpotifyPlayer.GetId() ?? undefined;
+  
+  const staticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
+  const removeBackground = (bg: HTMLElement) => {
+    const kawarpInstance = KawarpMap.get(tag ?? bg);
+    if (kawarpInstance && bg.tagName.toLowerCase() === "canvas") {
+      kawarpInstance.dispose();
+      KawarpMap.delete(tag ?? bg);
+    }
+    bg.remove();
+  };
 
-  const TrackUri = SpotifyPlayer.GetUri();
-  const IsLocal = TrackUri?.startsWith("spotify:local:") ?? false;
+  if (staticBgMode === "legacy" || SpotifyPlayer.IsDJ()) {
+    if (IsEpisode || !currentImgCover) return;
 
-  const staticBgMode = $staticBackgroundMode.get();
-  if (staticBgMode !== "off") {
+    element
+      .querySelectorAll<HTMLElement>(".spicy-dynamic-bg:not(.LegacyBackground)")
+      .forEach(removeBackground);
+
+    const prevBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.LegacyBackground");
+    if (prevBg?.getAttribute("data-cover-id") === currentImgCover) return;
+
+    const dynamicBg = targetDocument.createElement("div");
+    dynamicBg.classList.add("spicy-dynamic-bg", "LegacyBackground", "Hidden");
+    dynamicBg.setAttribute("data-cover-id", currentImgCover);
+
+    for (const className of ["Back", "BackCenter", "Front"]) {
+      const layer = targetDocument.createElement("div");
+      layer.classList.add(className);
+      layer.style.backgroundImage = `url("${currentImgCover}")`;
+      dynamicBg.appendChild(layer);
+    }
+
+    element.appendChild(dynamicBg);
+    targetWindow.setTimeout(() => {
+      if (prevBg) {
+        prevBg.classList.add("Hidden");
+        targetWindow.setTimeout(() => prevBg?.remove(), 500);
+      }
+      dynamicBg.classList.remove("Hidden");
+    }, 80);
+    return;
+  }
+
+  if (staticBgMode !== "default" && staticBgMode !== "legacy") {
+    const activeClass =
+      staticBgMode === "color" ? "ColorBackground" : "StaticBackground";
+    element
+      .querySelectorAll<HTMLElement>(`.spicy-dynamic-bg:not(.${activeClass})`)
+      .forEach(removeBackground);
+
     if (staticBgMode === "color") {
       // First, create/init the background with black as a fallback
       let dynamicBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.ColorBackground");
       if (!dynamicBg) {
-        dynamicBg = document.createElement("div");
+        dynamicBg = targetDocument.createElement("div");
         dynamicBg.classList.add("spicy-dynamic-bg", "ColorBackground");
         // Set initial fallback colors to black
         dynamicBg.style.setProperty("--MinContrastColor", COLOR_BG_FALLBACK_RGB);
@@ -165,21 +192,12 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       }
       cachedColorBackgroundEl = dynamicBg;
 
-      // Local tracks aren't hosted on Spotify, so we can't derive dynamic colors
-      // from their artwork — keep the plain black background instead.
-      if (IsLocal) {
-        dynamicBg.style.setProperty("--MinContrastColor", COLOR_BG_FALLBACK_RGB);
-        dynamicBg.style.setProperty("--HighContrastColor", COLOR_BG_FALLBACK_RGB);
-        dynamicBg.style.setProperty("--OverlayColor", COLOR_BG_FALLBACK_RGB);
-        return;
-      }
-
       // Now fetch the real colors and apply them
       try {
         const colorQuery = await Spicetify.GraphQL.Request(
           Spicetify.GraphQL.Definitions.getDynamicColorsByUris,
           {
-            imageUris: [SpotifyPlayer.GetCover("large") ?? ""]
+            imageUris: [currentImgCover]
           }
         );
 
@@ -208,95 +226,65 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       }
       return;
     }
-    const currentImgCover = await GetStaticBackground(TrackArtist, TrackId);
+    const staticBackgroundCover = await GetStaticBackground(TrackArtist, TrackId);
 
-    if (IsEpisode || !currentImgCover) return;
+    if (IsEpisode || !staticBackgroundCover) return;
     const prevBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.StaticBackground");
 
-    if (prevBg && prevBg.getAttribute("data-cover-id") === currentImgCover) {
+    if (prevBg && prevBg.getAttribute("data-cover-id") === staticBackgroundCover) {
       return;
     }
+    const dynamicBg = targetDocument.createElement("div");
 
-    // `isLocalCover` (derived up top from the playing track's cover) applies to the
-    // static background too: GetStaticBackground returns either this track's local art
-    // or a remote `spotify:image:` header — never the opposite scheme — so reuse it
-    // here instead of re-deriving and shadowing the same flag.
-    const finalUrl = isLocalCover
-      ? currentImgCover
-      : `https://i.scdn.co/image/${currentImgCover.replace("spotify:image:", "")}`;
+    dynamicBg.classList.add("spicy-dynamic-bg", "StaticBackground", "Hidden");
 
-    const backgroundUrl = isLocalCover
-      ? finalUrl
-      : await BlobURLMaker(finalUrl)
-          .then((blobUrl) => blobUrl ?? currentImgCover)
-          .catch(() => currentImgCover);
+    //const processedCover = `https://i.scdn.co/image/${currentImgCover.replace("spotify:image:", "")}`;
 
-    const dynamicBg = document.createElement("div");
-
-    dynamicBg.classList.add("spicy-dynamic-bg", "StaticBackground");
-    if (prevBg) dynamicBg.classList.add("transition_In");
-
-    dynamicBg.style.backgroundImage = `url("${backgroundUrl}")`;
-    dynamicBg.setAttribute("data-cover-id", currentImgCover);
+    dynamicBg.style.backgroundImage = `url("${staticBackgroundCover}")`;
+    dynamicBg.setAttribute("data-cover-id", staticBackgroundCover);
     element.appendChild(dynamicBg);
 
-    if (prevBg) {
-      prevBg.classList.remove("transition_In");
-      prevBg.classList.add("transition_Out");
-
-      setTimeout(() => {
-        prevBg?.remove();
-        dynamicBg.classList.remove("transition_In")
-      }, 1000)
-    }
+    targetWindow.setTimeout(() => {
+      if (prevBg) {
+        prevBg.classList.add("Hidden");
+        targetWindow.setTimeout(() => prevBg?.remove(), 500);
+      }
+      dynamicBg.classList.remove("Hidden");
+    }, 80);
   } else {
-    const existingElement = element.querySelector<HTMLElement>(".spicy-dynamic-bg");
+    if (IsEpisode || !currentImgCover) return;
 
-    if (existingElement) {
+    element
+      .querySelectorAll<HTMLElement>(".spicy-dynamic-bg:not(canvas)")
+      .forEach(removeBackground);
+
+    const existingElement = element.querySelector<HTMLElement>("canvas.spicy-dynamic-bg");
+  
+    if (existingElement && !opts.forceRecreate) {
       const existingBgData = existingElement.getAttribute("data-cover-id") ?? null;
 
-      if (existingBgData === currentImgCover) {
+      if (existingBgData === currentImgCover && !SpotifyPlayer.IsLocalTrack()) {
         return;
       }
-    }
-
-    // Resolve a Kawarp-loadable source up front (rasterizing local art if needed)
-    // so we can bail before touching any instance when there's nothing to show.
-    const kawarpSource = await resolveKawarpSource(currentImgCover, isLocalCover);
-    if (!kawarpSource) {
-      dynamicBgLogger.warn("No loadable cover for dynamic background; skipping", { currentImgCover });
-      return;
-    }
-
-    // Resolving can block for seconds (rasterizing a local cover waits up to
-    // LOCAL_COVER_DECODE_TIMEOUT_MS). If the track changed in the meantime, a newer
-    // invocation already owns this tag's instance — loading our now-stale cover into it
-    // would flash the previous track's art. Bail and let the newer invocation win.
-    const liveImgCover = SpotifyPlayer.GetCover("large") ?? "";
-    if (liveImgCover !== preCurrentImgCover) {
-      dynamicBgLogger.debug("Cover changed while resolving dynamic background; skipping stale apply", { tag });
-      return;
-    }
-
-    // Re-query the canvas rather than trusting the pre-await snapshot: a concurrent
-    // invocation may have disposed or replaced this tag's canvas while we were resolving.
-    const liveElement = element.querySelector<HTMLElement>(".spicy-dynamic-bg");
-    if (liveElement) {
       const kawarpInstance = KawarpMap.get(
         tag ?
           tag :
-          liveElement
+          existingElement
       )
 
       if (kawarpInstance) {
-        liveElement.setAttribute("data-cover-id", currentImgCover ?? "");
-        await loadKawarpSource(kawarpInstance, kawarpSource);
+        existingElement.setAttribute("data-cover-id", currentImgCover ?? "");
+        await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
         kawarpInstance.start();
         return;
       }
     }
 
-    const canvas = document.createElement("canvas");
+    if (existingElement && opts.forceRecreate) {
+      removeBackground(existingElement);
+    }
+
+    const canvas = targetDocument.createElement("canvas");
     canvas.classList.add("spicy-dynamic-bg");
     canvas.setAttribute("data-cover-id", currentImgCover ?? "");
 
@@ -308,15 +296,15 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       kawarpInstance
     )
     element.appendChild(canvas);
-    await loadKawarpSource(kawarpInstance, kawarpSource);
+    await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
     kawarpInstance.start();
     const msDelay = KawarpOptionsStatic.transitionDuration * 2;
 
     if (opts?.doTransitionDurationAppendWithPromise) {
-      await new Promise(r => setTimeout(r, msDelay));
+      await new Promise(r => targetWindow.setTimeout(r, msDelay));
       kawarpInstance?.setOptions({ transitionDuration: KawarpTransitionDuration });
     } else {
-      setTimeout(() => {
+      targetWindow.setTimeout(() => {
         kawarpInstance?.setOptions({ transitionDuration: KawarpTransitionDuration });
       }, msDelay);
     }
@@ -371,11 +359,12 @@ Global.Event.listen("playback:songchange", () => {
       }
     }
 
-    staticColorBgTransitionTimeout = setTimeout(() => {
+    const targetWindow = PageContainer.ownerDocument.defaultView ?? window;
+    staticColorBgTransitionTimeout = targetWindow.setTimeout(() => {
       const contentBox = PageContainer.querySelector<HTMLElement>(".ContentBox");
       if (contentBox) ApplyDynamicBackground(contentBox);
 
-      clearTimeout(staticColorBgTransitionTimeout);
+      targetWindow.clearTimeout(staticColorBgTransitionTimeout);
       staticColorBgTransitionTimeout = null;
     }, 1000);
   }
@@ -384,36 +373,36 @@ Global.Event.listen("playback:songchange", () => {
 /** Successful analysis, or `null` once we know the track has no analysis (stops progress-handler spam). */
 const audioAnalysisCache = new Map<string, AudioAnalysisData | null>();
 const audioAnalysisInflightRequests = new Map<string, Promise<AudioAnalysisData | null>>();
-let latestPlaybackTrackUri: string | null = null;
+let latestPlaybackTrackId: string | null = null;
 
-const pruneAudioAnalysisCache = (activeTrackUri: string) => {
-  for (const cachedTrackUri of audioAnalysisCache.keys()) {
-    if (cachedTrackUri !== activeTrackUri) {
-      audioAnalysisCache.delete(cachedTrackUri);
+const pruneAudioAnalysisCache = (activeTrackId: string) => {
+  for (const cachedTrackId of audioAnalysisCache.keys()) {
+    if (cachedTrackId !== activeTrackId) {
+      audioAnalysisCache.delete(cachedTrackId);
     }
   }
 };
 
-const getAudioAnalysisForTrack = async (uri: string): Promise<AudioAnalysisData | null> => {
-  if (audioAnalysisCache.has(uri)) {
-    return audioAnalysisCache.get(uri)!;
+const getAudioAnalysisForTrack = async (trackId: string): Promise<AudioAnalysisData | null> => {
+  if (audioAnalysisCache.has(trackId)) {
+    return audioAnalysisCache.get(trackId)!;
   }
 
-  const inflight = audioAnalysisInflightRequests.get(uri);
+  const inflight = audioAnalysisInflightRequests.get(trackId);
   if (inflight) {
     return inflight;
   }
 
-  const request = getDynamicAudioAnalysis(uri)
+  const request = getDynamicAudioAnalysis(trackId)
     .then((analysis) => {
-      audioAnalysisCache.set(uri, analysis);
+      audioAnalysisCache.set(trackId, analysis);
       return analysis;
     })
     .finally(() => {
-      audioAnalysisInflightRequests.delete(uri);
+      audioAnalysisInflightRequests.delete(trackId);
     });
 
-  audioAnalysisInflightRequests.set(uri, request);
+  audioAnalysisInflightRequests.set(trackId, request);
   return request;
 };
 
@@ -430,16 +419,20 @@ const resetDynamicBackgroundAnimationSpeed = () => {
 };
 
 Global.Event.listen("playback:songchange", () => {
-  latestPlaybackTrackUri = SpotifyPlayer.GetUri() ?? null;
+  latestPlaybackTrackId = SpotifyPlayer.GetId();
 
-  if (latestPlaybackTrackUri) {
-    pruneAudioAnalysisCache(latestPlaybackTrackUri);
+  if (latestPlaybackTrackId) {
+    pruneAudioAnalysisCache(latestPlaybackTrackId);
   } else {
     audioAnalysisCache.clear();
   }
 });
 
 const applyPlayPauseAnimationSpeed = (isPaused: boolean) => {
+  if ($staticBackgroundMode.get() === "legacy") {
+    setDynamicBackgroundAnimationSpeed(0.1);
+    return;
+  }
   setDynamicBackgroundAnimationSpeed(isPaused ? 0.1 : 1);
 };
 
@@ -461,6 +454,16 @@ const reapplyPageBackground = () => {
 };
 
 $staticBackgroundMode.listen(reapplyPageBackground);
+
+Global.Event.listen("nowbar:cover-art", () => {
+  if (!SpotifyPlayer.IsLocalTrack() && !SpotifyPlayer.IsDJ()) return;
+  if ($staticBackgroundMode.get() !== "off" && $staticBackgroundMode.get() !== "default") return;
+
+  const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
+  if (!contentBox) return;
+
+  void ApplyDynamicBackground(contentBox, "lpagebg");
+});
 
 // Blur is a pure paint change on the existing element, so push it straight into a
 // CSS var rather than tearing the background down and rebuilding it.
@@ -484,36 +487,32 @@ Global.Event.listen("page:open", () => {
 });
 
 Global.Event.listen("playback:progress", async (e) => {
-  const songUri = SpotifyPlayer.GetUri();
-  if (!songUri) {
+  const songId = SpotifyPlayer.GetId();
+  if ($staticBackgroundMode.get() === "legacy") {
+    setDynamicBackgroundAnimationSpeed(0.1);
+    return;
+  }
+  if (!songId) {
     resetDynamicBackgroundAnimationSpeed();
     return;
   }
 
-  latestPlaybackTrackUri = songUri;
+  latestPlaybackTrackId = songId;
+  const requestTrackId = songId;
 
-  // Local tracks have no Spotify audio analysis — skip loading it and fall back
-  // to the default animation speed.
-  if (songUri.startsWith("spotify:local:")) {
-    resetDynamicBackgroundAnimationSpeed();
-    return;
-  }
-
-  const requestUri = songUri;
-
-  const audioAnalysisData = await getAudioAnalysisForTrack(requestUri);
+  const audioAnalysisData = await getAudioAnalysisForTrack(requestTrackId);
   if (!audioAnalysisData) {
     resetDynamicBackgroundAnimationSpeed();
     return;
   }
 
   // Prevent stale async results from old tracks applying after rapid song switches.
-  const currentUri = SpotifyPlayer.GetUri();
-  if (!currentUri || currentUri !== requestUri || latestPlaybackTrackUri !== requestUri) {
+  const currentTrackId = SpotifyPlayer.GetId();
+  if (!currentTrackId || currentTrackId !== requestTrackId || latestPlaybackTrackId !== requestTrackId) {
     return;
   }
 
-  pruneAudioAnalysisCache(requestUri);
+  pruneAudioAnalysisCache(requestTrackId);
 
   const currentTimeMs = SpotifyPlayer.GetPosition();
   const currentTime = currentTimeMs / 1000;

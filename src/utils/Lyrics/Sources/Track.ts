@@ -1,6 +1,10 @@
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
 import type { TrackLyricsInfo } from "./Types.ts";
 
+export function isCurrentTrack(uri: string): boolean {
+  return SpotifyPlayer.GetUri() === uri;
+}
+
 function buildTrackLyricsInfo(
   uri: string,
   id: string,

@@ -13,6 +13,8 @@ export function ApplyExperimentalWordSyncNotice(
   if (IsPIP) return;
   if (!data?.experimentalWordSync || !LyricsContainer) return;
 
+  if (data.experimentalWordSyncReason !== "SpaceGravity") return;
+
   const songInfoElement = document.createElement("div");
   songInfoElement.classList.add("SongInfo");
 
@@ -21,11 +23,7 @@ export function ApplyExperimentalWordSyncNotice(
   noticeSpan.textContent =
     data.experimentalWordSyncReason === "SpaceGravity"
       ? "Experimental word sync enabled due to Space Gravity mode"
-      : data.experimentalWordSyncSource === "Static"
-      ? "These lyrics were automatically converted to word-by-word from static lyrics (Experimental)"
-      : data.experimentalWordSyncSource === "Line"
-        ? "These lyrics were automatically converted to word-by-word from line sync (Experimental)"
-        : "These lyrics were automatically converted to word-by-word (Experimental)";
+      : "(+ experimental splitting)";
 
   songInfoElement.appendChild(noticeSpan);
   LyricsContainer.appendChild(songInfoElement);

@@ -37,11 +37,13 @@ export function ApplyLyricsProvider(data: any, LyricsContainer: HTMLElement): vo
   }
   const experimentalWordSplittingHelp =
     providerLabel === "Apple Music" && data.experimentalAppleWordSplitting;
+  const experimentalWordSyncHelp =
+    data.experimentalWordSync && data.experimentalWordSyncReason !== "SpaceGravity";
   ProviderElement.textContent = `Lyrics provided by: ${providerLabel}${
     experimentalWordSplittingHelp
-      ? " (with some experimental word splitting help)"
+      ? " (+ extra splits)"
       : ""
-  }`;
+  }${experimentalWordSyncHelp ? " (+ experimental splitting)" : ""}`;
   LyricsContainer.appendChild(ProviderElement);
   PinFooterDetailWithoutWriters(ProviderElement, LyricsContainer);
 }

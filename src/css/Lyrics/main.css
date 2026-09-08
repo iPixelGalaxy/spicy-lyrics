@@ -20,6 +20,18 @@
   initial-value: 0px;
 }
 
+#property --SL-LyricsContent_MaskBottomFadeStart {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 64px;
+}
+
+#property --SL-LyricsContent_MaskBottomFadeEnd {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 16px;
+}
+
 #SpicyLyricsPage .LyricsContainer .LyricsContent {
   --TextGlowDef: rgba(255, 255, 255, 0.15) 0px 0px 6px;
   --ActiveTextGlowDef: rgba(255, 255, 255, 0.4) 0px 0px 14px;
@@ -55,7 +67,11 @@
 
   container-type: size;
   opacity: 1;
-  transition: opacity 0.25s, --SL-LyricsContent_MaskTopPadding 0.5s;
+  transition:
+    opacity 0.25s,
+    --SL-LyricsContent_MaskTopPadding 0.5s,
+    --SL-LyricsContent_MaskBottomFadeStart 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    --SL-LyricsContent_MaskBottomFadeEnd 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 #SpicyLyricsPage .LyricsContainer .LyricsContent .simplebar-content-wrapper {
@@ -132,7 +148,7 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   position: absolute;
   z-index: 10;
   right: var(--LyricsRightSidePadding);
-  bottom: 64px;
+  bottom: 20px;
   left: var(--LyricsLeftSidePadding);
   padding: 0 0 1.25rem;
   display: block;
@@ -145,8 +161,27 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) - 16px);
 }
 
-#SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent {
+  --SL-LyricsContent_MaskBottomFadeStart: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 64px);
+  --SL-LyricsContent_MaskBottomFadeEnd: calc(var(--SL-PinnedFooterTrackBottom, 0px) + 16px);
+}
+
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.LyricsScrollAtBottom {
+  --SL-LyricsContent_MaskBottomFadeStart: 0px;
+  --SL-LyricsContent_MaskBottomFadeEnd: 0px;
+}
+
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.PinnedFooterSingleLine.LyricsScrollAtBottom .line.Active,
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent.PinnedFooterSingleLine.LyricsScrollAtBottom .line.Active :is(.word, .letter, .letterGroup) {
+  text-shadow: none !important;
+}
+
+#SpicyLyricsPage.PinnedFooterMode_Full:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
   margin-bottom: var(--SL-PinnedFooterBottomMargin, calc(8cqh + 98px));
+}
+
+#SpicyLyricsPage.PinnedFooterMode_NoWriters:not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
+  margin-bottom: var(--SL-PinnedFooterBottomMargin, 16px);
 }
 
 #SpicyLyricsPage:is(.PinnedFooterMode_NoWriters, .PinnedFooterMode_Full):not(.SpaceGravityMode):not(.CardMode) .LyricsContainer .LyricsContent .simplebar-track.simplebar-vertical {

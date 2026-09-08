@@ -331,8 +331,8 @@ export function ApplyLineLyrics(
 
   const footer = CreateLyricsFooter(LyricsContainer, LyricsContainerParent);
   ApplyLyricsCredits(data, footer);
-  ApplyExperimentalWordSyncNotice(data, footer);
   ApplyLyricsProvider(data, footer);
+  ApplyExperimentalWordSyncNotice(data, footer);
   ApplyIsByCommunity(data, footer);
 
   if (LyricsContainerParent) {

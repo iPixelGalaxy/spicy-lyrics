@@ -30,6 +30,9 @@ export function PlaceLyricsFooter(
       : "Off";
   const pinned = Boolean(!cardMode && mode === "Full" && pinnedFooterLayer);
   footer.dataset.pinnedFooterMode = mode;
+  if (mode === "NoWriters" && pinnedFooterLayer) {
+    noWriterPinnedLayers.set(footer, pinnedFooterLayer);
+  }
   footer.classList.toggle("PinnedLyricsFooter", pinned);
 
   if (pinned && pinnedFooterLayer) {
@@ -43,9 +46,8 @@ export function PlaceLyricsFooter(
 /** Move source/community details into the pinned layer while writers stay scrollable. */
 export function PinFooterDetailWithoutWriters(detail: HTMLElement, footer: HTMLElement): void {
   if (footer.dataset.pinnedFooterMode !== "NoWriters") return;
-  const pinnedFooterLayer = footer.closest<HTMLElement>(".LyricsContainer")?.querySelector<HTMLElement>(
-    ".LyricsPinnedFooter",
-  );
+  const pinnedFooterLayer = noWriterPinnedLayers.get(footer)
+    ?? footer.closest<HTMLElement>(".LyricsContainer")?.querySelector<HTMLElement>(".LyricsPinnedFooter");
   pinnedFooterLayer?.appendChild(detail);
 }
 
@@ -59,3 +61,4 @@ export function CreateLyricsFooter(
   PlaceLyricsFooter(footer, lyricsContainer, lyricsContent, spaceGravityMode);
   return footer;
 }
+const noWriterPinnedLayers = new WeakMap<HTMLElement, HTMLElement>();

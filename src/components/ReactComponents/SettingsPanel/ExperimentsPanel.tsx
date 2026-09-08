@@ -4,8 +4,8 @@ import {
   EXPERIMENTS,
   type RegisteredExperiment,
 } from "../../../utils/experiments.ts";
-import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed, $pinnedFooterMode } from "../../../utils/stores.ts";
-import { Row, Select, Toggle } from "./components.tsx";
+import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../../../utils/stores.ts";
+import { Row, Toggle } from "./components.tsx";
 
 /**
  * The Experiments sub-panel. Renders straight off the EXPERIMENTS registry, so a
@@ -14,7 +14,6 @@ import { Row, Select, Toggle } from "./components.tsx";
 export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
   const experimentalWordSync = useStore($enableExperimentalWordSync);
   const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
-  const pinnedFooterMode = useStore($pinnedFooterMode);
 
   return (
     <div style={{ padding: "8px 0" }} className="slm w-40">
@@ -43,10 +42,6 @@ export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
         These features are still being shaped. Toggle one off if you prefer how things worked
         before.
       </p>
-
-      <Row label="Pinned Lyrics Footer" description="Keep source and community credits visible. Full also pins writers.">
-        <Select value={pinnedFooterMode} options={["Off", "No Writers", "Full"]} onChange={(value) => $pinnedFooterMode.set(value as typeof pinnedFooterMode)} />
-      </Row>
 
       {EXPERIMENTS.map((exp) => (
         <ExperimentRow key={exp.id} experiment={exp} />

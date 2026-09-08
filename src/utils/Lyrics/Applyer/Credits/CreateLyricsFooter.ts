@@ -14,6 +14,12 @@ export function PlaceLyricsFooter(
       footer.remove();
       return;
     }
+    const pinnedFooterLayer = lyricsContent?.parentElement?.querySelector<HTMLElement>(
+      ".LyricsPinnedFooter"
+    );
+    pinnedFooterLayer?.querySelectorAll<HTMLElement>(".PinnedFooterDetail").forEach((detail) => {
+      footer.appendChild(detail);
+    });
     lyricsContainer.appendChild(footer);
     return;
   }
@@ -32,6 +38,9 @@ export function PlaceLyricsFooter(
   footer.dataset.pinnedFooterMode = mode;
   if (mode === "NoWriters" && pinnedFooterLayer) {
     noWriterPinnedLayers.set(footer, pinnedFooterLayer);
+    footer.querySelectorAll<HTMLElement>(".PinnedFooterDetail").forEach((detail) => {
+      pinnedFooterLayer.appendChild(detail);
+    });
   }
   footer.classList.toggle("PinnedLyricsFooter", pinned);
 
@@ -45,6 +54,7 @@ export function PlaceLyricsFooter(
 
 /** Move source/community details into the pinned layer while writers stay scrollable. */
 export function PinFooterDetailWithoutWriters(detail: HTMLElement, footer: HTMLElement): void {
+  detail.classList.add("PinnedFooterDetail");
   if (footer.dataset.pinnedFooterMode !== "NoWriters") return;
   const pinnedFooterLayer = noWriterPinnedLayers.get(footer)
     ?? footer.closest<HTMLElement>(".LyricsContainer")?.querySelector<HTMLElement>(".LyricsPinnedFooter");

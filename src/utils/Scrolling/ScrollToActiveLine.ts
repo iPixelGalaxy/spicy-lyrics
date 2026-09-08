@@ -41,6 +41,7 @@ let currentSimpleBarInstance: any | null = null;
 let wheelHandler: (() => void) | null = null;
 let touchMoveHandler: (() => void) | null = null;
 let scrollHandler: (() => void) | null = null;
+let holdScrollToActiveButton = false;
 // --- END NEW ---
 
 type ActiveLineDirection = "above" | "below" | null;
@@ -116,6 +117,10 @@ function getCurrentPlaybackTargetLine(): {
 }
 
 export function UpdateScrollToActiveButton(): void {
+  if (holdScrollToActiveButton) {
+    hideScrollToActiveButton();
+    return;
+  }
   const button = getScrollToActiveButton();
   const container = currentSimpleBarInstance?.getScrollElement() as HTMLElement | undefined;
   const targetLine = getCurrentPlaybackTargetLine();
@@ -131,6 +136,25 @@ export function UpdateScrollToActiveButton(): void {
     "aria-label",
     direction === "above" ? "Scroll up to active lyric" : "Scroll down to active lyric"
   );
+}
+
+/** Keep the affordance hidden while a newly mounted virtualizer converges. */
+export function HoldScrollToActiveButtonUntilVisible(): void {
+  holdScrollToActiveButton = true;
+  hideScrollToActiveButton();
+  let remainingFrames = 30;
+  const settle = () => {
+    const container = currentSimpleBarInstance?.getScrollElement() as HTMLElement | undefined;
+    const targetLine = getCurrentPlaybackTargetLine();
+    const visible = container && targetLine && getActiveLineDirection(container, targetLine.line) === null;
+    if (visible || --remainingFrames <= 0) {
+      holdScrollToActiveButton = false;
+      UpdateScrollToActiveButton();
+      return;
+    }
+    requestAnimationFrame(settle);
+  };
+  requestAnimationFrame(settle);
 }
 
 export function ScrollToCurrentActiveLine(): void {

@@ -5,28 +5,43 @@ import "../../css/Loaders/DotLoader.css";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
   cleanupApplyLyricsAbortController,
+  ShouldReapplyRenderedLyricsForSpaceGravity,
+  UpdateRenderedRomanization,
 } from "../../utils/Lyrics/Global/Applyer.ts";
+import { UpdateRenderedSpaceGravity } from "../../utils/Lyrics/Applyer/Synced/Syllable.ts";
 import {
   addLinesEvListener,
   isRomanized,
   removeLinesEvListener,
+  SetLyricsRendererWindow,
   setRomanizedStatus,
 } from "../../utils/Lyrics/lyrics.ts";
 import {
   CleanupScrollEvents,
   InitializeScrollEvents,
   ResetLastLine,
+  ScrollToCurrentActiveLine,
+  UpdateScrollToActiveButton,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
+import { toCssFontFamily } from "../../utils/cssFontFamily.ts";
 import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 import {
   $currentLyricsData,
+  $customFont,
+  $customFontEnabled,
+  $enableExperimentalWordSync,
   $lineHoverBackground,
+  $memeFormat,
   $lyricsContainerExists,
+  $lyricsRendererPaused,
   $minimalLyricsMode,
-  $showVolumeSlider,
+  $rightAlignLyrics,
+  $showScrollToActiveButton,
   $simpleLyricsMode,
-  $skipSpicyFont,
+  $lyricsCacheAction,
+  $showLyricsCacheActionButton,
+  $spaceGravityMode,
   $ttmlMakerMode,
   $viewControlsPosition,
 } from "../../utils/stores.ts";
@@ -53,6 +68,7 @@ import {
 } from "../Utils/NowBar.ts";
 import TransferElement from "../Utils/TransferElement.ts";
 import { IsPIP, _IsPIP_after, ClosePopupLyrics } from "../Utils/PopupLyrics.ts";
+import { IsExternalCinemaLyrics, CloseExternalCinemaLyrics } from "../Utils/ExternalCinemaLyrics.ts";
 import { NPVCardOwnsPage, DeRenderNPVCard } from "../Utils/NPVLyrics.ts";
 import { CleanUpIsByCommunity } from "../../utils/Lyrics/Applyer/Credits/ApplyIsByCommunity.tsx";
 import { OpenLyricsDBPanel } from "../../utils/openLyricsDBPanel.tsx";
@@ -60,6 +76,11 @@ import { openSettingsPanel } from "../../utils/settings.ts";
 import Logger from "../../utils/Logger.ts";
 import { ApplyExperimentClasses, onExperimentChange } from "../../utils/experiments.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
+import {
+  getLyricsCacheActionLabel,
+  normalizeLyricsCacheAction,
+  RunLyricsCacheAction,
+} from "../../utils/LyricsCacheTools.ts";
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
@@ -77,6 +98,7 @@ export const Tooltips: {
   NowBarSideToggle: TippyInstance | null;
   LyricsManager: TippyInstance | null;
   Settings: TippyInstance | null;
+  CacheAction: TippyInstance | null;
 } = {
   Close: null,
   NowBarToggle: null,
@@ -85,7 +107,10 @@ export const Tooltips: {
   NowBarSideToggle: null,
   LyricsManager: null,
   Settings: null,
+  CacheAction: null,
 };
+
+let cacheActionRunning = false;
 
 const PageView = {
   Open: OpenPage,
@@ -117,6 +142,15 @@ let PageResizeListener: ResizeObserver | null = null;
 export let PageContainer: HTMLElement | null = null;
 export let IsCardMode = false;
 
+function applyCustomFontSetting(fontFamily: string, targetDocument: Document = PageContainer?.ownerDocument ?? document) {
+  const cssFontFamily = toCssFontFamily(fontFamily);
+  if ($customFontEnabled.get() && cssFontFamily) {
+    targetDocument.documentElement.style.setProperty("--spicy-custom-font", cssFontFamily);
+  } else {
+    targetDocument.documentElement.style.removeProperty("--spicy-custom-font");
+  }
+}
+
 async function OpenPage(
   AppendTo: HTMLElement | undefined = undefined,
   options?: { cardMode?: boolean }
@@ -140,7 +174,8 @@ async function OpenPage(
   /* if (!HoverMode) {
         PageView.IsTippyCapable = false;
     } */
-  const elem = document.createElement("div");
+  const targetDocument = AppendTo?.ownerDocument ?? document;
+  const elem = targetDocument.createElement("div");
   elem.id = "SpicyLyricsPage";
 
   elem.classList.add("SpicyRenderer");
@@ -179,9 +214,24 @@ async function OpenPage(
             </div>
             <div class="LyricsContainer">
                 <div class="loaderContainer">
+                    <div class="LyricsLoadingBlobs" role="status" aria-label="Loading lyrics">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
                     <div id="DotLoader"></div>
                 </div>
                 <div class="LyricsContent ScrollbarScrollable"></div>
+                <div class="LyricsPinnedFooter"></div>
+                <button id="ScrollToActiveLyric" class="ScrollToActiveLyric" type="button" aria-label="Scroll to active lyric">
+                    <svg class="NoFill" xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
             </div>
             <div class="ViewControls"></div>
         </div>
@@ -221,9 +271,12 @@ async function OpenPage(
   
   PageContainer = elem;
 
-  if (!$skipSpicyFont.get()) {
+  if (!$customFontEnabled.get()) {
     elem.classList.add("UseSpicyFont");
   }
+  applyCustomFontSetting($customFont.get(), targetDocument);
+
+  elem.classList.toggle("GibberishLyricsMode", $memeFormat.get() === "Gibberish");
 
   if ($simpleLyricsMode.get()) {
     elem.classList.add("SimpleLyricsMode");
@@ -235,12 +288,6 @@ async function OpenPage(
 
   if (!$lineHoverBackground.get()) {
     elem.classList.add("NoLineHoverBackground");
-  }
-
-  // Gates the raised .PlaybackControls / tightened .Heart offsets that make room for
-  // the volume band — without it, turning the setting off would leave a gap.
-  if ($showVolumeSlider.get()) {
-    elem.classList.add("ShowVolumeSlider");
   }
 
   ApplyExperimentClasses(elem);
@@ -264,6 +311,11 @@ async function OpenPage(
   }
 
   addLinesEvListener();
+  SetLyricsRendererWindow(targetDocument.defaultView);
+
+  elem.querySelector<HTMLButtonElement>("#ScrollToActiveLyric")?.addEventListener("click", () => {
+    ScrollToCurrentActiveLine();
+  });
 
   {
     const currentUri = Spicetify?.Player?.data?.item?.uri;
@@ -318,6 +370,7 @@ async function OpenPage(
   // UpdateSongMoreInfo()
 
   $lyricsContainerExists.set(true);
+  $lyricsRendererPaused.set(false);
   PageView.IsOpened = true;
 
   if (IsPIP) {
@@ -344,7 +397,7 @@ async function OpenPage(
 }) */
 
 export const isSizeReadyToBeCompacted = () =>
-  window.matchMedia("(max-width: 70.812rem)").matches;
+  (PageContainer?.ownerDocument.defaultView ?? window).matchMedia("(max-width: 70.812rem)").matches;
 
 export function Compactify(Element: HTMLElement | undefined = undefined) {
   if (!Fullscreen.IsOpen) return;
@@ -365,6 +418,8 @@ async function DestroyPage() {
   if (!PageView.IsOpened) return;
   pageLogger.debug("Destroying page");
 
+  // Return the persistent renderer loop before an auxiliary page window closes.
+  SetLyricsRendererWindow(window);
   cleanupApplyLyricsAbortController();
 
   if (Fullscreen.IsOpen) await Fullscreen.Close();
@@ -377,6 +432,7 @@ async function DestroyPage() {
   PageResizeListener?.disconnect(); // Disconnect the observer
   PageView.IsOpened = false;
   $lyricsContainerExists.set(false);
+  $lyricsRendererPaused.set(false);
   DestroyAllLyricsContainers();
   CleanUpIsByCommunity();
 
@@ -443,6 +499,8 @@ function AppendViewControls(ReAppend: boolean = false) {
   const isNoLyrics =
     $currentLyricsData.get() === `NO_LYRICS:${SpotifyPlayer.GetUri()}`;
   const isTTMLMakerMode = $ttmlMakerMode.get();
+  const cacheAction = normalizeLyricsCacheAction($lyricsCacheAction.get());
+  const showCacheActionButton = $showLyricsCacheActionButton.get() && !IsPIP;
   elem.innerHTML = `
         ${
           Fullscreen.IsOpen || Fullscreen.CinemaViewOpen
@@ -450,7 +508,7 @@ function AppendViewControls(ReAppend: boolean = false) {
             : IsPIP ? "" : `<button id="CinemaView" class="ViewControl">${Icons.CinemaView}</button>`
         }
         ${
-          Fullscreen.IsOpen || Fullscreen.CinemaViewOpen
+          Fullscreen.IsOpen || Fullscreen.CinemaViewOpen || NowBarObj.Open
             ? IsPIP ? "" : `<button id="CompactModeToggle" class="ViewControl">${
                 IsCompactMode()
                   ? Icons.DisableCompactModeIcon
@@ -486,8 +544,15 @@ function AppendViewControls(ReAppend: boolean = false) {
             : ""
         }
         ${
-          isTTMLMakerMode
-            ? `<button id="LyricsManager" class="ViewControl">${Icons.LyricsManager}</button>`
+          isTTMLMakerMode && !IsPIP
+            ? `<button id="LyricsManager" class="ViewControl">${Icons.LoadTTML}</button>`
+            : ""
+        }
+        ${
+          showCacheActionButton
+            ? `<button id="CacheAction" class="ViewControl" ${
+                cacheActionRunning ? "disabled aria-busy=\"true\"" : ""
+              }>${Icons.ClearCache}</button>`
             : ""
         }
         ${IsPIP ? "" : `<button id="SettingsToggle" class="ViewControl">${Icons.Settings}</button>`}
@@ -524,21 +589,31 @@ function AppendViewControls(ReAppend: boolean = false) {
   }
 
   function SetupTippy(elem: HTMLElement) {
-    // If in PIP mode, do not create any Tippy tooltips, but still wire up click handlers
-    const isPip = IsPIP;
+    // PiP cannot host Spotify Tippy instances, but Cinema can use its own document.
+    const tippyProps = (target: HTMLElement) => ({
+      ...Spicetify.TippyProps,
+      ...(target.ownerDocument === document
+        ? {}
+        : { appendTo: () => target.ownerDocument.body }),
+    });
 
     const closeButton = elem.querySelector("#Close");
     if (closeButton) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(closeButton, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(closeButton),
             content: `Close Page`,
           });
         }
         closeButton.addEventListener("click", async () => {
           if (IsPIP) {
             await ClosePopupLyrics();
+            globalThis.focus();
+            return;
+          }
+          if (IsExternalCinemaLyrics) {
+            await CloseExternalCinemaLyrics();
             globalThis.focus();
             return;
           }
@@ -557,9 +632,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const compactModeToggle = elem.querySelector("#CompactModeToggle");
     if (compactModeToggle) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(compactModeToggle, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(compactModeToggle),
             content: `${
               IsCompactMode() ? "Disable Compact Mode" : "Enable Compact Mode"
             }`,
@@ -582,7 +657,18 @@ function AppendViewControls(ReAppend: boolean = false) {
             setTimeout(() => {
               AppendViewControls(true);
             }, 65);
+            return;
           }
+
+          if (IsCompactMode()) {
+            DisableCompactMode();
+          } else {
+            EnableCompactMode();
+          }
+
+          setTimeout(() => {
+            AppendViewControls(true);
+          }, 65);
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Compact Mode tooltip", err);
@@ -592,30 +678,30 @@ function AppendViewControls(ReAppend: boolean = false) {
     const romanizationToggle = elem.querySelector("#RomanizationToggle");
     if (romanizationToggle) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(romanizationToggle, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(romanizationToggle),
             content: isRomanized ? `Disable Romanization` : `Enable Romanization`,
           });
         }
         romanizationToggle.addEventListener("click", async () => {
           const songUri = SpotifyPlayer.GetUri();
           if (!songUri) return;
-          PageContainer?.querySelector(
-            ".LyricsContainer .LyricsContent"
-          )?.classList.add("HiddenTransitioned");
-          const lyrics = await fetchLyrics(songUri);
+          const useRomanized = !isRomanized;
 
-          setRomanizedStatus(!isRomanized);
-
-          ApplyLyrics(lyrics);
-
-          setTimeout(() => {
+          if (UpdateRenderedRomanization(useRomanized)) {
             AppendViewControls();
-            PageContainer?.querySelector(
-              ".LyricsContainer .LyricsContent"
-            )?.classList.remove("HiddenTransitioned");
-          }, 45);
+            return;
+          }
+
+          const lyrics = await fetchLyrics(songUri, {
+            keepCurrentLyricsVisible: true,
+          });
+
+          setRomanizedStatus(useRomanized);
+
+          await ApplyLyrics(lyrics);
+          AppendViewControls();
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Romanization tooltip", err);
@@ -626,9 +712,9 @@ function AppendViewControls(ReAppend: boolean = false) {
       const nowBarButton = elem.querySelector("#NowBarToggle");
       if (nowBarButton) {
         try {
-          if (!isPip) {
+          if (!IsPIP) {
             Tooltips.NowBarToggle = Spicetify.Tippy(nowBarButton, {
-              ...Spicetify.TippyProps,
+              ...tippyProps(nowBarButton),
               content: `NowBar`,
             });
           }
@@ -643,9 +729,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const fullscreenBtn = elem.querySelector("#FullscreenToggle");
     if (fullscreenBtn) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.FullscreenToggle = Spicetify.Tippy(fullscreenBtn, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(fullscreenBtn),
             content: `${
               Fullscreen.CinemaViewOpen ? "Fullscreen" : "Cinema View"
             }`,
@@ -672,9 +758,9 @@ function AppendViewControls(ReAppend: boolean = false) {
     const cinemaViewBtn = elem.querySelector("#CinemaView");
     if (cinemaViewBtn && !Fullscreen.IsOpen) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.CinemaView = Spicetify.Tippy(cinemaViewBtn, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(cinemaViewBtn),
             content: `Cinema View`,
           });
         }
@@ -693,9 +779,9 @@ function AppendViewControls(ReAppend: boolean = false) {
       !(isNoLyrics && (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen))
     ) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.NowBarSideToggle = Spicetify.Tippy(nowBarSideToggleBtn, {
-            ...Spicetify.TippyProps,
+            ...tippyProps(nowBarSideToggleBtn),
             content: `Swap NowBar Side`,
           });
         }
@@ -706,27 +792,59 @@ function AppendViewControls(ReAppend: boolean = false) {
     }
 
     const settingsButton = elem.querySelector("#SettingsToggle");
-    if (settingsButton && !isPip) {
+    if (settingsButton && !IsPIP) {
       try {
-        Tooltips.Settings = Spicetify.Tippy(settingsButton, {
-          ...Spicetify.TippyProps,
-          content: `Spicy Lyrics Settings`,
-        });
+        if (!IsPIP) {
+          Tooltips.Settings = Spicetify.Tippy(settingsButton, {
+            ...tippyProps(settingsButton),
+            content: `Spicy Lyrics Settings`,
+          });
+        }
         settingsButton.addEventListener("click", () => {
-          openSettingsPanel();
+          openSettingsPanel(PageContainer?.ownerDocument ?? document);
         });
       } catch (err) {
         controlsLogger.warn("Failed to setup Settings tooltip", err);
       }
     }
 
+    const cacheActionButton = elem.querySelector<HTMLButtonElement>("#CacheAction");
+    if (cacheActionButton) {
+      try {
+        if (!IsPIP) {
+          Tooltips.CacheAction = Spicetify.Tippy(cacheActionButton, {
+            ...tippyProps(cacheActionButton),
+            content: getLyricsCacheActionLabel(cacheAction),
+          });
+        }
+        cacheActionButton.setAttribute("aria-label", getLyricsCacheActionLabel(cacheAction));
+        cacheActionButton.addEventListener("click", async () => {
+          if (cacheActionRunning) return;
+          cacheActionRunning = true;
+          cacheActionButton.disabled = true;
+          cacheActionButton.setAttribute("aria-busy", "true");
+          try {
+            await RunLyricsCacheAction(cacheAction, true);
+          } finally {
+            cacheActionRunning = false;
+            if (cacheActionButton.isConnected) {
+              cacheActionButton.disabled = false;
+              cacheActionButton.removeAttribute("aria-busy");
+            }
+          }
+        });
+      } catch (err) {
+        controlsLogger.warn("Failed to setup cache action", err);
+      }
+    }
+
     const lyricsManagerButton = elem.querySelector("#LyricsManager");
     if (lyricsManagerButton && isTTMLMakerMode) {
       try {
-        if (!isPip) {
+        if (!IsPIP) {
           Tooltips.LyricsManager = Spicetify.Tippy(lyricsManagerButton, {
-            ...Spicetify.TippyProps,
-            content: `Lyrics Manager`,
+            ...tippyProps(lyricsManagerButton),
+            content: `Load TTML`,
           });
         }
         lyricsManagerButton.addEventListener("click", () => {
@@ -734,16 +852,34 @@ function AppendViewControls(ReAppend: boolean = false) {
             globalThis.focus();
           }
           
-          OpenLyricsDBPanel();
+          OpenLyricsDBPanel(PageContainer?.ownerDocument ?? document);
         });
       } catch (err) {
-        controlsLogger.warn("Failed to setup Lyrics Manager tooltip", err);
+        controlsLogger.warn("Failed to setup Load TTML tooltip", err);
       }
     }
   }
 }
 
 // --- Reactive setting subscriptions ---
+
+function RefreshRightAlignedLyrics() {
+  const lyricsContainer = PageContainer?.querySelector<HTMLElement>(
+    ".LyricsContainer .LyricsContent .SpicyLyricsScrollContainer"
+  );
+  if (!lyricsContainer || lyricsContainer.dataset.lyricsType === "Static") return;
+
+  const lines = lyricsContainer.querySelectorAll<HTMLElement>(".line");
+  lines.forEach((line) => {
+    line.classList.toggle("OppositeAligned");
+  });
+
+  lyricsContainer.classList.toggle(
+    "HasDuetLines",
+    Boolean(lyricsContainer.querySelector(".line.OppositeAligned"))
+  );
+  triggerRemeasureLV();
+}
 
 $simpleLyricsMode.listen((v) => {
   if (!PageContainer) return;
@@ -761,28 +897,80 @@ $minimalLyricsMode.listen((v) => {
   if (uri) fetchLyrics(uri).then(ApplyLyrics);
 });
 
-// Purely a CSS toggle — no need to re-render the lyrics like the modes above do.
+$enableExperimentalWordSync.listen(() => {
+  if (!PageContainer) return;
+  const uri = SpotifyPlayer.GetUri();
+  $currentLyricsData.set("");
+  if (uri) fetchLyrics(uri).then(ApplyLyrics);
+});
+
+$memeFormat.listen((v) => {
+  if (!PageContainer) return;
+  PageContainer.classList.toggle("GibberishLyricsMode", v === "Gibberish");
+  const uri = SpotifyPlayer.GetUri();
+  $currentLyricsData.set("");
+  if (uri) fetchLyrics(uri).then(ApplyLyrics);
+});
+
+$rightAlignLyrics.listen(() => {
+  if (!PageContainer) return;
+  RefreshRightAlignedLyrics();
+});
+
 $lineHoverBackground.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("NoLineHoverBackground", !v);
 });
 
-$skipSpicyFont.listen((v) => {
+$spaceGravityMode.listen((v) => {
   if (!PageContainer) return;
-  PageContainer.classList.toggle("UseSpicyFont", !v);
+  if (ShouldReapplyRenderedLyricsForSpaceGravity(v)) {
+    ReapplyCurrentLyrics();
+    return;
+  }
+  requestAnimationFrame(() => {
+    if (!PageContainer) return;
+    if (!UpdateRenderedSpaceGravity(v)) {
+      // Line/static lyrics have no gravity renderer. Keep the preference for
+      // their next word-synced track without changing this renderer's layout.
+      PageContainer.classList.remove("SpaceGravityMode");
+      return;
+    }
+    PageContainer.classList.toggle("SpaceGravityMode", v);
+  });
 });
 
-// Purely a CSS gate — NowBar.ts handles rebuilding the band itself.
-$showVolumeSlider.listen((v) => {
+$customFontEnabled.listen((v) => {
   if (!PageContainer) return;
-  PageContainer.classList.toggle("ShowVolumeSlider", v);
+  PageContainer.classList.toggle("UseSpicyFont", !v);
+  applyCustomFontSetting($customFont.get());
+});
+
+$customFont.listen((v) => {
+  applyCustomFontSetting(v);
 });
 
 // Experiments own their CSS hook here; NowBar.ts handles the rebuild for the ones
 // that need one. Adding an experiment requires no change to this file.
-onExperimentChange(() => {
+function ReapplyCurrentLyrics(): void {
+  const rawLyrics = $currentLyricsData.get();
+  if (rawLyrics && !rawLyrics.startsWith("NO_LYRICS:")) {
+    try {
+      void ApplyLyrics([JSON.parse(rawLyrics), 200]);
+      return;
+    } catch {
+      // Fall through to the normal fetch path for non-JSON notice states.
+    }
+  }
+
+  const uri = SpotifyPlayer.GetUri();
+  if (uri) void fetchLyrics(uri).then(ApplyLyrics);
+}
+
+onExperimentChange((experiment) => {
   if (!PageContainer) return;
   ApplyExperimentClasses(PageContainer);
+  if (experiment.rebuildsLyrics) ReapplyCurrentLyrics();
 });
 
 $viewControlsPosition.listen((v) => {
@@ -792,9 +980,23 @@ $viewControlsPosition.listen((v) => {
   AppendViewControls(true);
 });
 
-$ttmlMakerMode.listen((v) => {
+$ttmlMakerMode.listen(() => {
   if (!PageContainer) return;
   AppendViewControls(true);
-})
+});
+
+$showScrollToActiveButton.listen(() => {
+  UpdateScrollToActiveButton();
+});
+
+$showLyricsCacheActionButton.listen(() => {
+  if (!PageContainer) return;
+  AppendViewControls(true);
+});
+
+$lyricsCacheAction.listen(() => {
+  if (!PageContainer) return;
+  AppendViewControls(true);
+});
 
 export default PageView;

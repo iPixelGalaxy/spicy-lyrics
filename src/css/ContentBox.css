@@ -216,6 +216,7 @@
 
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata {
   display: flex;
+  position: relative;
   align-items: center;
   justify-content: center;
   flex-direction: column;
@@ -237,9 +238,11 @@
   color: white;
   text-align: center; /* Fallback for child alignment */
   opacity: 0.95;
+  width: 85cqw;
   max-width: 85cqw;
   line-height: calc(var(--title-height) * 12) !important;
   overflow: hidden;
+  container-type: inline-size;
   -webkit-mask-image: linear-gradient(
     90deg,
     transparent 0,
@@ -269,14 +272,140 @@
   padding: 0 3cqw 0 2.5cqw;
 }
 
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 85cqw;
+  max-width: 85cqw;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: calc(var(--default-font-size) * 1.5) !important;
+  line-height: calc(var(--title-height) * 8) !important;
+  font-weight: 400;
+  color: white;
+  opacity: 0.7;
+  padding: 0;
+  animation: none !important;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.pending {
+  visibility: hidden;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.before {
+  padding-left: 2.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.after {
+  padding-right: 2.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.before::after,
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear.after::before {
+  content: "\00B7";
+  font-size: 0.82em;
+  line-height: 1;
+  margin-left: 0.55em;
+  margin-right: 0.55em;
+  opacity: 0.78;
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow .ArtistYear {
+  font-size: calc(var(--default-font-size) * 0.62) !important;
+  line-height: calc(var(--title-height) * 3.7) !important;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear.before::after,
+.spicy-pip-wrapper
+  #SpicyLyricsPage
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear.after::before {
+  font-size: 0.72em;
+  margin-left: 0.42em;
+  margin-right: 0.42em;
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .ArtistsRow {
+  justify-content: center;
+  width: 85cqw;
+  max-width: 85cqw;
+  margin: 0 auto;
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: 70cqw;
+  font-size: calc(var(--default-font-size) * 0.62) !important;
+  line-height: calc(var(--title-height) * 3.7) !important;
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-before,
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-after {
+  padding: 0;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff 1.35cqw,
+    #000 1.35cqw,
+    #000 calc(100% - 1.35cqw),
+    transparent 100%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff 1.35cqw,
+    #000 1.35cqw,
+    #000 calc(100% - 1.35cqw),
+    transparent 100%,
+    transparent
+  );
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-before > span,
+.spicy-pip-wrapper #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-after > span {
+  margin: 0;
+}
+
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists {
   font-size: calc(var(--default-font-size) * 1.5) !important;
   line-height: calc(var(--title-height) * 8) !important;
   font-weight: 400;
   color: white;
   opacity: 0.7;
-  max-width: 80cqw;
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
   overflow: hidden;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee {
   -webkit-mask-image: linear-gradient(
     90deg,
     transparent 0,
@@ -299,11 +428,98 @@
 
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists > span {
   white-space: nowrap; /* Prevents text from wrapping */
-  overflow: hidden; /* Hides overflowing text */
-  display: inline-block; /* Ensures width is respected */
+  flex-shrink: 0;
+  display: inline-block;
   text-align: center; /* Align text within the span */
-  animation: Marquee_Artists 25s linear infinite alternate;
+  animation: none;
   padding: 0 3cqw 0 2.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee > span {
+  animation: Marquee_Artists 25s linear infinite alternate !important;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-before {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 1cqw,
+    #000 calc(100% - 2cqw),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 1cqw,
+    #000 calc(100% - 2cqw),
+    transparent 100%
+  );
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-before > span {
+  padding-left: 0.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-before > span {
+  animation: Marquee_Artists_WithYear 25s linear infinite alternate !important;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-after {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 2cqw,
+    #000 calc(100% - 1cqw),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 2cqw,
+    #000 calc(100% - 1cqw),
+    transparent 100%
+  );
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.has-year-after > span {
+  padding-right: 0.5cqw;
+}
+
+#SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .Artists.CanMarquee.has-year-after > span {
+  animation: Marquee_Artists_WithYear 25s linear infinite alternate !important;
+}
+
+@keyframes Marquee_Artists_WithYear {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  90%,
+  100% {
+    transform: translateX(var(--sl-marquee-distance, calc(min(-100% + 100cqw, 0px))));
+  }
+}
+
+@keyframes Marquee_Artists_PiP {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  90%,
+  100% {
+    transform: translateX(var(--sl-marquee-distance, calc(min(-100% + 100cqw, 0px))));
+  }
+}
+
+@keyframes Marquee_Artists_PiP_WithYear {
+  0%,
+  10% {
+    transform: translateX(0);
+  }
+  90%,
+  100% {
+    transform: translateX(var(--sl-marquee-distance, calc(min(-100% + 100cqw, 0px))));
+  }
 }
 
 #SpicyLyricsPage .ContentBox .NowBar .Header .Metadata .SongName span.Clickable,
@@ -549,6 +765,143 @@
 
 #SpicyLyricsPage.Fullscreen .ContentBox .NowBar .CenteredView .Header:not(:has(> .Timeline)) .MediaBox .MediaContent .PlaybackControls {
   bottom: 12cqh;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2cqh;
+  width: min(55cqw, 28.14rem);
+  height: 5.36cqh;
+  margin: 1.5cqh auto 0;
+  padding: 0 4cqw;
+  position: relative;
+  z-index: 3;
+  container-type: size;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.TrackSkip.PrevTrack {
+  rotate: 180deg;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl {
+  aspect-ratio: 1;
+  display: flex;
+  fill: #fff;
+  align-items: center;
+  cursor: pointer;
+  justify-content: center;
+  transition: opacity 0.175s cubic-bezier(0.37, 0, 0.63, 1),
+    filter 0.175s ease-out !important;
+  --ShrinkScale: 0.9;
+  --ShrinkDelta: calc(1 - var(--ShrinkScale));
+  height: 100cqh;
+  width: 100cqh;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.ShuffleToggle,
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.LoopToggle {
+  width: 64cqh;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.PlayStateToggle {
+  width: 82cqh;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl
+  svg {
+  scale: 0.625;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.Pressed {
+  transform: scale(var(--ShrinkScale));
+  transition: opacity 0.175s cubic-bezier(0.37, 0, 0.63, 1), transform 0.175s cubic-bezier(0.37, 0, 0.63, 1) !important;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls:hover
+  .PlaybackControl:not(:hover) {
+  opacity: 0.5;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl:hover {
+  opacity: 1 !important;
+}
+
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.ShuffleToggle.Enabled,
+#SpicyLyricsPage.Fullscreen
+  .ContentBox
+  .NowBar
+  .CenteredView
+  .Header
+  > .PlaybackControls
+  .PlaybackControl.LoopToggle.Enabled {
+  filter: brightness(2.75);
 }
 
 #SpicyLyricsPage.Fullscreen
@@ -923,11 +1276,11 @@
 #SpicyLyricsPage.Exp_NewProgressBar .Timeline .SliderBar::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 0 auto 0 0;
+  width: calc(var(--SliderProgress, 0) * 100%);
   background: #fff;
-  transform: scaleX(var(--SliderProgress));
-  transform-origin: left;
-  transition: transform 0.18s cubic-bezier(0.23, 1, 0.32, 1);
+  border-radius: inherit;
+  transition: width 0.18s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Mid-drag the fill must track the pointer 1:1 — the eased glide is for playback
@@ -1468,6 +1821,7 @@
   .NowBar
   .CenteredView
   .Header {
+  --CompactNowBarHeaderGap: 1.6cqh;
   --MediaBoxSize: min(100cqh, 90cqw);
 }
 
@@ -1508,6 +1862,26 @@
   transition: opacity 0.24s;
 }
 
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata {
+  --CompactMetadataTextInset: 1rem;
+  --CompactMetadataTextFadeEnd: 1.5rem;
+  justify-content: center;
+  margin: 0;
+  height: var(--MediaBoxSize);
+  width: max(
+    7rem,
+    calc(
+      100cqw - var(--LyricsLeftSidePadding) - var(--LyricsRightSidePadding) -
+        var(--MediaBoxSize) - var(--MediaBoxSize) -
+        var(--CompactNowBarHeaderGap) - var(--CompactNowBarHeaderGap)
+    )
+  );
+}
+
 #SpicyLyricsPage.CompactMode .ContentBox .NowBar .Header .Metadata .SongName,
 #SpicyLyricsPage.ForcedCompactMode
   .ContentBox
@@ -1517,7 +1891,27 @@
   .SongName {
   font-size: 2.5rem !important;
   line-height: 3rem !important;
-  max-width: 100cqw;
+  width: 100%;
+  max-width: 100%;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff var(--CompactMetadataTextInset),
+    #000 var(--CompactMetadataTextInset),
+    #000 calc(100% - var(--CompactMetadataTextFadeEnd)),
+    transparent 100%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff var(--CompactMetadataTextInset),
+    #000 var(--CompactMetadataTextInset),
+    #000 calc(100% - var(--CompactMetadataTextFadeEnd)),
+    transparent 100%,
+    transparent
+  );
 }
 
 .spicy-pip-wrapper
@@ -1553,7 +1947,12 @@
   .Metadata
   .SongName
   span {
-  animation: Marquee_SongName_Compact 25s linear infinite alternate;
+  animation: none;
+  transform: translateX(0);
+  padding: 0 var(--CompactMetadataTextFadeEnd) 0 var(--CompactMetadataTextInset);
+  max-width: none;
+  text-align: left;
+  overflow: visible;
 }
 
 #SpicyLyricsPage.CompactMode .ContentBox .NowBar .Header .Metadata .Artists,
@@ -1565,7 +1964,117 @@
   .Artists {
   font-size: 1.5rem !important;
   line-height: 2rem !important;
-  max-width: 100cqw;
+  flex: 1 1 0;
+  width: auto;
+  max-width: none;
+  justify-content: flex-start;
+  text-align: left;
+  container-type: inline-size;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff var(--CompactMetadataTextInset),
+    #000 var(--CompactMetadataTextInset),
+    #000 calc(100% - var(--CompactMetadataTextFadeEnd)),
+    transparent 100%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff var(--CompactMetadataTextInset),
+    #000 var(--CompactMetadataTextInset),
+    #000 calc(100% - var(--CompactMetadataTextFadeEnd)),
+    transparent 100%,
+    transparent
+  );
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding-left: var(--CompactMetadataTextInset);
+  justify-content: flex-start;
+  overflow: hidden;
+  gap: 0;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow:not([data-sl-year]) {
+  padding-left: 0;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear {
+  font-size: 1.5rem !important;
+  line-height: 2rem !important;
+  font-weight: 400;
+  color: white;
+  opacity: 0.7;
+  padding: 0;
+  transform: none;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear.before {
+  padding-left: 0;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear.after {
+  padding-right: 0;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear::before,
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear::after {
+  font-size: 0.82em;
 }
 
 .spicy-pip-wrapper
@@ -1601,7 +2110,75 @@
   .Metadata
   .Artists
   > span {
+  animation: none;
+  transform: translateX(0);
+  padding: 0 var(--CompactMetadataTextFadeEnd) 0 var(--CompactMetadataTextInset);
+  margin: 0;
+  max-width: none;
+  text-align: left;
+  overflow: visible;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .SongName.CanMarquee
+  span {
+  animation: Marquee_SongName_Compact 25s linear infinite alternate;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee
+  > span {
   animation: Marquee_Artists_Compact 25s linear infinite alternate;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee:is(.has-year-before, .has-year-after)
+  > span {
+  animation-name: Marquee_Artists_WithYear;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.has-year-before
+  > span {
+  padding-left: 0.25rem;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee:is(.has-year-before, .has-year-after) {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 0.45rem,
+    #000 calc(100% - 0.9rem),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 0.45rem,
+    #000 calc(100% - 0.9rem),
+    transparent 100%
+  );
 }
 
 #SpicyLyricsPage.CompactMode .ContentBox .LyricsContainer,
@@ -2100,6 +2677,264 @@
   opacity: 0;
 }
 
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata {
+  --PiPMetadataGap: clamp(0.25rem, 1cqw, 0.625rem);
+  --PiPMetadataRightReserve: calc(var(--MediaBoxSize) + var(--PiPMetadataGap));
+  align-items: center;
+  justify-content: center;
+  top: 0;
+  height: var(--MediaBoxSize);
+  left: calc(var(--MediaBoxSize) + var(--PiPMetadataGap));
+  width: max(
+    7rem,
+    calc(100cqw - var(--MediaBoxSize) - var(--PiPMetadataGap) - var(--PiPMetadataRightReserve))
+  );
+  margin: 0;
+  text-align: center;
+  overflow: hidden;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .SongName {
+  box-sizing: border-box;
+  font-size: clamp(1.296rem, calc(1cqw * 5.04), 1.8rem) !important;
+  padding-inline: 0;
+  width: 100%;
+  max-width: 100%;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff 2.5cqw,
+    #000 2.5cqw,
+    #000 calc(100% - 3.75cqw),
+    transparent 100%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff 2.5cqw,
+    #000 2.5cqw,
+    #000 calc(100% - 3.75cqw),
+    transparent 100%,
+    transparent
+  );
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .SongName
+  span {
+  animation: none !important;
+  transform: translateX(0);
+  padding: 0 3cqw 0 2.5cqw !important;
+  max-width: none;
+  text-align: left;
+  overflow: visible;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  padding-left: 2.5cqw;
+  justify-content: flex-start;
+  overflow: hidden;
+  gap: 0;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists,
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear {
+  font-size: clamp(0.72rem, 3.024cqw, 1.0368rem) !important;
+  line-height: 1.25 !important;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists {
+  flex: 1 1 0;
+  width: auto;
+  max-width: none;
+  justify-content: flex-start;
+  text-align: left;
+  container-type: inline-size;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff 2.5cqw,
+    #000 2.5cqw,
+    #000 calc(100% - 3.75cqw),
+    transparent 100%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #fff 2.5cqw,
+    #000 2.5cqw,
+    #000 calc(100% - 3.75cqw),
+    transparent 100%,
+    transparent
+  );
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists
+  > span {
+  animation: none !important;
+  transform: translateX(0);
+  padding: 0 3cqw 0 2.5cqw !important;
+  margin: 0 !important;
+  max-width: none;
+  text-align: left;
+  overflow: visible;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.has-year-before
+  > span {
+  padding-left: 0.5cqw !important;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .SongName.CanMarquee
+  span {
+  animation: Marquee_SongName_Compact 25s linear infinite alternate !important;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee
+  > span {
+  animation: Marquee_Artists_PiP 25s linear infinite alternate !important;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee:is(.has-year-before, .has-year-after)
+  > span {
+  animation-name: Marquee_Artists_PiP_WithYear !important;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .Artists.CanMarquee:is(.has-year-before, .has-year-after)
+ {
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 1cqw,
+    #000 calc(100% - 2cqw),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 1cqw,
+    #000 calc(100% - 2cqw),
+    transparent 100%
+  );
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear.before {
+  padding-left: 0;
+  transform: none;
+}
+
+.spicy-pip-wrapper
+  #SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode)
+  .ContentBox
+  .NowBar
+  .Header
+  .Metadata
+  .ArtistsRow
+  .ArtistYear.after {
+  padding-right: 0;
+}
+
 #SpicyLyricsPage .MediaImageContainer .fi_FromImage::before {
   content: "";
   position: absolute;
@@ -2114,4 +2949,219 @@
 
 #SpicyLyricsPage .MediaImageContainer .fi_FromImage.MB_anim_fimg::before {
   opacity: 1;
+}
+ 
+#SpicyLyricsPage .FullscreenVolumeSlider {
+  position: absolute;
+  left: -67px;
+  top: 14px;
+  bottom: 14px;
+  width: 44px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  opacity: min(0.985, calc(var(--ControlsOpacity, 0) * 1.5154));
+  transition: opacity 160ms ease;
+}
+
+.spicy-pip-wrapper #SpicyLyricsPage .FullscreenVolumeSlider {
+  display: none !important;
+}
+
+#SpicyLyricsPage:is(.CompactMode, .ForcedCompactMode) .FullscreenVolumeSlider {
+  display: none !important;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.RightSide {
+  left: auto;
+  right: -67px;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.Below {
+  position: relative;
+  inset: auto;
+  width: min(82cqw, 42rem);
+  height: 4.5cqh;
+  margin: 1.35cqh auto 0;
+  z-index: 3;
+  flex-direction: row;
+  justify-content: center;
+  gap: 12px;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider .VolumeIcon,
+#SpicyLyricsPage .FullscreenVolumeSlider .VolumeIconSpacer {
+  width: 20px;
+  height: 20px;
+  color: var(--spice-text);
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider .VolumeIcon {
+  cursor: pointer;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider .SliderBar {
+  flex: 1;
+  width: max(12px, 1.58cqh);
+  min-height: 60px;
+  border-radius: 999px;
+  background: rgba(var(--spice-rgb-text), 0.2);
+  position: relative;
+  cursor: pointer;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider .SliderBar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--SliderProgress, 0) * 100%);
+  border-radius: inherit;
+  background: var(--spice-text);
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider .Handle {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--SliderProgress, 0) * 100%);
+  width: max(24px, 3.23cqh);
+  height: max(24px, 3.23cqh);
+  border-radius: 999px;
+  background: var(--spice-text);
+  transform: translate(-50%, 50%);
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.Below .VolumeIcon,
+#SpicyLyricsPage .FullscreenVolumeSlider.Below .VolumeIconSpacer {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.Below .VolumeIconSpacer {
+  display: none;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.Below .SliderBar {
+  flex: 0 1 28rem;
+  width: min(64cqw, 28rem);
+  height: max(12px, 1.58cqh);
+  min-height: 0;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.Below .SliderBar::before {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  width: calc(var(--SliderProgress, 0) * 100%);
+  height: auto;
+}
+
+#SpicyLyricsPage .FullscreenVolumeSlider.Below .Handle {
+  left: calc(var(--SliderProgress, 0) * 100%);
+  bottom: 50%;
+  width: max(12px, 1.62cqh);
+  height: max(12px, 1.62cqh);
+  transform: translate(-50%, 50%);
+}
+
+/* Fork volume placement keeps its established height. The experiment changes
+   material only: glass track and solid fill replace the legacy handle. */
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar {
+  overflow: hidden;
+  background: var(--material-regular-bg);
+  -webkit-backdrop-filter: var(--material-regular-blur);
+  backdrop-filter: var(--material-regular-blur);
+  box-shadow:
+    0 8px 20px -8px rgba(8, 10, 18, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  transition: width 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar::before {
+  background: #fff;
+  transition: width 180ms cubic-bezier(0.23, 1, 0.32, 1), height 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Dragging::before {
+  transition: none;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .Handle {
+  display: none;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) {
+  width: max(29px, 4.8cqw);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) .SliderBar {
+  width: 100%;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider.Below .SliderBar {
+  height: max(29px, 4.8cqw);
+  transition-property: height;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider.Below .SliderBar:is(:hover, .Dragging) {
+  height: max(34px, 6.48cqw);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) .SliderBar:is(:hover, .Dragging) {
+  width: max(34px, 6.48cqw);
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .VolumeIcon {
+  position: absolute;
+  z-index: 1;
+  color: #fff;
+  mix-blend-mode: difference;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .VolumeIcon svg {
+  width: auto;
+  height: min(22px, 3cqh);
+  fill: currentColor;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeWaveLow,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeWaveHigh,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeMute {
+  transition: opacity 180ms ease;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar #SpicyLyrics_VolumeMute,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Low #SpicyLyrics_VolumeWaveHigh,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Muted #SpicyLyrics_VolumeWaveLow,
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Muted #SpicyLyrics_VolumeWaveHigh {
+  opacity: 0;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider .SliderBar.Muted #SpicyLyrics_VolumeMute {
+  opacity: 1;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider:not(.Below) .VolumeIcon {
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: max(26px, 6cqh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#SpicyLyricsPage.Exp_NewProgressBar .FullscreenVolumeSlider.Below .VolumeIcon {
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

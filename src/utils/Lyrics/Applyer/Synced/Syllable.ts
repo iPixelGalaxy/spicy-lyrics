@@ -384,16 +384,20 @@ export function ApplySyllableLyrics(
   const spaceGravityMode = $spaceGravityMode.get();
   const syllableMode = "Default";
   const allowLetterEmphasis = !data.experimentalWordSync;
+  const firstVocalStartTime = Math.min(
+    data.Content[0].Lead.StartTime,
+    ...(data.Content[0].Background?.map((background) => background.StartTime) ?? [])
+  );
 
-  if (data.StartTime >= getLyricsBetweenShow()) {
+  if (firstVocalStartTime >= getLyricsBetweenShow()) {
     const musicalLine = document.createElement("div");
     musicalLine.classList.add("line");
     musicalLine.classList.add("musical-line");
     LyricsObject.Types.Syllable.Lines.push({
       HTMLElement: musicalLine,
       StartTime: 0,
-      EndTime: ConvertTime(data.StartTime),
-      TotalTime: ConvertTime(data.StartTime),
+      EndTime: ConvertTime(firstVocalStartTime),
+      TotalTime: ConvertTime(firstVocalStartTime),
       DotLine: true,
     });
 
@@ -410,7 +414,7 @@ export function ApplySyllableLyrics(
     const musicalDots2 = document.createElement("span");
     const musicalDots3 = document.createElement("span");
 
-    const totalTime = ConvertTime(data.StartTime);
+    const totalTime = ConvertTime(firstVocalStartTime);
     const baseDotTime = totalTime / 3;
     const dotPadding = getInterludeTimePadding() / 3;
     const dot1EndTime = Math.max(0, baseDotTime + dotPadding);
@@ -480,20 +484,25 @@ export function ApplySyllableLyrics(
     lineElem.classList.add("line");
 
     const processedLeadSyllables = reduceSyllables(line.Lead.Syllables, syllableMode);
+    const primaryLineEndTime = line.Background?.length && processedLeadSyllables.length
+      ? Math.max(...processedLeadSyllables.map((syllable) => syllable.EndTime))
+      : line.Lead.EndTime;
     const nextLineStartTime = arr[index + 1]?.Lead.StartTime ?? 0;
 
     const lineEndTimeAndNextLineStartTimeDistance =
-      nextLineStartTime !== 0 ? nextLineStartTime - line.Lead.EndTime : 0;
+      nextLineStartTime !== 0 ? nextLineStartTime - primaryLineEndTime : 0;
 
     const lineEndTime =
-      $minimalLyricsMode.get()
+      line.Background?.length
+        ? primaryLineEndTime
+        : $minimalLyricsMode.get()
         ? nextLineStartTime === 0
-          ? line.Lead.EndTime
+          ? primaryLineEndTime
           : lineEndTimeAndNextLineStartTimeDistance < getLyricsBetweenShow() &&
-              nextLineStartTime > line.Lead.EndTime
+              nextLineStartTime > primaryLineEndTime
             ? nextLineStartTime
-            : line.Lead.EndTime
-        : line.Lead.EndTime;
+            : primaryLineEndTime
+        : primaryLineEndTime;
 
     LyricsObject.Types.Syllable.Lines.push({
       HTMLElement: lineElem,
@@ -720,19 +729,29 @@ export function ApplySyllableLyrics(
         });
       });
     }
+    const lastVocalEndTime = Math.max(
+      line.Lead.EndTime,
+      ...(line.Background?.map((background) => background.EndTime) ?? [])
+    );
     const nextLine = arr[index + 1];
-    if (nextLine && nextLine.Lead.StartTime - line.Lead.EndTime >= getLyricsBetweenShow()) {
+    const nextVocalStart = nextLine
+      ? Math.min(
+          nextLine.Lead.StartTime,
+          ...(nextLine.Background?.map((background) => background.StartTime) ?? [])
+        )
+      : undefined;
+    if (nextLine && nextVocalStart! - lastVocalEndTime >= getLyricsBetweenShow()) {
       const musicalLine = document.createElement("div");
       musicalLine.classList.add("line");
       musicalLine.classList.add("musical-line");
 
       LyricsObject.Types.Syllable.Lines.push({
         HTMLElement: musicalLine,
-        StartTime: ConvertTime(line.Lead.EndTime),
-        EndTime: ConvertTime(nextLine.Lead.StartTime),
+        StartTime: ConvertTime(lastVocalEndTime),
+        EndTime: ConvertTime(nextVocalStart!),
         TotalTime:
-          ConvertTime(nextLine.Lead.StartTime) -
-          ConvertTime(line.Lead.EndTime),
+          ConvertTime(nextVocalStart!) -
+          ConvertTime(lastVocalEndTime),
         DotLine: true,
       });
 
@@ -749,8 +768,8 @@ export function ApplySyllableLyrics(
       const musicalDots2 = document.createElement("span");
       const musicalDots3 = document.createElement("span");
 
-      const gapStartTime = ConvertTime(line.Lead.EndTime);
-      const totalTime = ConvertTime(nextLine.Lead.StartTime) - gapStartTime;
+      const gapStartTime = ConvertTime(lastVocalEndTime);
+      const totalTime = ConvertTime(nextVocalStart!) - gapStartTime;
       const baseDotTime = totalTime / 3;
       const dotPadding = getInterludeTimePadding() / 3;
       const dot1EndTime = Math.max(gapStartTime, gapStartTime + baseDotTime + dotPadding);

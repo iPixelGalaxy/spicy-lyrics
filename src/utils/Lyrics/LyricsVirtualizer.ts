@@ -226,6 +226,36 @@ class LyricsVirtualizer {
     );
   }
 
+  private _syncRowStartOrigins(line: HTMLElement | undefined): void {
+    if (!line?.isConnected || line.offsetWidth === 0 ||
+        line.matches(".rtl, .OppositeAligned, .musical-line")) return;
+    const view = line.ownerDocument.defaultView;
+    if (!view) return;
+    const lineLeft = parseFloat(view.getComputedStyle(line).paddingLeft) || 0;
+    const updates: Array<[HTMLElement, boolean]> = [];
+
+    // offsetLeft ignores animated scale/translate. Include nested letter groups
+    // and padding so classification follows the text edge, not the padded box.
+    for (const token of line.querySelectorAll<HTMLElement>(".word, .letterGroup, .letter")) {
+      let left = token.clientLeft + (parseFloat(view.getComputedStyle(token).paddingLeft) || 0);
+      let ancestor: HTMLElement | null = token;
+      while (ancestor && ancestor !== line) {
+        left += ancestor.offsetLeft;
+        ancestor = ancestor.offsetParent as HTMLElement | null;
+        if (ancestor && ancestor !== line) left += ancestor.clientLeft;
+      }
+      // offsetLeft is integer-rounded at each level of nested emphasis markup.
+      const startsRow = ancestor === line && Math.abs(left - lineLeft) <= 1;
+      if (token.classList.contains("LyricsRowStart") !== startsRow) {
+        updates.push([token, startsRow]);
+      }
+    }
+    // Finish layout reads before applying transform-only class changes.
+    for (const [token, startsRow] of updates) {
+      token.classList.toggle("LyricsRowStart", startsRow);
+    }
+  }
+
   private _remeasureVisible(): void {
     const v = this._virtualizer;
     if (!v) return;
@@ -237,6 +267,7 @@ class LyricsVirtualizer {
     for (const idx of this._mountedIndices) {
       const wrapper = this._wrappers[idx];
       if (!wrapper?.isConnected) continue;
+      this._syncRowStartOrigins(this._allElements[idx]);
       // The gap is computed in pixels from _containerWidth and the line's
       // current classList. Both can change without the wrapper itself being
       // resized (window resize, Active toggle while disconnected from the
@@ -481,6 +512,7 @@ class LyricsVirtualizer {
         const el = entry.target as HTMLElement;
         if (!el.isConnected) continue;
         if (el.getAttribute("data-index") === null) continue;
+        this._syncRowStartOrigins(this._allElements[Number(el.getAttribute("data-index"))]);
         v.measureElement(el);
         changed = true;
       }
@@ -819,6 +851,7 @@ class LyricsVirtualizer {
       if (!this._mountedIndices.has(item.index)) {
         this._virtualContainer.appendChild(wrapper);
         this._mountedIndices.add(item.index);
+        this._syncRowStartOrigins(this._allElements[item.index]);
         this._resizeObserver?.observe(wrapper);
         // Measure immediately on mount so start offsets are corrected in the same frame.
         v.measureElement(wrapper);

@@ -1,8 +1,13 @@
-import { $lyricsContainerExists, $minimalLyricsMode } from "../stores.ts";
+import {
+  $lyricsContainerExists,
+  $lyricsRendererPaused,
+  $minimalLyricsMode,
+} from "../stores.ts";
 import { $romanization } from "../uiState.ts";
 import Global from "../../components/Global/Global.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { Lyrics } from "./Animator/Main.ts";
+import { tickSpaceGravity } from "./SpaceGravity.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import { Maid } from "../../modules/Maid.ts";
 
@@ -81,6 +86,7 @@ export interface LyricsSyllable {
   };
   DotLine?: boolean;
   BGLine?: boolean;
+  SpaceGravityParentLineIndex?: number;
   AnimatorStore?: LineAnimatorStore;
   SLMAnimated?: boolean;
   PreSLMAnimated?: boolean;
@@ -176,6 +182,39 @@ const logLyric = (lyric: string) => {
   lastLyric = lyric;
 }
  */
+export const TickLyricsRenderer = () => {
+  if ($lyricsContainerExists.get() && !$lyricsRendererPaused.get()) {
+    const progress = SpotifyPlayer.GetPosition();
+    Lyrics.TimeSetter(progress);
+    tickSpaceGravity(progress);
+    Lyrics.Animate(progress);
+  }
+};
+
+let lyricsRenderWindow: Window = window;
+let lyricsRenderFrame: number | null = null;
+
+/**
+ * Keep one lyrics frame loop alive while the page moves between documents.
+ * Closing an external Cinema window must hand the loop back to the host window
+ * before its pending frame is discarded with the window.
+ */
+export function SetLyricsRendererWindow(nextWindow: Window | null | undefined): void {
+  const targetWindow = nextWindow && !nextWindow.closed ? nextWindow : window;
+  if (lyricsRenderWindow === targetWindow && lyricsRenderFrame !== null) return;
+
+  if (lyricsRenderFrame !== null) {
+    try {
+      lyricsRenderWindow.cancelAnimationFrame(lyricsRenderFrame);
+    } catch {
+      // A closing auxiliary window can reject cancellation. Its frame is gone.
+    }
+  }
+
+  lyricsRenderWindow = targetWindow;
+  lyricsRenderFrame = targetWindow.requestAnimationFrame(LyricsInterval);
+}
+
 const LyricsInterval = () => {
   /* { // Logging Line part
     const currentLyrics = storage.get("currentLyricsData") as string;
@@ -217,24 +256,59 @@ const LyricsInterval = () => {
     }
   } */
 
-  if ($lyricsContainerExists.get()) {
-    const progress = SpotifyPlayer.GetPosition();
-    Lyrics.TimeSetter(progress);
-    Lyrics.Animate(progress);
-  }
-  requestAnimationFrame(LyricsInterval);
+  TickLyricsRenderer();
+  lyricsRenderFrame = lyricsRenderWindow.requestAnimationFrame(LyricsInterval);
 };
 
-LyricsInterval();
+SetLyricsRendererWindow(window);
 
 // Define proper types for event listener variables
 let LinesEvListenerMaid: Maid | null = null;
 let LinesEvListenerExists: boolean = false;
+let lastLocalFlacSeekWarning = 0;
+
+function warnLocalFlacSeekDisabled() {
+  const now = Date.now();
+  if (now - lastLocalFlacSeekWarning < 2500) return;
+  lastLocalFlacSeekWarning = now;
+
+  Spicetify?.showNotification?.(
+    "Local FLAC lyric seeking is disabled because Spotify desyncs the file audio from the timeline."
+  );
+}
+
+function shouldBlockSeekForCurrentTrack() {
+  if (!SpotifyPlayer.IsLocalFlacTrack()) return false;
+  warnLocalFlacSeekDisabled();
+  return true;
+}
+
+function seekToLyric(startTime: number): void {
+  SpotifyPlayer.Seek(startTime);
+  Global.Event.evoke("song:seek", startTime);
+}
 
 // Define proper type for event parameter
 function LinesEvListener(e: MouseEvent) {
   const target = e.target as HTMLElement;
+  const gravityWord = target.closest<HTMLElement>(".SpaceGravityWord");
+  if (PageContainer?.classList.contains("SpaceGravityMode")) {
+    const startTime = Number(gravityWord?.dataset.spaceGravitySeekTime);
+    if (!gravityWord || !Number.isFinite(startTime) || gravityWord.closest(".musical-line")) return;
+    if (shouldBlockSeekForCurrentTrack()) return;
+
+    seekToLyric(startTime);
+    return;
+  }
+
   if (target.classList.contains("line")) {
+    if (target.classList.contains("musical-line")) {
+      return;
+    }
+    if (shouldBlockSeekForCurrentTrack()) {
+      return;
+    }
+
     let startTime: number | undefined;
 
     LyricsObject.Types.Line.Lines.forEach((line) => {
@@ -247,10 +321,16 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   } else if (target.classList.contains("word")) {
+    if (target.closest(".musical-line")) {
+      return;
+    }
+    if (shouldBlockSeekForCurrentTrack()) {
+      return;
+    }
+
     let startTime: number | undefined;
 
     LyricsObject.Types.Syllable.Lines.forEach((line) => {
@@ -267,10 +347,16 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   } else if (target.classList.contains("Emphasis")) {
+    if (target.closest(".musical-line")) {
+      return;
+    }
+    if (shouldBlockSeekForCurrentTrack()) {
+      return;
+    }
+
     let startTime: number | undefined;
 
     LyricsObject.Types.Syllable.Lines.forEach((line) => {
@@ -291,8 +377,7 @@ function LinesEvListener(e: MouseEvent) {
     });
 
     if (startTime !== undefined) {
-      SpotifyPlayer.Seek(startTime);
-      Global.Event.evoke("song:seek", startTime);
+      seekToLyric(startTime);
     }
   }
 }
@@ -303,9 +388,9 @@ export function addLinesEvListener() {
 
   LinesEvListenerMaid = new Maid();
 
-  const el = PageContainer?.querySelector<HTMLElement>(
-    ".LyricsContainer .LyricsContent"
-  );
+  // Gravity words may extend beyond LyricsContent. Listen on page so their
+  // clicks still bubble through when they overhang normal lyrics bounds.
+  const el = PageContainer;
   if (!el) return;
 
   // Add event listener and store a reference to the handler function
@@ -321,9 +406,7 @@ export function removeLinesEvListener() {
   if (!LinesEvListenerExists) return;
   LinesEvListenerExists = false;
 
-  const el = PageContainer?.querySelector<HTMLElement>(
-    ".LyricsContainer .LyricsContent"
-  );
+  const el = PageContainer;
   if (!el) return;
 
   el.removeEventListener("click", LinesEvListener);

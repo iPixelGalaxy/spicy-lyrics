@@ -1,6 +1,7 @@
 import { QueueForceScroll } from "../../Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { destroyLyricsVirtualizer } from "../LyricsVirtualizer.ts";
+import { destroySpaceGravity } from "../SpaceGravity.ts";
 
 type LyricsContainerReturnObject = {
   Container: HTMLElement;
@@ -14,7 +15,9 @@ const LyricsContainerInstances = new Map<number, LyricsContainerReturnObject>();
 
 let lastMapIndex = -1;
 
-const CreateLyricsContainer = (): LyricsContainerReturnObject => {
+const CreateLyricsContainer = (
+  preserveViewport: boolean = false
+): LyricsContainerReturnObject => {
   const Container = document.createElement("div");
   Container.classList.add("SpicyLyricsScrollContainer");
 
@@ -31,7 +34,7 @@ const CreateLyricsContainer = (): LyricsContainerReturnObject => {
     if (resizeRAF !== null) return;
     resizeRAF = requestAnimationFrame(() => {
       resizeRAF = null;
-      QueueForceScroll();
+      if (!preserveViewport) QueueForceScroll();
       ScrollSimplebar?.recalculate();
     });
   };
@@ -76,6 +79,7 @@ const GetCurrentLyricsContainerInstance = (): LyricsContainerReturnObject | unde
 
 const DestroyAllLyricsContainers = () => {
   destroyLyricsVirtualizer();
+  destroySpaceGravity();
   LyricsContainerInstances.forEach((Instance) => {
     Instance.Remove();
   });

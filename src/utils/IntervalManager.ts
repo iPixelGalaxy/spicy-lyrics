@@ -10,10 +10,12 @@ class IntervalManager {
   private lastTimestamp: number | null;
   private animationFrameId: number | null;
   private intervalId: ReturnType<typeof setInterval> | null;
+  private targetWindowProvider: () => Window;
+  private activeWindow: Window | null;
   public Running: boolean;
   public Destroyed: boolean;
 
-  constructor(duration: number, callback: () => void) {
+  constructor(duration: number, callback: () => void, targetWindowProvider: () => Window = () => window) {
     if (Number.isNaN(duration)) {
       throw new Error("Duration cannot be NaN.");
     }
@@ -24,6 +26,8 @@ class IntervalManager {
     this.lastTimestamp = null;
     this.animationFrameId = null;
     this.intervalId = null;
+    this.targetWindowProvider = targetWindowProvider;
+    this.activeWindow = null;
     this.Running = false;
     this.Destroyed = false;
   }
@@ -44,7 +48,8 @@ class IntervalManager {
     this.lastTimestamp = null;
 
     if (this.duration > 0 && Number.isFinite(this.duration)) {
-      this.intervalId = setInterval(() => {
+      this.activeWindow = this.targetWindowProvider();
+      this.intervalId = this.activeWindow.setInterval(() => {
         if (!this.Running || this.Destroyed) return;
         this.callback();
       }, this.duration);
@@ -67,10 +72,11 @@ class IntervalManager {
         this.lastTimestamp = this.duration === 0 ? null : timestamp; // Reset timestamp for immediate execution when duration is infinite
       }
 
-      this.animationFrameId = requestAnimationFrame(loop);
+      this.animationFrameId = (this.activeWindow ?? this.targetWindowProvider()).requestAnimationFrame(loop);
     };
 
-    this.animationFrameId = requestAnimationFrame(loop);
+    this.activeWindow = this.targetWindowProvider();
+    this.animationFrameId = this.activeWindow.requestAnimationFrame(loop);
 
     // Register cleanup with the Maid
     this.maid.Give(() => this.Stop());
@@ -79,15 +85,16 @@ class IntervalManager {
   // Stops the animation frame loop without destroying the manager
   public Stop() {
     if (this.intervalId !== null) {
-      clearInterval(this.intervalId);
+      (this.activeWindow ?? window).clearInterval(this.intervalId);
       this.intervalId = null;
     }
     if (this.animationFrameId !== null) {
-      cancelAnimationFrame(this.animationFrameId);
+      (this.activeWindow ?? window).cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
     this.Running = false;
     this.lastTimestamp = null;
+    this.activeWindow = null;
   }
 
   // Restarts the animation frame loop

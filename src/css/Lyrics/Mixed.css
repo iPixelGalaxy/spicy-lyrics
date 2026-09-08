@@ -206,32 +206,14 @@
   transform-origin: right center;
 }
 
-/* Keep scaled boundary syllables pinned to the line edge. Interior syllables
-   still scale from their centers, preserving the existing word animation. */
-#SpicyLyricsPage.SpicyRenderer
+/* Any syllable can start a wrapped row; :first-child only covers the first row.
+   Anchor every scaled token at its text edge, inside the 0.3em overhang padding.
+   Nested emphasis letters need the same origin as their scaled parent group. */
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
-  .line:not(.rtl, .OppositeAligned)
-  > :is(.word, .letterGroup):first-child,
-#SpicyLyricsPage.SpicyRenderer
-  .LyricsContainer
-  .LyricsContent
-  .line:not(.rtl, .OppositeAligned)
-  > .word-group:first-child
-  > :is(.word, .letterGroup):first-child,
-#SpicyLyricsPage.SpicyRenderer
-  .LyricsContainer
-  .LyricsContent
-  .line:not(.rtl, .OppositeAligned)
-  > .letterGroup:first-child
-  > .letter:first-child,
-#SpicyLyricsPage.SpicyRenderer
-  .LyricsContainer
-  .LyricsContent
-  .line:not(.rtl, .OppositeAligned)
-  > .word-group:first-child
-  > .letterGroup:first-child
-  > .letter:first-child {
+  .line:not(.rtl, .OppositeAligned, .musical-line)
+  :is(.word, .letterGroup, .letter) {
   transform-origin: 0.3em center;
 }
 

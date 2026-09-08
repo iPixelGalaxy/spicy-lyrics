@@ -603,6 +603,22 @@ function isMusixmatchInstrumentalPlaceholder(text: string | undefined): boolean 
   return !normalized || /^(instrumental|inst\.?)$/i.test(normalized);
 }
 
+function isMusixmatchInstrumental(track: any): boolean {
+  return track?.instrumental === true || track?.instrumental === 1 || track?.instrumental === "1";
+}
+
+function normalizeMusixmatchTrackName(text: string): string {
+  return removeSongFeat(normalizeText(text, false))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function isMusixmatchTrackMatch(track: any, trackInfo: TrackLyricsInfo): boolean {
+  const expected = normalizeMusixmatchTrackName(trackInfo.title);
+  const actual = normalizeMusixmatchTrackName(track?.track_name ?? "");
+  return !!expected && !!actual && (expected === actual || expected.includes(actual) || actual.includes(expected));
+}
+
 function shouldJoinMusixmatchTokens(currentText: string, nextText: string): boolean {
   const current = currentText.trim();
   const next = nextText.trim();
@@ -685,7 +701,7 @@ async function fetchMusixmatchRichsync(
   retry: boolean = true
 ) {
   const meta = macroCalls?.["matcher.track.get"]?.message?.body?.track;
-  if (!meta?.has_richsync || meta?.instrumental || !meta?.commontrack_id) {
+  if (!meta?.has_richsync || isMusixmatchInstrumental(meta) || !meta?.commontrack_id) {
     return null;
   }
 
@@ -724,7 +740,7 @@ function getMusixmatchSyncedLines(macroCalls: any): TimedLine[] | null {
     return null;
   }
 
-  if (meta.instrumental) {
+  if (isMusixmatchInstrumental(meta)) {
     return null;
   }
 
@@ -784,7 +800,7 @@ function getMusixmatchUnsyncedLines(macroCalls: any): string[] | null {
     return null;
   }
 
-  if (meta.instrumental) {
+  if (isMusixmatchInstrumental(meta)) {
     return null;
   }
 
@@ -1034,6 +1050,11 @@ async function fetchMusixmatchLyrics(
   try {
     const macroCalls = await fetchMusixmatchMacro(trackInfo);
     if (!macroCalls) {
+      return null;
+    }
+
+    const track = macroCalls?.["matcher.track.get"]?.message?.body?.track;
+    if (!isMusixmatchTrackMatch(track, trackInfo) || isMusixmatchInstrumental(track)) {
       return null;
     }
 

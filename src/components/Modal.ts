@@ -7,14 +7,21 @@ type ModalDisplayOptions = {
 	closeOnOutsideClick?: boolean;
 	/** Replaces the default hide() behavior for the close button and outside-click. */
 	closeHandler?: (() => void) | null;
+	headerLeft?: Node | null;
+	contentScrollTop?: number | null;
 	/** Optional class appended to `.sl-modal` for per-modal styling/identification. */
 	modalId?: string | null;
+	targetDocument?: Document | null;
 };
 
 type ModalTransitionOptions = {
+	title?: string;
 	content: any;
+	isLarge?: boolean;
 	onClose?: (() => void) | null;
 	closeHandler?: (() => void) | null;
+	headerLeft?: Node | null;
+	contentScrollTop?: number | null;
 	/** Optional class appended to `.sl-modal`. Replaces any previously set modalId class. */
 	modalId?: string | null;
 	/** Optional new header title. Omit to keep the current one. */
@@ -24,12 +31,39 @@ type ModalTransitionOptions = {
 class _HTMLGenericModal extends HTMLElement {
 	private _onClose: (() => void) | null;
 	private _currentModalId: string | null;
+	private _closeKeyDocument: Document | null;
+	private _closeKeyListener: ((event: KeyboardEvent) => void) | null;
 
 	constructor() {
 		super();
 		this.classList.add("SpicyLyricsModal");
 		this._onClose = null;
 		this._currentModalId = null;
+		this._closeKeyDocument = null;
+		this._closeKeyListener = null;
+	}
+
+	private _getWindow(): Window {
+		return this.ownerDocument.defaultView ?? window;
+	}
+
+	private _clearCloseKeyListener(): void {
+		if (this._closeKeyDocument && this._closeKeyListener) {
+			this._closeKeyDocument.removeEventListener("keydown", this._closeKeyListener);
+		}
+		this._closeKeyDocument = null;
+		this._closeKeyListener = null;
+	}
+
+	private _setCloseHandler(closeHandler: () => void): void {
+		this._clearCloseKeyListener();
+		this._closeKeyDocument = this.ownerDocument;
+		this._closeKeyListener = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) return;
+			event.preventDefault();
+			closeHandler();
+		};
+		this._closeKeyDocument.addEventListener("keydown", this._closeKeyListener);
 	}
 
 	private _applyModalId(modalId: string | null | undefined): void {
@@ -46,10 +80,12 @@ class _HTMLGenericModal extends HTMLElement {
 
 	hide(): void {
         const capturedOnClose = this._onClose;
+		const targetWindow = this._getWindow();
         this._onClose = null;
         this._currentModalId = null;
+		this._clearCloseKeyListener();
         const _removeFromDom = (timeoutDuration: number) => {
-            setTimeout(() => {
+            targetWindow.setTimeout(() => {
                 this?.remove();
                 if (typeof capturedOnClose === "function") {
                     capturedOnClose();
@@ -70,28 +106,77 @@ class _HTMLGenericModal extends HTMLElement {
 	 * Instantly swap modal content without hiding/re-animating.
 	 * Use for modal-to-modal transitions where the frame should stay visible.
 	 */
-	transition({ content, onClose = null, closeHandler = null, modalId = null, title = null }: ModalTransitionOptions): void {
-		if (typeof this._onClose === "function") {
-			this._onClose();
+	private _applyHeaderLeft(headerLeft: Node | null | undefined): void {
+		const header = this.querySelector(".sl-modal-header");
+		if (!header) return;
+
+		header.querySelector(".sl-modal-header-left")?.remove();
+		if (!headerLeft) return;
+
+		const slot = this.ownerDocument.createElement("div");
+		slot.className = "sl-modal-header-left";
+		slot.append(headerLeft);
+		header.prepend(slot);
+	}
+
+	private _restoreContentScroll(scrollTop: number): void {
+		const targetWindow = this._getWindow();
+		const scrollTargets = Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm"));
+
+		const applyScroll = () => {
+			for (const target of scrollTargets) {
+				target.scrollTop = scrollTop;
+			}
+		};
+
+		applyScroll();
+		targetWindow.requestAnimationFrame(applyScroll);
+		targetWindow.setTimeout(applyScroll, 0);
+		targetWindow.setTimeout(applyScroll, 50);
+	}
+
+	private _resetContentScroll(): void {
+		for (const target of Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm"))) {
+			target.scrollTop = 0;
 		}
+	}
+
+	transition({ title, content, isLarge, onClose = null, closeHandler = null, headerLeft = null, contentScrollTop = null, modalId = null }: ModalTransitionOptions): void {
+		const previousOnClose = this._onClose;
 		this._onClose = onClose;
+		const hidePopup = closeHandler ?? this.hide.bind(this);
 		const closeButton = this.querySelector(".sl-modal-close-btn");
 		if (closeButton) {
-			(closeButton as HTMLButtonElement).onclick = closeHandler ?? this.hide.bind(this);
+			(closeButton as HTMLButtonElement).onclick = hidePopup;
 		}
-		if (typeof title === "string") {
-			const titleEl = this.querySelector(".sl-modal-title");
-			if (titleEl) titleEl.textContent = title;
+		this._setCloseHandler(hidePopup);
+		if (title) {
+			const modal = this.querySelector(".sl-modal");
+			const modalTitle = this.querySelector(".sl-modal-title");
+			if (modal) modal.setAttribute("aria-label", title);
+			if (modalTitle) modalTitle.textContent = title;
 		}
+		if (typeof isLarge === "boolean") {
+			const container = this.querySelector(".sl-modal-container, .sl-modal-container-large");
+			if (container) {
+				container.classList.toggle("sl-modal-container-large", isLarge);
+				container.classList.toggle("sl-modal-container", !isLarge);
+			}
+		}
+		this._applyHeaderLeft(headerLeft);
 		this._applyModalId(modalId);
 		const main = this.querySelector("main");
 		if (main) {
 			main.innerHTML = "";
 			if (typeof content === "string") {
 				main.innerHTML = content;
-			} else if (content instanceof Node) {
+			} else if (content instanceof Node || (content && typeof content === "object" && "nodeType" in content)) {
 				main.append(content);
 			}
+			this._restoreContentScroll(contentScrollTop ?? 0);
+		}
+		if (typeof previousOnClose === "function") {
+			previousOnClose();
 		}
 	}
 
@@ -105,8 +190,9 @@ class _HTMLGenericModal extends HTMLElement {
 	 * @param {boolean} [options.closeBtn=true] - Show modal close button
 	 * @param {boolean} [options.closeOnOutsideClick=true] - Allow closing modal by clicking outside
 	 */
-	display({ title, content, isLarge = false, onClose = null, closeBtn = true, closeOnOutsideClick = true, closeHandler = null, modalId = null }: ModalDisplayOptions): void {
+	display({ title, content, isLarge = false, onClose = null, closeBtn = true, closeOnOutsideClick = true, closeHandler = null, headerLeft = null, modalId = null, targetDocument = null }: ModalDisplayOptions): void {
 		// If a previous onClose exists, call it before displaying a new popup
+		this._clearCloseKeyListener();
 		if (typeof this._onClose === "function") {
 			this._onClose();
 		}
@@ -128,14 +214,14 @@ class _HTMLGenericModal extends HTMLElement {
 	</div>
 </div>`;
 
+		const hidePopup = closeHandler ?? this.hide.bind(this);
 		const closeButton = this.querySelector("button");
 		if (closeButton) {
-			(closeButton as HTMLButtonElement).onclick = closeHandler ?? this.hide.bind(this);
+			(closeButton as HTMLButtonElement).onclick = hidePopup;
 		}
+		this._applyHeaderLeft(headerLeft);
 		this._applyModalId(modalId);
 		const main = this.querySelector("main");
-		const hidePopup = closeHandler ?? this.hide.bind(this);
-
 		// Listen for click events on Overlay
 		const overlay = this.querySelector(".sl-modal-overlay");
 		if (overlay) {
@@ -147,15 +233,17 @@ class _HTMLGenericModal extends HTMLElement {
 		if (main) {
 			if (typeof content === "string") {
 				main.innerHTML = content;
-			} else if (content instanceof Node) {
+			} else if (content instanceof Node || (content && typeof content === "object" && "nodeType" in content)) {
 				main.append(content);
 			} else if (content !== null && content !== undefined) {
 				main.append(String(content));
 			}
+			this._resetContentScroll();
 		}
-		document.body.append(this);
+		(targetDocument ?? this.ownerDocument).body.append(this);
+		this._setCloseHandler(hidePopup);
 
-        setTimeout(() => {
+        this._getWindow().setTimeout(() => {
             const genericModal = this.querySelector(".sl-modal-overlay-animated");
             if (genericModal) genericModal.classList.add("Active");
         }, 50);

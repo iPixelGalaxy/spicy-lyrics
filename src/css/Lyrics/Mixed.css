@@ -206,6 +206,35 @@
   transform-origin: right center;
 }
 
+/* Keep scaled boundary syllables pinned to the line edge. Interior syllables
+   still scale from their centers, preserving the existing word animation. */
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .line:not(.rtl, .OppositeAligned)
+  > :is(.word, .letterGroup):first-child,
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .line:not(.rtl, .OppositeAligned)
+  > .word-group:first-child
+  > :is(.word, .letterGroup):first-child,
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .line:not(.rtl, .OppositeAligned)
+  > .letterGroup:first-child
+  > .letter:first-child,
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .line:not(.rtl, .OppositeAligned)
+  > .word-group:first-child
+  > .letterGroup:first-child
+  > .letter:first-child {
+  transform-origin: 0.3em center;
+}
+
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .word,
 /* #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .dotGroup,  */
   #SpicyLyricsPage.SpicyRenderer

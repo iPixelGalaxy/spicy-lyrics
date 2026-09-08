@@ -21,11 +21,12 @@ function migrateSettingsKeys(blob: Record<string, any>): Record<string, any> {
   const renames: Record<string, string> = {
     "skip-spicy-font": "skipSpicyFont",
     show_npv_dynamic_bg: "showNpvDynamicBg",
+    displayLyricsHoverPill: "lineHoverBackground",
   };
   let changed = false;
   for (const [oldKey, newKey] of Object.entries(renames)) {
     if (oldKey in blob) {
-      blob[newKey] = blob[oldKey];
+      if (!(newKey in blob)) blob[newKey] = blob[oldKey];
       delete blob[oldKey];
       changed = true;
     }
@@ -51,7 +52,7 @@ export function persistAtom<T>(key: string, defaultValue: T) {
 }
 
 // Setting atoms (persisted)
-export const $staticBackgroundMode = persistAtom<string>("staticBackgroundMode", "off");
+export const $staticBackgroundMode = persistAtom<string>("staticBackgroundMode", "default");
 // Blur radius (px) applied to image-based static backgrounds — not the "color" mode.
 export const $staticBackgroundBlur = persistAtom<number>("staticBackgroundBlur", 0);
 export const $simpleLyricsMode = persistAtom<boolean>("simpleLyricsMode", false);
@@ -84,17 +85,51 @@ export const $popupLyricsAllowed = (() => {
   });
   return store;
 })();
+export const $externalCinemaLyricsAllowed = persistAtom<boolean>("externalCinemaLyricsAllowed", false);
 export const $viewControlsPosition = persistAtom<string>("viewControlsPosition", "Top");
 export const $ttmlMakerMode = persistAtom<boolean>("ttmlMakerMode", true);
-// Last upload mode picked in the Local DB upload screen: "persistent" | "temporary".
-export const $ttmlUploadMode = persistAtom<string>("ttmlUploadMode", "persistent");
 export const $developerMode = persistAtom<boolean>("developerMode", false);
+export const $showLyricsCacheActionButton = persistAtom<boolean>(
+  "showLyricsCacheActionButton",
+  false
+);
+export const $lyricsCacheAction = persistAtom<string>(
+  "lyricsCacheAction",
+  "all-current"
+);
+export const $rightAlignLyrics = persistAtom<boolean>("rightAlignLyrics", false);
+export const $escapeKeyFunction = persistAtom<string>("escapeKeyFunction", "Default");
+export const $buildChannel = persistAtom<string>("buildChannel", "Stable");
+export const $customFontEnabled = persistAtom<boolean>("customFontEnabled", false);
+export const $customFont = persistAtom<string>("customFont", "");
+export const $alwaysShowInFullscreen = persistAtom<string>("alwaysShowInFullscreen", "None");
+export const $showVolumeSliderFullscreen = persistAtom<string>("showVolumeSliderFullscreen", "Off");
+export const $releaseYearPosition = persistAtom<string>("releaseYearPosition", "Off");
+export const $coverArtAnimation = persistAtom<boolean>("coverArtAnimation", true);
+// Scatter word-synced lyrics into a floating physics field instead of line layout.
+export const $spaceGravityMode = persistAtom<boolean>("spaceGravityMode", false);
+export const $memeFormat = persistAtom<string>("memeFormat", "Off");
+export const $showScrollToActiveButton = persistAtom<boolean>("showScrollToActiveButton", true);
+export const $animateFullscreenClose = persistAtom<boolean>("animateFullscreenClose", false);
+export const $enableExperimentalWordSync = persistAtom<boolean>("enableExperimentalWordSync", false);
+export const $lyricsSourceOrder = persistAtom<string>(
+  "lyricsSourceOrder",
+  JSON.stringify(["spicy", "musixmatch", "apple", "spotify", "lrclib", "netease"])
+);
+export const $disabledLyricsSources = persistAtom<string>(
+  "disabledLyricsSources",
+  JSON.stringify(["lrclib", "netease"])
+);
+export const $ignoreMusixmatchWordSync = persistAtom<boolean>("ignoreMusixmatchWordSync", true);
+export const $prioritizeAppleMusicQuality = persistAtom<boolean>("prioritizeAppleMusicQuality", true);
+export const $musixmatchToken = persistAtom<string>("musixmatchToken", "");
 export const $timelineOutsideMediaContent = persistAtom<boolean>(
   "timelineOutsideMediaContent",
   true
 );
-// Volume band below the playback controls in Fullscreen / Cinema View / Popup Lyrics.
-export const $showVolumeSlider = persistAtom<boolean>("showVolumeSlider", true);
+// Reserved for upstream's in-artwork volume controller. This fork keeps its
+// own placement selector, so the controller stays disabled.
+export const $showVolumeSlider = persistAtom<boolean>("showVolumeSlider", false);
 // Playback timing offset in milliseconds (bipolar: negative = earlier, positive = later)
 export const $playbackOffset = persistAtom<number>("playbackOffset", 0);
 
@@ -106,5 +141,10 @@ export const $spicyLyricsVersion = atom<string>(
 // Runtime (ephemeral) atoms
 export const $currentLyricsType = atom<string>("None");
 export const $lyricsContainerExists = atom<boolean>(false);
+// Keeps a mounted lyrics page idle while the NPV card body is collapsed.
+// This is runtime-only: a new page always resumes rendering when it opens.
+export const $lyricsRendererPaused = atom<boolean>(false);
 export const $currentlyFetching = atom<boolean>(false);
 export const $currentLyricsData = atom<string>("");
+
+export const $ttmlUploadMode = persistAtom<string>("ttmlUploadMode", "persistent");

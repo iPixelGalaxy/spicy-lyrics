@@ -15,6 +15,22 @@ const OLD_SETTINGS_KEYS = [
   "viewControlsPosition",
   "settingsOnTop",
   "developerMode",
+  "rightAlignLyrics",
+  "escapeKeyFunction",
+  "buildChannel",
+  "customFontEnabled",
+  "customFont",
+  "alwaysShowInFullscreen",
+  "showVolumeSliderFullscreen",
+  "releaseYearPosition",
+  "coverArtAnimation",
+  "memeFormat",
+  "enableExperimentalWordSync",
+  "lyricsSourceOrder",
+  "disabledLyricsSources",
+  "ignoreMusixmatchWordSync",
+  "prioritizeAppleMusicQuality",
+  "musixmatchToken",
 ];
 
 const OLD_SETTINGS_KEY_RENAMES: Record<string, string> = {
@@ -26,7 +42,6 @@ const OLD_UI_STATE_KEYS = [
   "NowBarSide",
   "ForceCompactMode",
   "romanization",
-  "fromVersion",
   "lastFetchedUri",
   "previous-version",
 ];
@@ -82,7 +97,7 @@ function migrateData() {
   const oldStaticBgType = readOld("staticBackgroundType");
   if (oldStaticBg !== undefined || oldStaticBgType !== undefined) {
     if (!oldStaticBg) {
-      settings["staticBackgroundMode"] = "off";
+      settings["staticBackgroundMode"] = "default";
     } else {
       const typeMap: Record<string, string> = {
         "Auto": "auto",
@@ -162,7 +177,7 @@ export function showMigrationModal() {
           <div className="uc-divider" />
 
           <button
-            className="btn-update"
+            className="btn-primary"
             onClick={() => {
               migrateData();
               renderSuccess();

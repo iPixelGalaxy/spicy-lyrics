@@ -38,25 +38,25 @@ const LetterGlowMultiplier_Opacity = 185;
 
 const ScaleRange = [
   { Time: 0, Value: 0.95 },
-  { Time: 0.7, Value: 1.0505 /* 1.025 */ },
+  { Time: 0.7, Value: 1.075 /* 1.025 */ },
   { Time: 1, Value: 1 },
 ];
 
 const LetterScaleRange = [
   { Time: 0, Value: 0.95 },
-  { Time: 0.7, Value: 1.175 /* 1.025 */ },
+  { Time: 0.7, Value: 1.18 /* 1.025 */ },
   { Time: 1, Value: 1 },
 ];
 
 const SimpleLetterScaleRange = [
   { Time: 0, Value: 0.95 },
-  { Time: 0.7, Value: 1.07 },
+  { Time: 0.7, Value: 1.095 },
   { Time: 1, Value: 1 },
 ];
 
 const YOffsetRange = [
   { Time: 0, Value: 1 / 100 },
-  { Time: 0.9, Value: -(1 / 60) },
+  { Time: 0.9, Value: -(1 / 52.5) },
   { Time: 1, Value: 0 },
 ];
 
@@ -69,7 +69,7 @@ const GlowRange = [
 
 const SimpleYOffsetRange = [
   { Time: 0, Value: 1 / 100 },
-  { Time: 1, Value: -0.033 },
+  { Time: 1, Value: -0.04 },
 ];
 
 const ScaleSpline = GetSpline(ScaleRange);
@@ -82,14 +82,14 @@ let YOffsetSpline = GetSpline(
 
 const LetterYOffsetRange = [
   { Time: 0, Value: 1 / 100 },
-  { Time: 0.9, Value: -(1 / 56) },
+  { Time: 0.9, Value: -(1 / 50) },
   { Time: 1, Value: 0 },
 ];
 
 
 const SimpleLetterYOffsetRange = [
   { Time: 0, Value: 1 / 100 },
-  { Time: 0.9, Value: -(1 / 62) },
+  { Time: 0.9, Value: -(1 / 65) },
   { Time: 1, Value: 0 },
 ];
 
@@ -101,16 +101,12 @@ let LetterYOffsetSpline = GetSpline(
 const GlowSpline = GetSpline(GlowRange);
 
 const YOffsetDamping = 0.4;
-// const YOffsetFrequency = 1.25;
-// const ScaleDamping = 0.6;
-// const ScaleFrequency = 0.7;
-// const GlowDamping = 0.5;
-// const GlowFrequency = 1;
 const YOffsetFrequency = 1.45;
 const ScaleDamping = 0.64;
 const ScaleFrequency = 0.88;
 const GlowDamping = 0.56;
 const GlowFrequency = 1.18;
+const AnimationResponseLeadMs = 67;
 
 const getDotOpacityRange = (simpleLyricsMode: boolean) => [
   // Controls element opacity
@@ -447,7 +443,7 @@ setOnNewElementMounted(() => {
 });
 
 export function findActiveElement(currentTime: number): any {
-  const ProcessedPosition = currentTime + timeOffset;
+  const ProcessedPosition = currentTime + timeOffset + AnimationResponseLeadMs;
   const CurrentLyricsType = $currentLyricsType.get();
 
   if (!CurrentLyricsType || CurrentLyricsType === "None") return null;
@@ -519,6 +515,15 @@ function getElementState(
   return "Active";
 }
 
+const DOT_LINE_LAYOUT_RELEASE_MS = 120;
+
+function getLineState(currentTime: number, line: any): "NotSung" | "Active" | "Sung" {
+  const endTime = line.DotLine
+    ? Math.max(line.StartTime, line.EndTime - DOT_LINE_LAYOUT_RELEASE_MS)
+    : line.EndTime;
+  return getElementState(currentTime, line.StartTime, endTime);
+}
+
 function getProgressPercentage(currentTime: number, startTime: number, endTime: number): number {
   if (currentTime <= startTime) return 0;
   if (currentTime >= endTime) return 1;
@@ -528,7 +533,7 @@ function getProgressPercentage(currentTime: number, startTime: number, endTime: 
 let lastAnimateFrameTime = 0;
 
 export function Animate(position: number): void {
-  const ProcessedPosition = position + timeOffset - ($simpleLyricsMode.get() ? 33.5 : 0);
+  const ProcessedPosition = position + timeOffset + AnimationResponseLeadMs;
 
   const now = performance.now();
 
@@ -664,7 +669,7 @@ export function Animate(position: number): void {
     for (let index = 0; index < arr.length; index++) {
       const line = arr[index];
       if (!line.HTMLElement.isConnected) continue;
-      const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
+      const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
@@ -917,7 +922,8 @@ export function Animate(position: number): void {
                         dotGroup.HTMLElement.style.opacity = currentOpacity.toString();
                       } */
 
-            // Refactored Dot Animation using Springs
+            // Dots must land on their timeline boundary. Springs lag behind the
+            // final target, which cut off the third dot before it could finish.
             if (!word.AnimatorStore) {
               word.AnimatorStore = createDotSprings();
               word.AnimatorStore.Scale.SetGoal(DotScaleSpline.at(0), true);
@@ -1628,21 +1634,10 @@ export function Animate(position: number): void {
           }
         };
 
-        {
-          const NextLine = arr[index + 1];
-          if (NextLine) {
-            const nextLineStatus = getElementState(
-              ProcessedPosition,
-              NextLine.StartTime,
-              NextLine.EndTime
-            );
-            if (nextLineStatus === "NotSung" || nextLineStatus === "Active") {
-              checkNextLine();
-            }
-          } else if (!NextLine) {
-            checkNextLine();
-          }
-        }
+        // Every sung line must keep stepping toward its resting state. Tying this
+        // to the following line leaves a concurrent line frozen at its last active
+        // spring value when both lines end on the same frame.
+        checkNextLine();
       }
     }
   } else if (CurrentLyricsType === "Line") {
@@ -1651,7 +1646,7 @@ export function Animate(position: number): void {
     for (let index = 0; index < arr.length; index++) {
       const line = arr[index];
       if (!line.HTMLElement.isConnected) continue;
-      const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
+      const lineState = getLineState(ProcessedPosition, line);
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
@@ -1697,7 +1692,8 @@ export function Animate(position: number): void {
               dot.EndTime
             );
 
-            // Refactored Dot Animation using Springs for Line Type
+            // Keep dots in lockstep with their assigned timing. Spring settling
+            // made short final dot intervals end before their visual peak.
             if (!dot.AnimatorStore) {
               dot.AnimatorStore = createDotSprings();
               dot.AnimatorStore.Scale.SetGoal(DotScaleSpline.at(0), true);

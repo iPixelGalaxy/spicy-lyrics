@@ -41,7 +41,7 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letter {
   --gradient-position: -20%;
-  --gradient-color: 255;
+  --gradient-rgb: 255, 255, 255;
   --gradient-alpha: 0.85;
   --gradient-alpha-end: 0.5;
   --gradient-degrees: 90deg;
@@ -75,11 +75,13 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Active .letter,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .word,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letter,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.static {
   background-image: linear-gradient(
     var(--gradient-degrees),
-    rgba(255, 255, 255, var(--gradient-alpha)) var(--gradient-position),
-    rgba(255, 255, 255, var(--gradient-alpha-end))
+    rgba(var(--gradient-rgb), var(--gradient-alpha)) var(--gradient-position),
+    rgba(var(--gradient-rgb), var(--gradient-alpha-end))
       calc(var(--gradient-position) + 20% + var(--gradient-offset))
   );
 }
@@ -87,12 +89,7 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.NotSung .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.NotSung .letter {
   text-shadow: 0 0 var(--BlurAmount, 0)
-    rgba(
-      var(--gradient-color),
-      var(--gradient-color),
-      var(--gradient-color),
-      var(--gradient-alpha-end)
-    );
+    rgba(var(--gradient-rgb), var(--gradient-alpha-end));
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Sung,
@@ -103,7 +100,7 @@
   .SpicyLyricsScrollContainer[data-lyrics-type="Static"]
   .line {
   text-shadow: 0 0 var(--BlurAmount, 0)
-    rgba(var(--gradient-color), var(--gradient-color), var(--gradient-color), var(--gradient-alpha));
+    rgba(var(--gradient-rgb), var(--gradient-alpha));
 }
 
 /* #SpicyLyricsPage.SpicyRenderer.Podcast .LyricsContainer .LyricsContent .line,
@@ -219,6 +216,26 @@
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line .letterGroup {
   --text-shadow-blur-radius: 4px;
   --text-shadow-opacity: 0%;
+  /* Extend compositing layer boundaries to cover italic/oblique glyph overhang.
+     GPU-composited layers are clipped to the element's layout box, which cuts off
+     slanted glyphs at the box edges — most visibly on the active (animated) line.
+     Padding extends the layer; negative margin cancels the layout impact. */
+  padding-inline: 0.3em;
+  margin-inline: -0.3em;
+  padding-block: 0.15em;
+  margin-block: -0.15em;
+}
+
+/* Fix for line-synced mode: extend GPU compositing layer to capture italic/oblique glyph overhang.
+   In data-lyrics-type="Line", the .line itself is the animated unit (scale transition).
+   Only padding-block is used here — no negative margin — because inter-line spacing already
+   comes from the explicit margin on .line and must not be overridden. */
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer[data-lyrics-type="Line"]
+  .line:not(.musical-line) {
+  padding-block: 0.15em;
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line:not(.musical-line) .word,
@@ -300,6 +317,13 @@
   --BlurAmount: 0px !important;
 }
 
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover,
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .word,
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .letter,
+#SpicyLyricsPage.SpicyRenderer:not(.SpaceGravityMode) .LyricsContainer .LyricsContent .line.Active:hover .letterGroup {
+  text-shadow: var(--StrongerTextGlowDef) !important;
+}
+
 #SpicyLyricsPage.SpicyRenderer
   .LyricsContainer
   .LyricsContent
@@ -312,6 +336,14 @@
   .letterGroup:not(.PartOfWord, .dot, .LastWordInLine)::after {
   content: "";
   margin-right: 0.32ch;
+}
+
+#SpicyLyricsPage.SpicyRenderer.GibberishLyricsMode
+  .LyricsContainer
+  .LyricsContent
+  .line
+  :is(.word, .letterGroup):not(.dot)::after {
+  margin-right: 0;
 }
 
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.NotSung .word,
@@ -480,19 +512,19 @@
 } */
 
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo {
   /* Sized relative to the parent's (inherited) font-size — see .Credits note. */
   font-size: 0.35em !important;
   font-weight: 600;
-  margin: 1cqw 0 0 !important;
+  margin: 0.1875cqw 0 0 !important;
   color: white;
   scale: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.29cqw;
+  gap: 0.145cqw;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo {
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo {
   font-size: 0.5em !important;
 }
 
@@ -501,8 +533,8 @@
   scale: 1.02;
 } */
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader,
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker {
   --font-size: calc(var(--DefaultLyricsSize) * 0.33);
   font-size: var(--font-size) !important;
   display: flex;
@@ -510,8 +542,8 @@
   align-items: center;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader img,
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker img {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader img,
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker img {
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -520,14 +552,14 @@
   top: 6px;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader,
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker {
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader,
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker {
   --font-size: calc(var(--DefaultLyricsSize) * 0.45);
   margin-left: 0.45cqw;
 }
 
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Uploader img,
-.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .Maker img {
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Uploader img,
+.spicy-pip-wrapper #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .Maker img {
   width: 18px;
   height: 18px;
 }
@@ -548,6 +580,10 @@
     scale 0.2s cubic-bezier(0.37, 0, 0.63, 1),
     opacity 0.2s cubic-bezier(0.37, 0, 0.63, 1) !important;
   margin: var(--SpicyLyrics-LineSpacing, 2cqw 0);
+  /* Counteract the padding-block added for italic glyph overhang (see earlier rule).
+     margin-block after margin: wins the cascade within this block. 1cqw matches
+     the block component of --SpicyLyrics-LineSpacing so text-to-text spacing is unchanged. */
+  margin-block: calc(1cqw - 0.15em);
   /*   text-shadow: 0 0 var(--text-shadow-blur-radius) rgba(255,255,255,var(--text-shadow-opacity)); */
 }
 
@@ -823,7 +859,7 @@
 
 
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .Credits {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .Credits {
   /* `em` is, by definition, relative to the parent element's font-size. The
      parent (.SpicyLyricsScrollContainer) inherits font-size: var(--DefaultLyricsSize)
      from .LyricsContent, so this scales with the lyrics without needing a
@@ -831,23 +867,23 @@
   font-size: 0.47em !important;
   font-weight: 600 !important;
   opacity: 0.6;
-  margin: 1cqw 0 0 !important;
+  margin: 0.5cqw 0 0 !important;
   scale: 1;
   color: white;
 }
 
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .LyricsProvider {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .LyricsProvider {
   /* Sized relative to the parent's (inherited) font-size — see .Credits note. */
   font-size: 0.34em !important;
   font-weight: 600 !important;
   opacity: 0.5;
-  margin: .75cqw 1px 0 !important;
+  margin: 0.75cqw 1px 0 !important;
   scale: 1;
   color: white;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .song-info-profile-section {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .song-info-profile-section {
   font-weight: 700;
   opacity: 0.55;
   transition: opacity 0.21s;
@@ -855,7 +891,7 @@
   cursor: pointer;
 }
 
-#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .SongInfo .song-info-profile-section:hover {
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .SongInfo .song-info-profile-section:hover {
   opacity: 1;
 }
 

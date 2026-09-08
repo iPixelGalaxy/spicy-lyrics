@@ -1,20 +1,32 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { $currentLyricsData, $currentLyricsType } from "../../stores.ts";
+import { $currentLyricsData, $currentLyricsType, $spaceGravityMode } from "../../stores.ts";
 import { ClearScrollSimplebar } from "../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { setBlurringLastLine } from "../Animator/Lyrics/LyricsAnimator.ts";
 import { DestroyAllLyricsContainers } from "../Applyer/CreateLyricsContainer.ts";
 import { EmitApply, EmitNotApplyed } from "../Applyer/OnApply.ts";
 import { ApplyStaticLyrics, type StaticLyricsData } from "../Applyer/Static.ts";
 import { ApplyLineLyrics } from "../Applyer/Synced/Line.ts";
-import { ApplySyllableLyrics } from "../Applyer/Synced/Syllable.ts";
-import { ClearLyricsPageContainer, ShowQueueLoader, type FetchLyricsResult } from "../fetchLyrics.ts";
-import { ClearLyricsContentArrays, isRomanized } from "../lyrics.ts";
+import { ApplySyllableLyrics, ClearSyllableRenderSession } from "../Applyer/Synced/Syllable.ts";
+import {
+  ConvertLineLyricsToExperimentalWordSync,
+  ConvertStaticLyricsToExperimentalWordSync,
+  SplitAppleMusicSyllableWords,
+} from "../ExperimentalWordSync.ts";
+import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
+import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
+import { ClearLyricsContentArrays, isRomanized, setRomanizedStatus } from "../lyrics.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
 import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx";
 import { IsCompactMode } from "../../../components/Utils/CompactMode.ts";
 import Fullscreen from "../../../components/Utils/Fullscreen.ts";
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
+import { ApplyMemeFormat } from "../ProcessLyrics.ts";
+import Defaults from "../../../components/Global/Defaults.ts";
+import { captureLyricsViewportAnchor, triggerRemeasureLV } from "../LyricsVirtualizer.ts";
+import { UpdateStaticLyricsRomanization } from "../Applyer/Static.ts";
+import { UpdateLineLyricsRomanization } from "../Applyer/Synced/Line.ts";
+import { UpdateSyllableLyricsRomanization } from "../Applyer/Synced/Syllable.ts";
 
 /**
  * Union type for all lyrics data types
@@ -24,8 +36,56 @@ export type LyricsData = {
   [key: string]: any;
 };
 
+function isAppleMusicLyrics(lyrics: LyricsData): boolean {
+  return (
+    lyrics.sourceDisplayName?.trim().toLowerCase() === "apple music" ||
+    lyrics.source?.toLowerCase() === "aml" ||
+    lyrics.source?.toLowerCase() === "apple" ||
+    lyrics.fetchProvider?.toLowerCase() === "aml" ||
+    lyrics.fetchProvider?.toLowerCase() === "apple"
+  );
+}
+
 
 let currentAbortController: AbortController | null = null;
+let appliedLyricsIdentity: string | null = null;
+let renderedLyrics: LyricsData | null = null;
+let applyGeneration = 0;
+
+export function ShouldReapplyRenderedLyricsForSpaceGravity(enabled: boolean): boolean {
+  if (!renderedLyrics) return false;
+
+  if (enabled) {
+    return renderedLyrics.Type === "Line" || renderedLyrics.Type === "Static";
+  }
+
+  return renderedLyrics.experimentalWordSyncReason === "SpaceGravity";
+}
+
+export function UpdateRenderedRomanization(useRomanized: boolean): boolean {
+  if (!renderedLyrics) return false;
+
+  if (renderedLyrics.Type === "Syllable") {
+    UpdateSyllableLyricsRomanization(useRomanized);
+  } else if (renderedLyrics.Type === "Line") {
+    UpdateLineLyricsRomanization(useRomanized);
+  } else if (renderedLyrics.Type === "Static") {
+    UpdateStaticLyricsRomanization(useRomanized);
+  } else {
+    return false;
+  }
+
+  setRomanizedStatus(useRomanized);
+  triggerRemeasureLV();
+  return true;
+}
+
+function getLyricsIdentity(descriptor: object | string): string | null {
+  if (descriptor && typeof descriptor === "object" && typeof (descriptor as any).id === "string") {
+    return (descriptor as any).id;
+  }
+  return SpotifyPlayer.GetUri() ?? null;
+}
 
 export const cleanupApplyLyricsAbortController = () => {
   if (currentAbortController) {
@@ -34,52 +94,68 @@ export const cleanupApplyLyricsAbortController = () => {
   }
 }
 
+export function ShouldApplyLyricsForUri(
+  expectedUri: string | undefined,
+  lyricsContent: [object | string, number] | null
+): boolean {
+  if (!expectedUri || !lyricsContent) {
+    return false;
+  }
+
+  const currentUri = SpotifyPlayer.GetUri() ?? "";
+  if (getSongKey(expectedUri) !== getSongKey(currentUri)) {
+    return false;
+  }
+
+  const [descriptor] = lyricsContent;
+  if (!descriptor || typeof descriptor === "string") {
+    return true;
+  }
+
+  const descriptorId = typeof (descriptor as any).id === "string"
+    ? (descriptor as any).id
+    : null;
+  if (!descriptorId) {
+    return true;
+  }
+
+  const currentId = currentUri.startsWith("spotify:local:")
+    ? getSongKey(currentUri)
+    : SpotifyPlayer.GetId();
+  return descriptorId === currentId;
+}
+
+export async function ApplyLyricsIfCurrent(
+  expectedUri: string | undefined,
+  lyricsContent: [object | string, number] | null
+): Promise<void> {
+  if (!ShouldApplyLyricsForUri(expectedUri, lyricsContent)) {
+    return;
+  }
+
+  await ApplyLyrics(lyricsContent);
+}
+
 /**
  * Apply lyrics based on their type
  * @param lyrics - The lyrics data to apply
  */
-export default async function ApplyLyrics(lyricsContent: FetchLyricsResult): Promise<void> {
+export default async function ApplyLyrics(lyricsContent: [object | string, number] | null): Promise<void> {
   if (!PageContainer) return;
-  if (!lyricsContent) {
-    setBlurringLastLine(null);
-    return;
-  }
-
-  const [descriptor, _status, requestedUri] = lyricsContent;
-
-  // Fetching is async, so a result can land after the user has already skipped
-  // on. Applying it would paint the previous track's lyrics — or its "no
-  // lyrics" notice — over the new track, and the notice branch below would
-  // stamp the NO_LYRICS sentinel with the new track's uri, making every later
-  // fetch for that track short-circuit to "no lyrics" for good. Drop it and
-  // leave the current track's own apply to do the work.
-  const currentUri = SpotifyPlayer.GetUri();
-  if (requestedUri && currentUri && requestedUri !== currentUri) return;
-
+  const generation = ++applyGeneration;
   setBlurringLastLine(null);
+  if (!lyricsContent) return;
 
-  cleanupApplyLyricsAbortController()
-
-  EmitNotApplyed();
-
-  DestroyAllLyricsContainers();
-
-  ClearLyricsContentArrays();
-  ClearScrollSimplebar();
-  ClearLyricsPageContainer();
-
-  CleanUpIsByCommunity();
+  const [descriptor, _status] = lyricsContent;
+  const incomingLyricsIdentity = getLyricsIdentity(descriptor);
+  const viewportAnchor =
+    incomingLyricsIdentity !== null && incomingLyricsIdentity === appliedLyricsIdentity
+      ? captureLyricsViewportAnchor()
+      : null;
 
   let noticeContent: string | null = null;
 
   switch (descriptor) {
-    case "lyrics-queued": {
-      // HTTP 503: the lyrics server has queued our request. Keep the loader and
-      // queue message visible (LyricsQueueRetry drives the backoff retry loop)
-      // and render nothing else — the loop re-applies once it resolves.
-      ShowQueueLoader();
-      return;
-    }
     case "lyrics-not-found": {
       noticeContent = `We don't have any lyrics for this song`
       break;
@@ -134,14 +210,80 @@ export default async function ApplyLyrics(lyricsContent: FetchLyricsResult): Pro
       break;
   }
 
+  let lyrics: LyricsData | null = null;
+
+  if (!noticeContent) {
+    lyrics = descriptor as LyricsData;
+    const sourceNeedsWordSync = lyrics.Type === "Line" || lyrics.Type === "Static";
+    const shouldUseExperimentalWordSync =
+      sourceNeedsWordSync && (Defaults.EnableExperimentalWordSync || $spaceGravityMode.get());
+
+    if (shouldUseExperimentalWordSync) {
+      const analysisTrackId =
+        typeof lyrics.id === "string" && lyrics.id.length > 0
+          ? lyrics.id
+          : SpotifyPlayer.GetId() ?? "";
+      const audioAnalysis = analysisTrackId
+        ? await getDynamicAudioAnalysis(analysisTrackId)
+        : null;
+
+      // Keep current lyrics mounted while analysis loads. A newer apply owns the
+      // page, and a Gravity toggle may have removed its temporary requirement.
+      if (generation !== applyGeneration || !PageContainer) return;
+
+      const forceWordSyncForSpaceGravity =
+        !Defaults.EnableExperimentalWordSync && $spaceGravityMode.get();
+      if (Defaults.EnableExperimentalWordSync || forceWordSyncForSpaceGravity) {
+        if (lyrics.Type === "Line") {
+          lyrics = ConvertLineLyricsToExperimentalWordSync(lyrics, audioAnalysis) as LyricsData;
+        } else {
+          lyrics = ConvertStaticLyricsToExperimentalWordSync(
+            lyrics,
+            audioAnalysis,
+            SpotifyPlayer.GetDuration() / 1000
+          ) as LyricsData;
+        }
+
+        if (forceWordSyncForSpaceGravity && lyrics.experimentalWordSync) {
+          lyrics.experimentalWordSyncReason = "SpaceGravity";
+        }
+
+        // Re-apply gibberish for newly-created syllables. Original formatting
+        // ran before conversion, while lyrics were still Line/Static.
+        if (Defaults.MemeFormat !== "Off") {
+          ApplyMemeFormat(lyrics);
+        }
+      }
+    } else if (
+      Defaults.EnableExperimentalWordSync &&
+      lyrics.Type === "Syllable" &&
+      isAppleMusicLyrics(lyrics)
+    ) {
+      lyrics = SplitAppleMusicSyllableWords(lyrics) as LyricsData;
+
+      if (lyrics.experimentalAppleWordSplitting && Defaults.MemeFormat !== "Off") {
+        ApplyMemeFormat(lyrics);
+      }
+    }
+  }
+
+  if (generation !== applyGeneration || !PageContainer) return;
+
+  cleanupApplyLyricsAbortController();
+  EmitNotApplyed();
+  ClearSyllableRenderSession();
+  DestroyAllLyricsContainers();
+  ClearLyricsContentArrays();
+  ClearScrollSimplebar();
+  ClearLyricsPageContainer();
+  CleanUpIsByCommunity();
+
   if (noticeContent) {
     $currentLyricsType.set("None");
 
     if (descriptor === "lyrics-not-found") {
-      // Key the sentinel off the uri the fetch was made for, never off whatever
-      // happens to be playing now — see the staleness check above.
-      const uri = requestedUri ?? currentUri ?? "";
-      $currentLyricsData.set(`NO_LYRICS:${uri}`);
+      const trackId = SpotifyPlayer.GetId() ?? "";
+      $currentLyricsData.set(`NO_LYRICS:${trackId}`);
     } else {
       $currentLyricsData.set("");
     }
@@ -179,19 +321,37 @@ export default async function ApplyLyrics(lyricsContent: FetchLyricsResult): Pro
     }
 
     EmitApply("None", null)
+    appliedLyricsIdentity = null;
+    renderedLyrics = null;
     return;
   }
 
-  const lyrics = descriptor as LyricsData;
+  if (!lyrics) return;
+
+  Defaults.CurrentLyricsType = lyrics.Type;
+  $currentLyricsType.set(lyrics.Type);
+  PageContainer?.classList.toggle(
+    "SpaceGravityMode",
+    lyrics.Type === "Syllable" && $spaceGravityMode.get()
+  );
 
   const romanize = isRomanized;
 
+  if (Defaults.RightAlignLyrics && lyrics.Content) {
+    for (const item of (lyrics as any).Content) {
+      item.OppositeAligned = !item.OppositeAligned;
+    }
+  }
+
   if (lyrics.Type === "Syllable") {
-    ApplySyllableLyrics(lyrics as any, romanize);
+    ApplySyllableLyrics(lyrics as any, romanize, viewportAnchor);
   } else if (lyrics.Type === "Line") {
-    ApplyLineLyrics(lyrics as any, romanize);
+    ApplyLineLyrics(lyrics as any, romanize, viewportAnchor);
   } else if (lyrics.Type === "Static") {
     // Type assertion to StaticLyricsData since we've verified the Type is "Static"
-    ApplyStaticLyrics(lyrics as StaticLyricsData, romanize);
+    ApplyStaticLyrics(lyrics as StaticLyricsData, romanize, viewportAnchor);
   }
+
+  appliedLyricsIdentity = incomingLyricsIdentity;
+  renderedLyrics = lyrics;
 }

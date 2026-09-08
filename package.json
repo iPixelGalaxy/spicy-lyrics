@@ -4,7 +4,9 @@
   "scripts": {
     "sc": "spicetify-creator",
     "dev": "spicetify-creator dev",
-    "build": "spicetify-creator build",
+    "build": "node project/build.mjs",
+    "build:creator": "spicetify-creator build",
+    "build:release": "node project/build.mjs",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt"
@@ -20,7 +22,6 @@
     "cubic-spline": "^3.0.3",
     "cyrillic-romanization": "^1.2.1",
     "d3-ease": "^3.0.1",
-    "fast-xml-parser": "^5.11.0",
     "franc-all": "^7.2.0",
     "idb": "^8.0.3",
     "kuroshiro": "^1.2.0",

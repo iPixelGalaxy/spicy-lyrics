@@ -9,26 +9,38 @@ const spicyLyricsPacker = new SLObjPack();
 
 export async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyricsResult | null> {
   try {
-    const token = await Platform.GetSpotifyAccessToken();
-    const queries = await Query(
-      [
-        {
-          operation: "lyrics",
-          variables: {
-            id: trackId,
-            auth: "SpicyLyrics-WebAuth",
+    const queryLyrics = async (token: string) => {
+      const queries = await Query(
+        [
+          {
+            operation: "lyrics",
+            variables: {
+              id: trackId,
+              auth: "SpicyLyrics-WebAuth",
+            },
           },
+        ],
+        {
+          "SpicyLyrics-WebAuth": `Bearer ${token}`,
         },
-      ],
-      {
-        "SpicyLyrics-WebAuth": `Bearer ${token}`,
-      },
-      // This user-initiated fetch is the breaker's health probe while the API
-      // is paused. Query still limits it to one probe at a time.
-      { probe: true }
-    );
+        // This user-initiated fetch is the breaker's health probe while the API
+        // is paused. Query still limits it to one probe at a time.
+        { probe: true }
+      );
+      return queries.get("0");
+    };
 
-    const lyricsQuery = queries.get("0");
+    const token = await Platform.GetSpotifyAccessToken();
+    let lyricsQuery = await queryLyrics(token);
+
+    // A token can be rejected before Spotify updates its local authorization
+    // state. Retire it and retry once with a fresh token.
+    if (lyricsQuery?.httpStatus === 401) {
+      Platform.InvalidateSpotifyAccessToken(token);
+      const retryToken = await Platform.GetSpotifyAccessToken();
+      if (retryToken !== token) lyricsQuery = await queryLyrics(retryToken);
+    }
+
     if (!lyricsQuery || lyricsQuery.httpStatus !== 200) {
       return null;
     }

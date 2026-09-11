@@ -161,6 +161,10 @@ export const $externalCinemaLyricsAllowed = persistAtom<boolean>("externalCinema
 export const $viewControlsPosition = persistAtom<string>("viewControlsPosition", "Top");
 export const $ttmlMakerMode = persistAtom<boolean>("ttmlMakerMode", true);
 export const $developerMode = persistAtom<boolean>("developerMode", false);
+export const $rememberSettingsMenuLocation = persistAtom<boolean>(
+  "rememberSettingsMenuLocation",
+  false
+);
 export const $showLyricsCacheActionButton = persistAtom<boolean>(
   "showLyricsCacheActionButton",
   false

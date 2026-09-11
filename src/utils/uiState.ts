@@ -63,6 +63,17 @@ export const $lastFetchedUri = persistAtom<string | null>("lastFetchedUri", null
 export const $previousVersion = persistAtom<string>("previousVersion", "");
 export const $npvLyricsOpen = persistAtom<boolean>("npvLyricsOpen", true);
 export const $npvLyricsExpanded = persistAtom<boolean>("npvLyricsExpanded", false);
+export const $settingsMenuLocation = persistAtom<{
+  route: "settings" | "hidden" | "animator";
+  query: string;
+  sectionFilter: string;
+  scrollTop: number;
+}>("settingsMenuLocation", {
+  route: "settings",
+  query: "",
+  sectionFilter: "Appearance",
+  scrollTop: 0,
+});
 
 // Runtime (ephemeral) atoms
 export const $isGlobalNav = atom<boolean>(true);

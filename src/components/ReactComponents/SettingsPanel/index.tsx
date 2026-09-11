@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { $allowHidingSettings, $hideHidingIcon } from "../../../utils/stores.ts";
 import AppearanceSection from "./AppearanceSection.tsx";
@@ -20,13 +20,17 @@ const TABS = [
 ] as const;
 
 export type SettingsPanelState = { query: string; sectionFilter: string; scrollTop: number };
-export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, initialState }: { onOpenHiddenSettings?: () => void; onManageAnimator?: (state: SettingsPanelState) => void; initialState?: SettingsPanelState }) {
+export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, initialState, onStateChange }: { onOpenHiddenSettings?: () => void; onManageAnimator?: (state: SettingsPanelState) => void; initialState?: SettingsPanelState; onStateChange?: (state: SettingsPanelState) => void }) {
   const [query, setQuery] = useState(initialState?.query ?? "");
   const [sectionFilter, setSectionFilter] = useState<string>(initialState?.sectionFilter ?? "Appearance");
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const searching = Boolean(query.trim());
+
+  useEffect(() => {
+    onStateChange?.({ query, sectionFilter, scrollTop: 0 });
+  }, [onStateChange, query, sectionFilter]);
 
   const selectTab = (tab: string) => {
     setSectionFilter(tab);

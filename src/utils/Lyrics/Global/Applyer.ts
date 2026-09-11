@@ -52,6 +52,14 @@ let appliedLyricsIdentity: string | null = null;
 let renderedLyrics: LyricsData | null = null;
 let applyGeneration = 0;
 
+/**
+ * A song change starts a new rendering epoch before its lyrics request settles.
+ * This prevents an older async word-sync conversion from replacing the new song.
+ */
+export function InvalidatePendingLyricsApplication(): void {
+  applyGeneration += 1;
+}
+
 export function ShouldReapplyRenderedLyricsForSpaceGravity(enabled: boolean): boolean {
   if (!renderedLyrics) return false;
 

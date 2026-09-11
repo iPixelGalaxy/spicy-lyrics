@@ -7,6 +7,8 @@ import HiddenSettingsPanel from "../components/ReactComponents/SettingsPanel/Hid
 import AnimatorBehaviorPanel from "../components/ReactComponents/SettingsPanel/AnimatorBehaviorPanel.tsx";
 import Fullscreen from "../components/Utils/Fullscreen.ts";
 import type { SettingsPanelState } from "../components/ReactComponents/SettingsPanel/index.tsx";
+import { $settingsMenuLocation } from "./uiState.ts";
+import { $rememberSettingsMenuLocation } from "./stores.ts";
 
 const MODAL_ID = "settingsPanel";
 type Direction = "forward" | "back";
@@ -20,6 +22,28 @@ function renderPanel(targetDocument: Document, element: React.ReactElement, dire
 }
 
 export function openSettingsPanel(targetDocument: Document = document) {
+  const rememberedLocation = $rememberSettingsMenuLocation.get()
+    ? $settingsMenuLocation.get()
+    : { route: "settings" as const, query: "", sectionFilter: "Appearance", scrollTop: 0 };
+  let currentState: SettingsPanelState = {
+    query: rememberedLocation.query,
+    sectionFilter: rememberedLocation.sectionFilter,
+    scrollTop: rememberedLocation.scrollTop,
+  };
+  let currentRoute = rememberedLocation.route;
+  const updateState = (state: SettingsPanelState) => {
+    currentState = { ...state, scrollTop: currentState.scrollTop };
+  };
+  const captureScrollPosition = () => {
+    const scrollElement = targetDocument.querySelector<HTMLElement>(".slmodal-settingsPanel .sl-modal-main-section");
+    if (scrollElement) currentState.scrollTop = scrollElement.scrollTop;
+  };
+  const saveLocation = () => {
+    captureScrollPosition();
+    if ($rememberSettingsMenuLocation.get()) {
+      $settingsMenuLocation.set({ ...currentState, route: currentRoute });
+    }
+  };
   let previewEnteredFullscreen = false;
   let removePreviewPositioning: (() => void) | null = null;
   const restorePreview = () => {
@@ -29,10 +53,22 @@ export function openSettingsPanel(targetDocument: Document = document) {
     previewEnteredFullscreen = false;
     if (Fullscreen.IsOpen) Fullscreen.Toggle(false);
   };
-  const openAnimatorBehaviorPanel = (state: SettingsPanelState = { query: "", sectionFilter: "Appearance", scrollTop: 0 }) => {
+  const closePanel = (root: ReactDOM.Root) => {
+    saveLocation();
+    root.unmount();
+  };
+  const createSettingsPanel = () => React.createElement(SettingsPanel, {
+    onOpenHiddenSettings: openHiddenSettingsPanel,
+    onManageAnimator: openAnimatorBehaviorPanel,
+    initialState: currentState,
+    onStateChange: updateState,
+  });
+  const openAnimatorBehaviorPanel = (state: SettingsPanelState = currentState) => {
+    currentState = state;
+    currentRoute = "animator";
     if (!Fullscreen.IsOpen) { previewEnteredFullscreen = true; Fullscreen.Toggle(false); }
     const { container, root } = renderPanel(targetDocument, React.createElement(AnimatorBehaviorPanel, { onBack: backToSettings, onClose: () => PopupModal.hide(), eventDocument: targetDocument }), "forward");
-    PopupModal.transition({ title: "Animator Behavior", content: container, modalId: "animatorPreview", isLarge: false, onClose: () => { root.unmount(); restorePreview(); } });
+    PopupModal.transition({ title: "Animator Behavior", content: container, modalId: "animatorPreview", isLarge: false, onClose: () => { saveLocation(); root.unmount(); restorePreview(); } });
     const positionPreview = () => {
       const modal = targetDocument.querySelector<HTMLElement>(".slmodal-animatorPreview");
       const artwork = targetDocument.querySelector<HTMLElement>("#SpicyLyricsPage .NowBar .MediaImageContainer");
@@ -60,23 +96,27 @@ export function openSettingsPanel(targetDocument: Document = document) {
     (openAnimatorBehaviorPanel as any).state = state;
   };
   const openHiddenSettingsPanel = () => {
+    captureScrollPosition();
+    currentRoute = "hidden";
     const { container, root } = renderPanel(targetDocument, React.createElement(HiddenSettingsPanel, { onBack: backToSettings }), "forward");
-    PopupModal.transition({ title: "Hidden Settings", content: container, modalId: MODAL_ID, onClose: () => root.unmount() });
+    PopupModal.transition({ title: "Hidden Settings", content: container, modalId: MODAL_ID, onClose: () => closePanel(root) });
   };
   const backToSettings = () => {
     const state = (openAnimatorBehaviorPanel as any).state as SettingsPanelState | undefined;
+    currentState = state ?? currentState;
+    currentRoute = "settings";
     restorePreview();
     const { container, root } = renderPanel(
       targetDocument,
-      React.createElement(SettingsPanel, { onOpenHiddenSettings: openHiddenSettingsPanel, onManageAnimator: openAnimatorBehaviorPanel, initialState: state }),
+      createSettingsPanel(),
       "back"
     );
-    PopupModal.transition({ title: "Settings", content: container, modalId: MODAL_ID, contentScrollTop: state?.scrollTop, onClose: () => root.unmount() });
+    PopupModal.transition({ title: "Settings", content: container, modalId: MODAL_ID, contentScrollTop: currentState.scrollTop, onClose: () => closePanel(root) });
   };
 
   const { container, root } = renderPanel(
     targetDocument,
-    React.createElement(SettingsPanel, { onOpenHiddenSettings: openHiddenSettingsPanel, onManageAnimator: openAnimatorBehaviorPanel })
+    createSettingsPanel()
   );
   PopupModal.display({
     title: "Settings",
@@ -84,6 +124,9 @@ export function openSettingsPanel(targetDocument: Document = document) {
     isLarge: true,
     modalId: MODAL_ID,
     targetDocument,
-    onClose: () => root.unmount(),
+    onClose: () => closePanel(root),
   });
+
+  if (rememberedLocation.route === "hidden") openHiddenSettingsPanel();
+  else if (rememberedLocation.route === "animator") openAnimatorBehaviorPanel(currentState);
 }

@@ -60,7 +60,10 @@ import { IsPlaying } from "./utils/Addons.ts";
 import { requestPositionSync } from "./utils/Gets/GetProgress.ts";
 import { IntervalManager } from "./utils/IntervalManager.ts";
 import fetchLyrics, { getSongKey } from "./utils/Lyrics/fetchLyrics.ts";
-import ApplyLyrics from "./utils/Lyrics/Global/Applyer.ts";
+import ApplyLyrics, {
+  ApplyLyricsIfCurrent,
+  InvalidatePendingLyricsApplication,
+} from "./utils/Lyrics/Global/Applyer.ts";
 import { ScrollingIntervalTime } from "./utils/Lyrics/lyrics.ts";
 import { ScrollToActiveLine } from "./utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "./utils/Scrolling/Simplebar/ScrollSimplebar.ts";
@@ -991,7 +994,8 @@ async function main() {
       if (songUri) {
         if ($lastFetchedUri.get() !== songUri) {
           $lastFetchedUri.set(songUri);
-          fetchLyrics(songUri).then(ApplyLyrics);
+          InvalidatePendingLyricsApplication();
+          fetchLyrics(songUri).then((lyrics) => ApplyLyricsIfCurrent(songUri, lyrics));
         }
       }
 

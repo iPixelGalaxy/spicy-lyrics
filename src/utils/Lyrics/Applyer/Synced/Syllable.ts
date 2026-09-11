@@ -382,7 +382,10 @@ export function ApplySyllableLyrics(
   LyricsContainer.appendChild(virtualContainer);
 
   const lineElements: HTMLElement[] = [];
-  const spaceGravityMode = $spaceGravityMode.get();
+  const enableSpaceGravityAfterMount = $spaceGravityMode.get();
+  // First render through SimpleBar so the lyrics host has stable dimensions.
+  // Gravity's mounted-session switch owns the subsequent DOM transition.
+  const spaceGravityMode = false;
   const syllableMode = "Default";
   const allowLetterEmphasis = !data.experimentalWordSync;
 
@@ -883,6 +886,13 @@ export function ApplySyllableLyrics(
 
   if (viewportAnchor) AdoptReappliedScrollPosition();
   else if (!spaceGravityMode) PositionInitialLyrics(ScrollSimplebar);
+
+  if (enableSpaceGravityAfterMount) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!$spaceGravityMode.get() || syllableRenderSession?.Container !== LyricsContainer) return;
+      UpdateRenderedSpaceGravity(true);
+    }));
+  }
 
   setRomanizedStatus(UseRomanized);
 }

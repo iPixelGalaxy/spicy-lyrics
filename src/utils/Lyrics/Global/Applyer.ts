@@ -343,10 +343,9 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   Defaults.CurrentLyricsType = lyrics.Type;
   $currentLyricsType.set(lyrics.Type);
-  PageContainer?.classList.toggle(
-    "SpaceGravityMode",
-    lyrics.Type === "Syllable" && $spaceGravityMode.get()
-  );
+  // The first renderer pass must establish its real container before Gravity
+  // takes ownership. Gravity then switches in through the mounted-session path.
+  PageContainer?.classList.remove("SpaceGravityMode");
 
   const romanize = isRomanized;
 

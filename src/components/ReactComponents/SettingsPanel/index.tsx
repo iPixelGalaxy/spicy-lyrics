@@ -1,7 +1,6 @@
-import { useStore } from "@nanostores/react";
 import { useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
-import { $allowHidingSettings } from "../../../utils/stores.ts";
+import { $allowHidingSettings, $hideHidingIcon } from "../../../utils/stores.ts";
 import AppearanceSection from "./AppearanceSection.tsx";
 import DeveloperSection from "./DeveloperSection.tsx";
 import EffectsSection from "./EffectsSection.tsx";
@@ -24,6 +23,7 @@ export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSe
   const [query, setQuery] = useState("");
   const [sectionFilter, setSectionFilter] = useState<string>("Appearance");
   const allowHidingSettings = useStore($allowHidingSettings);
+  const hideHidingIcon = useStore($hideHidingIcon);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const searching = Boolean(query.trim());
 
@@ -54,7 +54,7 @@ export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSe
           onClick={() => selectTab(tab)}
           onKeyDown={(event) => onTabKeyDown(event, index)}
         ><span aria-hidden="true">{icon}</span>{label}</button>)}
-        {allowHidingSettings && <button className="sl-sp-tab sl-sp-tab--action" type="button" onClick={onOpenHiddenSettings}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>Hide Settings</button>}
+        {allowHidingSettings && <button className={`sl-sp-tab sl-sp-tab--action${hideHidingIcon ? "" : " sl-sp-tab--active"}`} type="button" aria-pressed={!hideHidingIcon} onClick={() => $hideHidingIcon.set(!hideHidingIcon)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>Hide Settings</button>}
       </div>
       <div className="sl-sp-toolbar">
         <SearchBar value={query} onChange={setQuery} />
@@ -67,7 +67,7 @@ export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSe
           <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
           <InterfaceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
           <SourcesSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-          <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+          <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} onOpenHiddenSettings={onOpenHiddenSettings ?? (() => {})} />
         </div>
       </ShowHiddenSettingsInSearchContext.Provider>
       <Footer />

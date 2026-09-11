@@ -47,7 +47,7 @@ export function Row({
       className={`sl-sp-row sl-list-row${disabled ? " sl-sp-row--disabled" : ""}${stacked ? " sl-sp-row--stacked" : ""}`}
     >
       <div className="sl-sp-label-area">
-        {settingId && ((showHidden && isHidden) || (allowHidingSettings && !hideHidingIcon)) && (
+        {settingId && settingId !== "advanced-hide-settings" && ((showHidden && isHidden) || (allowHidingSettings && !hideHidingIcon)) && (
           <button className="sl-sp-btn sl-sp-visibility-btn" onClick={toggleVisibility} aria-label={`${isHidden ? "Restore" : "Hide"} ${label}`} title={`${isHidden ? "Restore" : "Hide"} setting`}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/>{!isHidden && <path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>}</svg>
           </button>

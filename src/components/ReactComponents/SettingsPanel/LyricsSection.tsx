@@ -10,6 +10,7 @@ import {
   $showScrollToActiveButton,
 } from "../../../utils/stores.ts";
 import { matches, Row, SectionTitle, Slider, Toggle } from "./components.tsx";
+import { ExperimentSettings } from "./ExperimentsPanel.tsx";
 
 const SECTION_NAME = "Lyrics Display";
 const simpleLyricsOptions = ["Off", "calculate", "animate"];
@@ -33,7 +34,8 @@ export default function LyricsSection({ query, sectionFilter, showHidden = false
   const r5 = visible("lyrics-scroll-active") && matches(query, "Show Scroll to Active Button", "Show an arrow button when the active lyric is outside the viewport.");
   const r8 = visible("lyrics-playback-offset") && matches(query, "Playback Offset", "Shift lyrics timing earlier or later, in milliseconds.");
   const r9 = visible("lyrics-line-hover") && matches(query, "Line Hover Background", "Shows a highlight box behind a lyrics line when you hover over it");
-  if (!r3 && !r4 && !r5 && !r8 && !r9) return null;
+  const r10 = visible("lyrics-wide-duet-padding") && matches(query, "Wide duet line padding", "Separate duet voices into wider columns. Disable for compact padding.");
+  if (!r3 && !r4 && !r5 && !r8 && !r9 && !r10) return null;
 
   return <>
     <SectionTitle>Lyrics Display</SectionTitle>
@@ -42,5 +44,6 @@ export default function LyricsSection({ query, sectionFilter, showHidden = false
     {r5 && <Row settingId="lyrics-scroll-active" label="Show Scroll to Active Button" description="Show an arrow when the active lyric is outside the viewport."><Toggle checked={showScrollToActiveButton} onChange={(v) => $showScrollToActiveButton.set(v)} /></Row>}
     {r8 && <Row settingId="lyrics-playback-offset" label="Playback Offset" description="Shift lyrics timing earlier or later, in milliseconds." stacked><Slider value={playbackOffset} min={-5000} max={5000} step={10} defaultValue={0} unit="ms" onChange={(v) => $playbackOffset.set(v)} /></Row>}
     {r9 && <Row settingId="lyrics-line-hover" label="Line Hover Background" description="Shows a highlight box behind a lyrics line when you hover over it"><Toggle checked={lineHoverBackground} onChange={(v) => $lineHoverBackground.set(v)} /></Row>}
+    {r10 && <ExperimentSettings experimentIds={["duetLinePadding"]} showBuiltIn={false} />}
   </>;
 }

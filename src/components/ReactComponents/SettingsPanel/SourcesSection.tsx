@@ -1,5 +1,5 @@
 import React from "react";
-import { $lyricsCacheAction, $showLyricsCacheActionButton } from "../../../utils/stores.ts";
+import { $hiddenSettingIds, $lyricsCacheAction, $showLyricsCacheActionButton } from "../../../utils/stores.ts";
 import { LYRICS_CACHE_ACTIONS, normalizeLyricsCacheAction, RunLyricsCacheAction } from "../../../utils/LyricsCacheTools.ts";
 import { LYRICS_SOURCE_PROVIDER_DEFINITIONS } from "../../../utils/Lyrics/LyricsSourcePreferences.ts";
 import { OpenTTMLDatabasePanelFromSettings } from "../../../utils/openLyricsDBPanel.tsx";
@@ -12,11 +12,12 @@ const SECTION_NAME = "Sources";
 export default function SourcesSection({ query, sectionFilter, showHidden = false }: { query: string; sectionFilter: string; showHidden?: boolean }) {
   const lyricsCacheAction = normalizeLyricsCacheAction(useStore($lyricsCacheAction));
   const showLyricsCacheActionButton = useStore($showLyricsCacheActionButton);
+  const hiddenSettingIds = useStore($hiddenSettingIds);
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
-  const sources = matches(query, "Manage Sources", "Manage lyric source priority and availability.") || Object.values(LYRICS_SOURCE_PROVIDER_DEFINITIONS).some((source) => matches(query, source.label, source.description));
-  const database = matches(query, "Browse TTML Database", "Open the local TTML database manager.");
-  const cacheButton = matches(query, "Lyrics View Cache Button", "Show a selected cache action in the lyrics view controls.");
-  const cacheActions = matches(query, "Cache Actions", "Clear all current-song caches, clear current in-memory lyrics, or clear stored lyrics cache.");
+  const sources = !showHidden && (matches(query, "Manage Sources", "Manage lyric source priority and availability.") || Object.values(LYRICS_SOURCE_PROVIDER_DEFINITIONS).some((source) => matches(query, source.label, source.description)));
+  const database = !showHidden && matches(query, "Browse TTML Database", "Open the local TTML database manager.");
+  const cacheButton = matches(query, "Lyrics View Cache Button", "Show a selected cache action in the lyrics view controls.") && (!showHidden || hiddenSettingIds.includes("advanced-cache-button"));
+  const cacheActions = matches(query, "Cache Actions", "Clear all current-song caches, clear current in-memory lyrics, or clear stored lyrics cache.") && (!showHidden || hiddenSettingIds.includes("advanced-cache-actions"));
   if (!sources && !database && !cacheButton && !cacheActions) return null;
   return <>
     <SectionTitle>Sources</SectionTitle>

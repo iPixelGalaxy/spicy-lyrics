@@ -11,6 +11,7 @@ import {
   $pinnedFooterMode,
 } from "../../../utils/stores.ts";
 import { matches, Row, SectionTitle, Select, Slider, Toggle } from "./components.tsx";
+import { ExperimentSettings } from "./ExperimentsPanel.tsx";
 
 const SECTION_NAME = "Appearance";
 const bgModeOptions = ["default", "legacy", "auto", "artistHeader", "coverArt", "color"];
@@ -42,31 +43,13 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
   const r6 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
   const r7 = visible("appearance-pinned-footer") && matches(query, "Pinned Lyrics Footer", "Keep source and community credits visible. Full also pins writers.");
+  const r8 = visible("appearance-sliderbar-styling") && matches(query, "New SliderBar Styling", "New glass-like style for the SliderBar. Disable to revert back to the original one.");
 
-  if (!r1 && !r2 && !r3 && !r4 && !r6 && !r7) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r6 && !r7 && !r8) return null;
 
   return (
     <>
       <SectionTitle>Appearance</SectionTitle>
-
-      {r1 && (
-        <Row settingId="appearance-custom-font" label="Use Custom Font" description="Use a custom font instead of the bundled Spicy Lyrics font.">
-          <Toggle checked={customFontEnabled} onChange={(v) => $customFontEnabled.set(v)} />
-        </Row>
-      )}
-
-      {r2 && (
-        <Row label="Font Name" description="Enter the installed font family name to use for lyrics.">
-          <input
-            className="sl-sp-text-input"
-            type="text"
-            placeholder="Spotify Mix"
-            value={customFont}
-            onChange={(e) => $customFont.set(e.currentTarget.value)}
-            spellCheck={false}
-          />
-        </Row>
-      )}
 
       {r3 && (
         <Row settingId="appearance-background-type" label="Background Type" description="Choose the dynamic, legacy, static image, or color background.">
@@ -93,6 +76,11 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
         </Row>
       )}
 
+      {r7 && (
+        <Row settingId="appearance-pinned-footer" label="Pinned Lyrics Footer" description="Keep source and community credits visible. Full also pins writers.">
+          <Select value={pinnedFooterMode} options={["Off", "No Writers", "Full"]} onChange={(value) => $pinnedFooterMode.set(value as typeof pinnedFooterMode)} />
+        </Row>
+      )}
       {r4 && (
         <Row settingId="appearance-npv-background"
           label="Display Dynamic Background in Now Playing View"
@@ -101,10 +89,24 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
           <Toggle checked={showNpvDynamicBg} onChange={(v) => $showNpvDynamicBg.set(v)} />
         </Row>
       )}
+      {r8 && <ExperimentSettings experimentIds={["newProgressBarStyling"]} showBuiltIn={false} />}
 
-      {r7 && (
-        <Row settingId="appearance-pinned-footer" label="Pinned Lyrics Footer" description="Keep source and community credits visible. Full also pins writers.">
-          <Select value={pinnedFooterMode} options={["Off", "No Writers", "Full"]} onChange={(value) => $pinnedFooterMode.set(value as typeof pinnedFooterMode)} />
+      {r1 && (
+        <Row settingId="appearance-custom-font" label="Use Custom Font" description="Use a custom font instead of the bundled Spicy Lyrics font.">
+          <Toggle checked={customFontEnabled} onChange={(v) => $customFontEnabled.set(v)} />
+        </Row>
+      )}
+
+      {r2 && (
+        <Row label="Font Name" description="Enter the installed font family name to use for lyrics.">
+          <input
+            className="sl-sp-text-input"
+            type="text"
+            placeholder="Spotify Mix"
+            value={customFont}
+            onChange={(e) => $customFont.set(e.currentTarget.value)}
+            spellCheck={false}
+          />
         </Row>
       )}
 

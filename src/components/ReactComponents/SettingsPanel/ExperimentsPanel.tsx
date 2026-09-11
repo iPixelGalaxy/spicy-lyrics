@@ -1,11 +1,12 @@
 import { useStore } from "@nanostores/react";
-import {
-  $experiment,
-  EXPERIMENTS,
-  type RegisteredExperiment,
-} from "../../../utils/experiments.ts";
+import { $experiment, EXPERIMENTS, type ExperimentId, type RegisteredExperiment } from "../../../utils/experiments.ts";
 import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../../../utils/stores.ts";
 import { Row, SectionTitle, Toggle } from "./components.tsx";
+
+const experimentSettingIds: Partial<Record<ExperimentId, string>> = {
+  newProgressBarStyling: "appearance-sliderbar-styling",
+  duetLinePadding: "lyrics-wide-duet-padding",
+};
 
 /**
  * The Experiments sub-panel. Renders straight off the EXPERIMENTS registry, so a
@@ -19,17 +20,17 @@ export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
   </div>;
 }
 
-export function ExperimentSettings({ title = false }: { title?: boolean }) {
+export function ExperimentSettings({ title = false, experimentIds, showBuiltIn = true }: { title?: boolean; experimentIds?: readonly ExperimentId[]; showBuiltIn?: boolean }) {
   const experimentalWordSync = useStore($enableExperimentalWordSync);
   const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
 
   return (
     <>
       {title && <SectionTitle>Experiments</SectionTitle>}
-      {EXPERIMENTS.map((exp) => (
+      {EXPERIMENTS.filter((exp) => !experimentIds || experimentIds.includes(exp.id)).map((exp) => (
         <ExperimentRow key={exp.id} experiment={exp} />
       ))}
-      <Row
+      {showBuiltIn && <><Row
         label="Enable Cinema Lyrics Window"
         description="Show or hide the Cinema Lyrics button in the playback bar."
         labelAccessory={
@@ -48,7 +49,7 @@ export function ExperimentSettings({ title = false }: { title?: boolean }) {
       </Row>
       <Row label="Experimental Word Sync" description="Estimate word sync for line or static lyrics.">
         <Toggle checked={experimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} />
-      </Row>
+      </Row></>}
     </>
   );
 }
@@ -58,7 +59,7 @@ function ExperimentRow({ experiment }: { experiment: RegisteredExperiment }) {
   const enabled = useStore(store);
 
   return (
-    <Row label={experiment.label} description={experiment.description}>
+    <Row settingId={experimentSettingIds[experiment.id]} label={experiment.label} description={experiment.description}>
       <Toggle checked={enabled} onChange={(v) => store.set(v)} />
     </Row>
   );

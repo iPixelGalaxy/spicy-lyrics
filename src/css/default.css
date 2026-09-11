@@ -68,7 +68,6 @@
   justify-content: center;
   align-items: center;
   opacity: 1;
-  transition: opacity 0.3s !important;
   z-index: 101;
   --ViewControlSize: 110cqh;
 }
@@ -78,7 +77,16 @@
 #SpicyLyricsPage:not(.Fullscreen) .ViewControls {
   position: absolute;
   width: 100cqw;
-  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: visibility 0s linear 670ms;
+  height: auto;
+  min-height: clamp(32px, 5.5vh, 64px);
+  padding: 0 12px;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  align-content: center;
+  --ViewControlSize: clamp(32px, 5.5vh, 64px);
 }
 
 #SpicyLyricsPage.ViewControlsPosition_Bottom:not(.Fullscreen) .ViewControls {
@@ -87,6 +95,12 @@
 
 #SpicyLyricsPage.ViewControlsPosition_Top:not(.Fullscreen) .ViewControls {
   top: 24px;
+}
+
+@container (max-width: 500px) {
+  #SpicyLyricsPage.ViewControlsPosition_Top:not(.Fullscreen) .ViewControls {
+    top: 56px;
+  }
 }
 
 .Root:not(.global-nav) .Root__main-view #SpicyLyricsPage.ViewControlsPosition_Top:not(.Fullscreen) .ViewControls {
@@ -112,23 +126,33 @@ body.player-floating:has(.glassify-bg) #SpicyLyricsPage:not(.Fullscreen) .ViewCo
 } */
 
 #SpicyLyricsPage:not(.Fullscreen):hover .ViewControls {
-  opacity: 0.7;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 
-#SpicyLyricsPage:not(.Fullscreen) .ViewControls:hover {
-  opacity: 1 !important;
+#SpicyLyricsPage:not(.Fullscreen) .ViewControls .ViewControl {
+  opacity: 0;
+  transition: opacity 670ms cubic-bezier(0.22, 1, 0.36, 1), scale 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#SpicyLyricsPage:not(.Fullscreen):hover .ViewControls .ViewControl {
+  opacity: 1;
 }
 
 #SpicyLyricsPage .ViewControls .ViewControl {
   --ViewControlHeight: var(--ViewControlSize, 100cqh);
   aspect-ratio: 1;
-  background: var(--material-regular-bg);
-  -webkit-backdrop-filter: var(--material-regular-blur);
-  backdrop-filter: var(--material-regular-blur);
-  border: 0;
-  border-radius: 100rem;
+  background: color-mix(in srgb, var(--material-regular-bg) 30%, transparent) !important;
+  -webkit-backdrop-filter: blur(4px) saturate(1.12) brightness(1.01);
+  backdrop-filter: blur(4px) saturate(1.12) brightness(1.01);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  box-sizing: border-box;
   display: flex;
+  flex-shrink: 0;
   height: var(--ViewControlHeight);
+  padding: 0;
   width: var(--ViewControlHeight);
   -webkit-app-region: no-drag;
   align-items: center;
@@ -137,33 +161,28 @@ body.player-floating:has(.glassify-bg) #SpicyLyricsPage:not(.Fullscreen) .ViewCo
   text-align: center;
   -webkit-box-align: center;
   -webkit-box-pack: center;
-  box-shadow:
-    0 10px 24px -8px rgba(8, 10, 18, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.36),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.18);
-  transition: scale 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 24px -8px rgba(8, 10, 18, 0.42);
+  transition: scale 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transform-origin: center;
 }
 
 #SpicyLyricsPage .ViewControls .ViewControl:hover {
-  scale: 1.015;
   color: #fff;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 14px 32px -8px rgba(8, 10, 18, 0.5),
-    0 0 22px -4px rgba(255, 255, 255, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.045) !important;
+  -webkit-backdrop-filter: var(--material-regular-blur);
+  backdrop-filter: var(--material-regular-blur);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 14px 32px -8px rgba(8, 10, 18, 0.5), 0 0 22px -4px rgba(255, 255, 255, 0.24);
+}
+
+#SpicyLyricsPage .ViewControls .ViewControl:focus-visible {
+  background: rgba(255, 255, 255, 0.045) !important;
+  -webkit-backdrop-filter: var(--material-regular-blur);
+  backdrop-filter: var(--material-regular-blur);
 }
 
 #SpicyLyricsPage .ViewControls .ViewControl:active {
   scale: 0.94;
-}
-
-#SpicyLyricsPage .ViewControls:has(.ViewControl:hover) > .ViewControl:not(:hover) {
-  opacity: 0.78;
 }
 
 #SpicyLyricsPage .ViewControls .ViewControl svg:not(.NoFill) {

@@ -1073,15 +1073,11 @@
   .MediaContent
   .ViewControls
   .ViewControl {
-  background: var(--material-regular-bg) !important;
-  border: 0 !important;
-  -webkit-backdrop-filter: var(--material-regular-blur) !important;
-  backdrop-filter: var(--material-regular-blur) !important;
-  box-shadow:
-    0 10px 24px -8px rgba(8, 10, 18, 0.42),
-    inset 0 1px 0 rgba(255, 255, 255, 0.36),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.18) !important;
+  background: color-mix(in srgb, var(--material-regular-bg) 30%, transparent) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  -webkit-backdrop-filter: blur(4px) saturate(1.12) brightness(1.01) !important;
+  backdrop-filter: blur(4px) saturate(1.12) brightness(1.01) !important;
+  box-shadow: 0 10px 24px -8px rgba(8, 10, 18, 0.42) !important;
   color: var(--color-text-primary) !important;
 }
 
@@ -1096,13 +1092,11 @@
   .MediaContent
   .ViewControls
   .ViewControl:hover {
-  background: rgba(255, 255, 255, 0.12) !important;
-  box-shadow:
-    0 14px 32px -8px rgba(8, 10, 18, 0.5),
-    0 0 22px -4px rgba(255, 255, 255, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.24) !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  -webkit-backdrop-filter: var(--material-regular-blur) !important;
+  backdrop-filter: var(--material-regular-blur) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow: 0 14px 32px -8px rgba(8, 10, 18, 0.5), 0 0 22px -4px rgba(255, 255, 255, 0.24) !important;
 }
 
 #SpicyLyricsPage.Fullscreen

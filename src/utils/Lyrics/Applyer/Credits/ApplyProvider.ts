@@ -16,7 +16,6 @@ export function ApplyLyricsProvider(data: any, LyricsContainer: HTMLElement): vo
 
   const ProviderElement = document.createElement("div");
   ProviderElement.classList.add("LyricsProvider");
-
   let providerLabel = "";
   if (
     typeof data.sourceDisplayName === "string"

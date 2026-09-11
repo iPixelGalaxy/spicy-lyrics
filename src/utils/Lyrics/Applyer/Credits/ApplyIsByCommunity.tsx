@@ -4,11 +4,10 @@ import {
   resolveProfileIdentity,
   showIframeProfileModal,
 } from "../../../../components/ReactComponents/IframeProfile/IframeProfileModal.tsx";
-import { PinFooterDetailWithoutWriters } from "./CreateLyricsFooter.ts";
+import { GetLyricsFooterDetails, PinFooterDetailWithoutWriters } from "./CreateLyricsFooter.ts";
 
 let isByCommunityAbortController: AbortController | null = null;
 let madeTippys = new Set<any>();
-const CREDIT_NAME_SETTLE_MS = 50;
 
 export function CleanUpIsByCommunity(closeProfileModal: boolean = false) {
   if (closeProfileModal) {
@@ -78,8 +77,12 @@ function openProfile(userId: string | undefined, profileElement: HTMLElement, si
 let PageDocument: Document = document;
 
 export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): void {
-  if (!data.source || !LyricsContainer) return;
-  if (data.source !== "spl") return;
+  if (!LyricsContainer) return;
+  if (
+    data.source !== "spl"
+    && (typeof data.sourceDisplayName !== "string"
+      || data.sourceDisplayName.trim().toLowerCase() !== "spicy lyrics community")
+  ) return;
   PageDocument = LyricsContainer.ownerDocument;
 
   // Clean up any previous listeners before adding new ones
@@ -179,60 +182,49 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   LyricsContainer.appendChild(songInfoElement);
   PinFooterDetailWithoutWriters(songInfoElement, LyricsContainer);
 
-  const communityCreditElements = [
-    ...Array.from(LyricsContainer.children).filter((element) =>
-      element.classList.contains("Credits") || element.classList.contains("LyricsProvider"),
-    ),
+  const communityCreditElements = [...new Set([
+    ...GetLyricsFooterDetails(LyricsContainer),
     songInfoElement,
-  ];
+  ])];
   const creditWindow = LyricsContainer.ownerDocument.defaultView ?? window;
-  const reducedMotion = creditWindow.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const creditStates = communityCreditElements.map((element) => ({
     element: element as HTMLElement,
-    opacity: creditWindow.getComputedStyle(element).opacity,
-    slide: !reducedMotion && element.closest(".LyricsPinnedFooter") !== null,
+    opacity: element.classList.contains("Credits") ? "0.6"
+      : element.classList.contains("LyricsProvider") ? "0.5"
+      : "1",
   }));
-  creditStates.forEach(({ element: creditElement, slide }) => {
+  creditStates.forEach(({ element: creditElement }) => {
     // Commit the hidden starting state without transitioning away from visible.
     creditElement.style.transition = "none";
     creditElement.style.opacity = "0";
-    if (slide) creditElement.style.transform = "translateY(4px)";
   });
 
   let creditsRevealed = false;
   let revealFrame: number | null = null;
-  let revealTimer: number | null = null;
   signal.addEventListener("abort", () => {
     if (revealFrame !== null) creditWindow.cancelAnimationFrame(revealFrame);
-    if (revealTimer !== null) creditWindow.clearTimeout(revealTimer);
   }, { once: true });
 
   const revealCredits = () => {
     if (creditsRevealed || signal.aborted) return;
     creditsRevealed = true;
-    if (revealTimer !== null) {
-      creditWindow.clearTimeout(revealTimer);
-      revealTimer = null;
-    }
     revealFrame = creditWindow.requestAnimationFrame(() => {
       if (signal.aborted) return;
       revealFrame = creditWindow.requestAnimationFrame(() => {
         revealFrame = null;
         if (signal.aborted) return;
-        creditStates.forEach(({ element, opacity, slide }) => {
-          if (!element.isConnected) return;
-          element.style.transition = slide
-            ? "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1), transform 220ms cubic-bezier(0.22, 1, 0.36, 1)"
-            : "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1)";
+        creditStates.forEach(({ element, opacity }) => {
+          element.style.transition = "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1)";
           element.style.opacity = opacity;
-          if (slide) element.style.transform = "translateY(0)";
         });
       });
     });
   };
 
-  revealTimer = creditWindow.setTimeout(revealCredits, CREDIT_NAME_SETTLE_MS);
-  if (!data.TTMLUploadMetadata) return;
+  if (!data.TTMLUploadMetadata) {
+    revealCredits();
+    return;
+  }
 
   const updateDiscordUsername = (
     userId: string | undefined,

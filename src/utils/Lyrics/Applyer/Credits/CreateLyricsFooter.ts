@@ -1,3 +1,27 @@
+type FooterState = {
+  pinnedFooterLayer: HTMLElement | null;
+  details: Set<HTMLElement>;
+};
+
+const footerStates = new WeakMap<HTMLElement, FooterState>();
+
+function getFooterState(footer: HTMLElement): FooterState {
+  let state = footerStates.get(footer);
+  if (!state) {
+    state = { pinnedFooterLayer: null, details: new Set() };
+    footerStates.set(footer, state);
+  }
+  return state;
+}
+
+export function RegisterLyricsFooterDetail(detail: HTMLElement, footer: HTMLElement): void {
+  getFooterState(footer).details.add(detail);
+}
+
+export function GetLyricsFooterDetails(footer: HTMLElement): HTMLElement[] {
+  return [...getFooterState(footer).details];
+}
+
 export function PlaceLyricsFooter(
   footer: HTMLElement,
   lyricsContainer: HTMLElement,
@@ -27,6 +51,7 @@ export function PlaceLyricsFooter(
   const pinnedFooterLayer = lyricsContent?.parentElement?.querySelector<HTMLElement>(
     ".LyricsPinnedFooter"
   );
+  getFooterState(footer).pinnedFooterLayer = pinnedFooterLayer ?? null;
   // Footer placement must follow page class. CSS uses same class to reveal and
   // pin layer, while persisted experiment store can lag during page construction.
   const mode = page?.classList.contains("PinnedFooterMode_Full")
@@ -38,7 +63,7 @@ export function PlaceLyricsFooter(
   footer.dataset.pinnedFooterMode = mode;
   if (mode === "NoWriters" && pinnedFooterLayer) {
     noWriterPinnedLayers.set(footer, pinnedFooterLayer);
-    footer.querySelectorAll<HTMLElement>(".PinnedFooterDetail").forEach((detail) => {
+    GetLyricsFooterDetails(footer).filter((detail) => detail.classList.contains("PinnedFooterDetail")).forEach((detail) => {
       pinnedFooterLayer.appendChild(detail);
     });
   }
@@ -54,10 +79,10 @@ export function PlaceLyricsFooter(
 
 /** Move source/community details into the pinned layer while writers stay scrollable. */
 export function PinFooterDetailWithoutWriters(detail: HTMLElement, footer: HTMLElement): void {
+  RegisterLyricsFooterDetail(detail, footer);
   detail.classList.add("PinnedFooterDetail");
   if (footer.dataset.pinnedFooterMode !== "NoWriters") return;
-  const pinnedFooterLayer = noWriterPinnedLayers.get(footer)
-    ?? footer.closest<HTMLElement>(".LyricsContainer")?.querySelector<HTMLElement>(".LyricsPinnedFooter");
+  const pinnedFooterLayer = noWriterPinnedLayers.get(footer) ?? getFooterState(footer).pinnedFooterLayer;
   pinnedFooterLayer?.appendChild(detail);
 }
 

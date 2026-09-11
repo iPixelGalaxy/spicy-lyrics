@@ -42,7 +42,7 @@ export function ApplyLyricsProvider(data: any, LyricsContainer: HTMLElement): vo
     experimentalWordSplittingHelp
       ? " (+ extra splits)"
       : ""
-  }${experimentalWordSyncHelp ? " (+ experimental splitting)" : ""}`;
+  }${experimentalWordSyncHelp ? " (+ automatic experimental splitting)" : ""}`;
   LyricsContainer.appendChild(ProviderElement);
   PinFooterDetailWithoutWriters(ProviderElement, LyricsContainer);
 }

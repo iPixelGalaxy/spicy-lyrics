@@ -551,7 +551,7 @@ async function main() {
   let isHandlingEscape = false;
   const handleEscapeKey = async () => {
     if (isHandlingEscape || IsPIP) return true;
-    if (PopupModal.isConnected && PopupModal.querySelector(".slmodal-settingsPanel")) {
+    if (PopupModal.isConnected && PopupModal.querySelector(".slmodal-settingsPanel, .slmodal-animatorPreview")) {
       PopupModal.hide();
       return true;
     }
@@ -1366,6 +1366,9 @@ async function main() {
   document.addEventListener("fullscreenchange", async () => {
     if (isHandlingDocumentFullscreenExit) return;
     if (!document.fullscreenElement && Fullscreen.IsOpen && !Fullscreen.CinemaViewOpen) {
+      if (PopupModal.isConnected && PopupModal.querySelector(".slmodal-animatorPreview")) {
+        PopupModal.hide();
+      }
       if (Defaults.EscapeKeyFunction === "Exit Fullscreen") {
         isHandlingDocumentFullscreenExit = true;
         try {

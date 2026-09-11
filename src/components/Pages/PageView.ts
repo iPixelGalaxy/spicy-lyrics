@@ -77,6 +77,7 @@ import { openSettingsPanel } from "../../utils/settings.ts";
 import Logger from "../../utils/Logger.ts";
 import { ApplyExperimentClasses, onExperimentChange } from "../../utils/experiments.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
+import { $animatorPreset } from "../../utils/Lyrics/Animator/Tuning.ts";
 import {
   getLyricsCacheActionLabel,
   normalizeLyricsCacheAction,
@@ -85,6 +86,10 @@ import {
 
 const pageLogger = new Logger("Page View");
 const controlsLogger = new Logger("View Controls");
+
+function applyAnimatorPreset(element: HTMLElement): void {
+  element.dataset.animatorPreset = $animatorPreset.get();
+}
 
 function applyPinnedFooterMode(element: HTMLElement): void {
   const mode = $pinnedFooterMode.get();
@@ -148,6 +153,12 @@ export const GetPageRoot = () =>
 let PageResizeListener: ResizeObserver | null = null;
 export let PageContainer: HTMLElement | null = null;
 export let IsCardMode = false;
+
+$animatorPreset.listen(() => {
+  if (!PageContainer) return;
+  applyAnimatorPreset(PageContainer);
+  triggerRemeasureLV();
+});
 
 function applyCustomFontSetting(fontFamily: string, targetDocument: Document = PageContainer?.ownerDocument ?? document) {
   const cssFontFamily = toCssFontFamily(fontFamily);
@@ -282,6 +293,7 @@ async function OpenPage(
     */
 
   
+  applyAnimatorPreset(elem);
   PageContainer = elem;
 
   if (!$customFontEnabled.get()) {
@@ -393,6 +405,7 @@ async function OpenPage(
     EnableCompactMode();
   }
 
+  applyAnimatorPreset(elem);
   PageContainer = elem;
 
   const contentType = SpotifyPlayer.GetContentType();

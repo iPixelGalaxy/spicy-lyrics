@@ -19,9 +19,10 @@ const TABS = [
   ["Advanced", "Advanced", "⚙"],
 ] as const;
 
-export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSettings?: () => void }) {
-  const [query, setQuery] = useState("");
-  const [sectionFilter, setSectionFilter] = useState<string>("Appearance");
+export type SettingsPanelState = { query: string; sectionFilter: string; scrollTop: number };
+export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, initialState }: { onOpenHiddenSettings?: () => void; onManageAnimator?: (state: SettingsPanelState) => void; initialState?: SettingsPanelState }) {
+  const [query, setQuery] = useState(initialState?.query ?? "");
+  const [sectionFilter, setSectionFilter] = useState<string>(initialState?.sectionFilter ?? "Appearance");
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -65,7 +66,7 @@ export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSe
           <div role="tabpanel">
             <AppearanceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
             <LyricsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-            <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+            <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} onManageAnimator={() => onManageAnimator?.({ query, sectionFilter, scrollTop: (document.querySelector(".slmodal-settingsPanel .sl-modal-main-section") as HTMLElement | null)?.scrollTop ?? 0 })} />
             <InterfaceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
             <SourcesSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
             <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} onOpenHiddenSettings={onOpenHiddenSettings ?? (() => {})} />

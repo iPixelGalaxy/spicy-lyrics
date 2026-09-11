@@ -3,9 +3,11 @@ import Spline from "cubic-spline";
 import { easeSinOut } from "d3-ease";
 import { $currentLyricsType, $simpleLyricsMode, $simpleLyricsModeRenderingType } from "../../../../utils/stores.ts";
 import { LyricsObject, SimpleLyricsMode_LetterEffectsStrengthConfig, preHiddenDotLineMs } from "../../lyrics.ts";
-import { BlurMultiplier, IdleEmphasisLyricsScale, IdleLyricsScale, timeOffset } from "../Shared.ts";
+import { BlurMultiplier, getIdleEmphasisLyricsScale, getIdleLyricsScale, timeOffset } from "../Shared.ts";
 import { setOnNewElementMounted } from "../../LyricsVirtualizer.ts";
 import { Spring } from "../../../../modules/Spring.ts";
+import { $animatorPreset, $animatorValues } from "../Tuning.ts";
+import { UPSTREAM_ANIMATOR_VALUES } from "../Upstream.ts";
 /* import { CurveInterpolator } from "curve-interpolator"; */
 
 const getSLMAnimation = (duration: number) => {
@@ -37,19 +39,19 @@ export const Clamp = (value: number, min: number, max: number): number => {
 const LetterGlowMultiplier_Opacity = 185;
 
 const ScaleRange = [
-  { Time: 0, Value: IdleLyricsScale },
+  { Time: 0, Value: 0.95 },
   { Time: 0.7, Value: 1.0505 /* 1.025 */ },
   { Time: 1, Value: 1 },
 ];
 
 const LetterScaleRange = [
-  { Time: 0, Value: IdleEmphasisLyricsScale },
+  { Time: 0, Value: 0.95 },
   { Time: 0.7, Value: 1.175 /* 1.025 */ },
   { Time: 1, Value: 1 },
 ];
 
 const SimpleLetterScaleRange = [
-  { Time: 0, Value: IdleEmphasisLyricsScale },
+  { Time: 0, Value: 0.95 },
   { Time: 0.7, Value: 1.07 },
   { Time: 1, Value: 1 },
 ];
@@ -72,7 +74,7 @@ const SimpleYOffsetRange = [
   { Time: 1, Value: -0.033 },
 ];
 
-const ScaleSpline = GetSpline(ScaleRange);
+let ScaleSpline = GetSpline(ScaleRange);
 let LetterScaleSpline = GetSpline(
   $simpleLyricsMode.get() ? SimpleLetterScaleRange : LetterScaleRange
 );
@@ -98,19 +100,40 @@ let LetterYOffsetSpline = GetSpline(
   $simpleLyricsMode.get() ? SimpleLetterYOffsetRange : LetterYOffsetRange
 );
 
-const GlowSpline = GetSpline(GlowRange);
+let GlowSpline = GetSpline(GlowRange);
 
-const YOffsetDamping = 0.4;
+let YOffsetDamping = 0.4;
 // const YOffsetFrequency = 1.25;
 // const ScaleDamping = 0.6;
 // const ScaleFrequency = 0.7;
 // const GlowDamping = 0.5;
 // const GlowFrequency = 1;
-const YOffsetFrequency = 1.45;
-const ScaleDamping = 0.64;
-const ScaleFrequency = 0.88;
-const GlowDamping = 0.56;
-const GlowFrequency = 1.18;
+let YOffsetFrequency = 1.45;
+let ScaleDamping = 0.64;
+let ScaleFrequency = 0.88;
+let GlowDamping = 0.56;
+let GlowFrequency = 1.18;
+
+function rebuildAnimatorTuning(): void {
+  const upstream = $animatorPreset.get() === "Default";
+  const tuning = upstream ? UPSTREAM_ANIMATOR_VALUES : $animatorValues.get();
+  const simple = $simpleLyricsMode.get();
+  // Never mutate the upstream curves. Default uses their exact literals,
+  // including Simple mode's 1.07 peak instead of deriving it by subtraction.
+  const tuneScale = (range: AnimationPoint[], idle: number, peak: number) =>
+    upstream ? range : range.map((point, index) => ({ ...point, Value: index === 0 ? idle : index === 1 ? peak : point.Value }));
+  ScaleSpline = GetSpline(tuneScale(ScaleRange, getIdleLyricsScale(), tuning.wordPeakScale));
+  LetterScaleSpline = GetSpline(tuneScale(simple ? SimpleLetterScaleRange : LetterScaleRange,
+    getIdleEmphasisLyricsScale(), simple ? tuning.letterPeakScale - .105 : tuning.letterPeakScale));
+  GlowSpline = GetSpline(upstream ? GlowRange : GlowRange.map((point) => ({ ...point, Value: point.Value * tuning.glowStrength })));
+  YOffsetSpline = GetSpline(simple ? SimpleYOffsetRange : upstream ? YOffsetRange
+    : YOffsetRange.map((point) => ({ ...point, Value: point.Value * tuning.verticalStrength })));
+  LetterYOffsetSpline = GetSpline(simple ? SimpleLetterYOffsetRange : LetterYOffsetRange);
+  ScaleFrequency = tuning.scaleFrequency; ScaleDamping = tuning.scaleDamping;
+  YOffsetFrequency = tuning.verticalFrequency; YOffsetDamping = tuning.verticalDamping;
+  GlowFrequency = tuning.glowFrequency; GlowDamping = tuning.glowDamping;
+}
+rebuildAnimatorTuning();
 
 const getDotOpacityRange = (simpleLyricsMode: boolean) => [
   // Controls element opacity
@@ -224,10 +247,8 @@ const createLetterSprings = () => {
 };
 
 $simpleLyricsMode.subscribe((simpleLyricsMode) => {
-  YOffsetSpline = GetSpline(simpleLyricsMode ? SimpleYOffsetRange : YOffsetRange);
+  rebuildAnimatorTuning();
   DotOpacitySpline = GetSpline(getDotOpacityRange(simpleLyricsMode));
-  LetterYOffsetSpline = GetSpline(simpleLyricsMode? SimpleLetterYOffsetRange : LetterYOffsetRange);
-  LetterScaleSpline = GetSpline(simpleLyricsMode ? SimpleLetterScaleRange : LetterScaleRange);
 });
 
 // DotGroup splines
@@ -438,6 +459,48 @@ const createLineSprings = () => {
 export let Blurring_LastLine: number | null = null;
 //const SKIP_ANIMATING_ACTIVE_WORD_DURATION = 235;
 let lastFrameTime = performance.now();
+let lastPlaybackPosition: number | null = null;
+
+// LyricsObject imports this module too. Read live models only after startup,
+// never from the immediate callback of a module-level subscribe().
+$animatorValues.listen(() => {
+  rebuildAnimatorTuning();
+  Blurring_LastLine = null;
+  const position = lastPlaybackPosition === null ? null
+    : lastPlaybackPosition + timeOffset - ($simpleLyricsMode.get() ? 33.5 : 0);
+  const invalidate = (element: HTMLElement) => {
+    _styleCache.delete(element);
+    _styleQueue.delete(element);
+  };
+  const retune = (store: { Scale?: Spring; YOffset?: Spring; Glow?: Spring } | undefined) => {
+    store?.Scale?.SetTuning?.(ScaleFrequency, ScaleDamping);
+    store?.YOffset?.SetTuning?.(YOffsetFrequency, YOffsetDamping);
+    store?.Glow?.SetTuning?.(GlowFrequency, GlowDamping);
+  };
+  for (const line of [...LyricsObject.Types.Syllable.Lines, ...LyricsObject.Types.Line.Lines]) {
+    invalidate(line.HTMLElement);
+    for (const word of line.Syllables?.Lead ?? []) {
+      invalidate(word.HTMLElement);
+      if (line.DotLine || word.Dot) continue;
+      retune(word.AnimatorStore);
+      const unsung = position === null ? line.Status === "NotSung" : position < word.StartTime;
+      if (unsung && !$simpleLyricsMode.get()) {
+        const idle = word.LetterGroup ? getIdleEmphasisLyricsScale() : getIdleLyricsScale();
+        word.AnimatorStore?.Scale?.SetGoal(idle, true);
+        word.HTMLElement.style.scale = String(idle);
+      }
+      for (const letter of word.Letters ?? []) {
+        invalidate(letter.HTMLElement);
+        retune(letter.AnimatorStore);
+        if (position === null ? unsung : position < letter.StartTime) {
+          const idle = getIdleEmphasisLyricsScale();
+          letter.AnimatorStore?.Scale?.SetGoal(idle, true);
+          letter.HTMLElement.style.scale = String(idle);
+        }
+      }
+    }
+  }
+});
 
 // When the virtualizer mounts a previously off-screen element, reset
 // Blurring_LastLine so that applyBlur runs on the next animation frame and
@@ -528,6 +591,7 @@ function getProgressPercentage(currentTime: number, startTime: number, endTime: 
 let lastAnimateFrameTime = 0;
 
 export function Animate(position: number): void {
+  lastPlaybackPosition = position;
   const ProcessedPosition = position + timeOffset - ($simpleLyricsMode.get() ? 33.5 : 0);
 
   const now = performance.now();
@@ -668,7 +732,7 @@ export function Animate(position: number): void {
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
-          applyBlur(arr, index, BlurMultiplier);
+          applyBlur(arr, index, BlurMultiplier * $animatorValues.get().blurStrength);
           //applyScale(arr, index);
           Blurring_LastLine = index;
         }
@@ -1655,7 +1719,7 @@ export function Animate(position: number): void {
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
-          applyBlur(arr, index, BlurMultiplier);
+          applyBlur(arr, index, BlurMultiplier * $animatorValues.get().blurStrength);
           //applyScale(arr, index);
           Blurring_LastLine = index;
         }

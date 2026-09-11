@@ -8,6 +8,7 @@ export const SETTING_CATALOG = [
   ["lyrics-space-gravity", "Space Gravity Mode", "Let word-synced lyrics drift and tumble freely while their timing animations continue.", "Effects"],
   ["lyrics-word-filters", "Unique Word Filters", "Transform every lyric word.", "Effects"],
   ["lyrics-simple-mode", "Simple Lyrics Mode", "Off disables Simple Lyrics Mode. Calculate and Animate choose how simple lyric transitions render.", "Effects"],
+  ["effects-animator-presets", "Animator Presets", "Choose Default, Pixel, or Custom animator behavior.", "Effects"],
   ["lyrics-minimal-mode", "Minimal Lyrics Mode", "Hides sung lyrics lines in Fullscreen and Cinema Mode", "Lyrics Display"],
   ["lyrics-right-align", "Right Align Lyrics", "Flip duet/opposite lyric alignment.", "Lyrics Display"],
   ["lyrics-scroll-active", "Show Scroll to Active Button", "Show an arrow when the active lyric is outside the viewport.", "Lyrics Display"],

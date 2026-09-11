@@ -139,6 +139,7 @@ export function Slider({
   unit,
   onChange,
   disabled,
+  editable = false,
 }: {
   value: number;
   min: number;
@@ -148,6 +149,7 @@ export function Slider({
   unit?: string;
   onChange: (v: number) => void;
   disabled?: boolean;
+  editable?: boolean;
 }) {
   // Keep in sync with the thumb width in settings-panel.css.
   const THUMB = 16;
@@ -159,15 +161,20 @@ export function Slider({
 
   // Position of a fraction along the track, compensating for the thumb width
   // so the fill and centre tick line up with the native thumb at both ends.
+  const [editing, setEditing] = useState(false);
+  const formatValue = (number: number) => String(Math.round(number * 10_000) / 10_000);
+  const [draft, setDraft] = useState(formatValue(value));
   const posFor = (f: number) =>
     `calc(${(f * 100).toFixed(4)}% + ${((0.5 - f) * THUMB).toFixed(3)}px)`;
 
-  const fillFrom = Math.min(zeroFrac, frac);
-  const fillSpan = Math.abs(frac - zeroFrac);
+  const fillFrom = isBipolar ? Math.min(zeroFrac, frac) : 0;
+  const fillSpan = isBipolar ? Math.abs(frac - zeroFrac) : frac;
+  const fillLeft = isBipolar ? posFor(fillFrom) : "0";
 
-  const sign = isBipolar && clamped > 0 ? "+" : "";
-  const valueLabel = `${sign}${clamped}${unit ? ` ${unit}` : ""}`;
-  const changed = defaultValue !== undefined && clamped !== defaultValue;
+  const sign = isBipolar && value > 0 ? "+" : "";
+  const valueLabel = `${sign}${formatValue(value)}${unit ? ` ${unit}` : ""}`;
+  const changed = defaultValue !== undefined && value !== defaultValue;
+  const commit = () => { const next = Number(draft); if (Number.isFinite(next)) onChange(Math.round(next * 10_000) / 10_000); else setDraft(formatValue(value)); setEditing(false); };
 
   return (
     <div className={`sl-sp-slider${disabled ? " sl-sp-slider--disabled" : ""}`}>
@@ -176,7 +183,7 @@ export function Slider({
         <span
           className="sl-sp-slider-fill"
           style={{
-            left: posFor(fillFrom),
+            left: fillLeft,
             width: `calc(${(fillSpan * 100).toFixed(4)}% - ${(fillSpan * THUMB).toFixed(3)}px)`,
           }}
         />
@@ -193,7 +200,7 @@ export function Slider({
         />
       </div>
       <div className="sl-sp-slider-meta">
-        <span className="sl-sp-slider-value">{valueLabel}</span>
+        {editing ? <input className="sl-sp-slider-value-input" autoFocus value={draft} onChange={(event) => setDraft(event.currentTarget.value)} onBlur={commit} onKeyDown={(event) => { if (event.key === "Enter") commit(); if (event.key === "Escape") { setDraft(formatValue(value)); setEditing(false); } }} /> : <button type="button" className="sl-sp-slider-value" disabled={!editable} onClick={() => { setDraft(formatValue(value)); setEditing(true); }}>{valueLabel}</button>}
         {changed && (
           <button
             type="button"

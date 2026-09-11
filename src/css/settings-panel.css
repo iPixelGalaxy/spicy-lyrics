@@ -98,12 +98,16 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
   .sl-sp-hiding-preferences { margin-bottom: var(--space-3); }
 
   .slmodal-settingsPanel > div,
+  .slmodal-animatorPreview > div,
   .slmodal-lyricsSourcesManager > div {
     width: min(824px, calc(100vw - 48px));
     height: 80vh;
   }
 
-  .slmodal-settingsPanel .sl-modal-main-section {
+  .sl-sp-animator-toolbar { justify-content: space-between; }
+
+  .slmodal-settingsPanel .sl-modal-main-section,
+  .slmodal-animatorPreview .sl-modal-main-section {
     scrollbar-gutter: stable both-edges;
   }
 
@@ -579,6 +583,9 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     display: inline-block;
     flex-shrink: 0;
     color: var(--color-text-primary);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    contain: paint;
 
     &::after {
       content: "";
@@ -761,7 +768,33 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     font-weight: var(--w-semibold);
     color: var(--color-text-primary);
     font-variant-numeric: tabular-nums;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
   }
+
+  .sl-sp-slider-value:not(:disabled) { cursor: text; }
+
+  .sl-sp-slider-value-input {
+    width: 88px;
+    font-size: var(--text-caption-size) !important;
+    color: var(--color-text-primary);
+    background: rgba(255, 255, 255, .1);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+
+  .sl-sp-preset-save { box-sizing: border-box; display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 0 var(--space-3); width: 100%; }
+  .sl-sp-preset-save input { min-width: 0; flex: 1 1 auto; width: auto; }
+  .sl-sp-preset-save .sl-sp-btn { white-space: nowrap; flex: 0 0 auto; }
+  .sl-sp-preset-actions { box-sizing: border-box; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0; padding: 0 var(--space-3); width: 100%; }
+  .sl-sp-preset-actions input { min-width: 120px; flex: 1 1 160px; width: auto; }
+  .sl-sp-preset-actions .sl-sp-btn { white-space: nowrap; flex: 0 0 auto; }
+  .sl-sp-preset-message { margin: 0 var(--space-3) var(--space-2); }
+
+  .sl-sp-text-input::placeholder { color: var(--color-text-secondary); opacity: 1; }
 
   .sl-sp-slider-reset {
     border: none;
@@ -1574,7 +1607,10 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
 
 .slmodal-settingsPanel .sl-modal-main-section,
 .slmodal-settingsPanel .sl-modal-content,
-.slmodal-settingsPanel .sl-sp-page {
+.slmodal-settingsPanel .sl-sp-page,
+.slmodal-animatorPreview .sl-modal-main-section,
+.slmodal-animatorPreview .sl-modal-content,
+.slmodal-animatorPreview .sl-sp-page {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;

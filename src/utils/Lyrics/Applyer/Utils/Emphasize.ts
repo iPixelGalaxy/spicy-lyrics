@@ -1,6 +1,6 @@
 import { $simpleLyricsMode } from "../../../../utils/stores.ts";
 import { ArabicPersianRegex } from "../../../Addons.ts";
-import { IdleEmphasisLyricsScale } from "../../Animator/Shared.ts";
+import { getIdleEmphasisLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { CurrentLineLyricsObject, LyricsObject } from "../../lyrics.ts";
 
@@ -77,7 +77,7 @@ export default function Emphasize(
     }
     letterElem.style.setProperty("--text-shadow-opacity", `0%`);
     letterElem.style.setProperty("--text-shadow-blur-radius", `4px`);
-    letterElem.style.scale = IdleEmphasisLyricsScale.toString();
+    letterElem.style.scale = getIdleEmphasisLyricsScale().toString();
     letterElem.style.transform = `translateY(calc(var(--DefaultLyricsSize) * 0.02))`;
 
     word.appendChild(letterElem);

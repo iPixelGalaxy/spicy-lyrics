@@ -71,6 +71,32 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-container {
     width: 420px;
 }
 
+/* Animator preview leaves the lyrics view unobscured and occupies artwork space. */
+sl-generic-modal.SpicyLyricsModal:has(.slmodal-animatorPreview) .sl-modal-overlay {
+    background: transparent;
+    justify-content: flex-start;
+    align-items: center;
+    pointer-events: none;
+}
+
+sl-generic-modal.SpicyLyricsModal:has(.slmodal-animatorPreview) .sl-modal {
+    margin: 0;
+    left: clamp(24px, calc(var(--animator-preview-center, 50vw) - 412px), calc(100vw - 848px));
+    pointer-events: auto;
+}
+
+sl-generic-modal.SpicyLyricsModal:has(.slmodal-animatorPreview) .sl-modal-container {
+    width: min(824px, calc(100vw - 48px));
+    height: 80vh;
+    max-height: 80vh;
+}
+
+/* The preview panel is glass over fullscreen lyrics, never a page-wide fade. */
+sl-generic-modal.SpicyLyricsModal:has(.slmodal-animatorPreview) .sl-modal-overlay.sl-modal-overlay-animated,
+sl-generic-modal.SpicyLyricsModal:has(.slmodal-animatorPreview) .sl-modal-overlay.sl-modal-overlay-animated.Active {
+    background-color: transparent;
+}
+
 sl-generic-modal.SpicyLyricsModal .sl-modal-header {
     display: flex;
     justify-content: space-between;

@@ -1,6 +1,7 @@
-// Unsung text occupies the same visual width as its completed resting state.
-const IdleLyricsScale = 1;
-const IdleEmphasisLyricsScale = 1;
+import { $animatorPreset } from "./Tuning.ts";
+
+const getIdleLyricsScale = () => $animatorPreset.get() === "Default" ? .95 : 1;
+const getIdleEmphasisLyricsScale = () => $animatorPreset.get() === "Default" ? .95 : 1;
 const timeOffset = 0;
 const DurationTimeOffset = 0;
 const BlurMultiplier = 1.25;
@@ -24,8 +25,8 @@ const WordBlurs = {
 };
 
 export {
-  IdleLyricsScale,
-  IdleEmphasisLyricsScale,
+  getIdleLyricsScale,
+  getIdleEmphasisLyricsScale,
   timeOffset,
   DurationTimeOffset,
   BlurMultiplier,

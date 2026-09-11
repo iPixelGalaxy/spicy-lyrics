@@ -119,4 +119,10 @@ export class Spring {
 	SetFrequency(frequency: number): void {
 		this.f = frequency;
 	}
+
+	/** Retunes without discarding current position, velocity, or goal. */
+	SetTuning(frequency: number, dampingRatio: number): void {
+		this.f = frequency;
+		this.d = dampingRatio;
+	}
 }

@@ -8,7 +8,7 @@ import {
   ScrollSimplebar,
 } from "../../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { AdoptReappliedScrollPosition, HoldScrollToActiveButtonUntilVisible, InitializeScrollEvents, PositionInitialLyrics, QueueForceScroll, ScrollToActiveLine } from "../../../Scrolling/ScrollToActiveLine.ts";
-import { IdleEmphasisLyricsScale, IdleLyricsScale } from "../../Animator/Shared.ts";
+import { getIdleEmphasisLyricsScale, getIdleLyricsScale } from "../../Animator/Shared.ts";
 import { ConvertTime } from "../../ConvertTime.ts";
 import { ClearLyricsPageContainer } from "../../fetchLyrics.ts";
 import isRtl from "../../isRtl.ts";
@@ -218,7 +218,7 @@ function replaceLetterGroupText(word: any, text: string): void {
     if (!$simpleLyricsMode.get()) element.style.setProperty("--gradient-position", "-20%");
     element.style.setProperty("--text-shadow-opacity", "0%");
     element.style.setProperty("--text-shadow-blur-radius", "4px");
-    element.style.scale = IdleEmphasisLyricsScale.toString();
+    element.style.scale = getIdleEmphasisLyricsScale().toString();
     element.style.transform = "translateY(calc(var(--DefaultLyricsSize) * 0.02))";
     word.HTMLElement.appendChild(element);
     return {
@@ -544,7 +544,7 @@ export function ApplySyllableLyrics(
         if (!$simpleLyricsMode.get()) {
           word.style.setProperty("--text-shadow-opacity", `0%`);
           word.style.setProperty("--text-shadow-blur-radius", `4px`);
-          word.style.scale = IdleEmphasisLyricsScale.toString();
+          word.style.scale = getIdleEmphasisLyricsScale().toString();
           word.style.transform = `translateY(calc(var(--DefaultLyricsSize) * 0.02))`;
         }
       } else {
@@ -554,7 +554,7 @@ export function ApplySyllableLyrics(
           word.style.setProperty("--gradient-position", `-20%`);
           word.style.setProperty("--text-shadow-opacity", `0%`);
           word.style.setProperty("--text-shadow-blur-radius", `4px`);
-          word.style.scale = IdleLyricsScale.toString();
+          word.style.scale = getIdleLyricsScale().toString();
           word.style.transform = `translateY(calc(var(--DefaultLyricsSize) * 0.01))`;
         }
 
@@ -659,7 +659,7 @@ export function ApplySyllableLyrics(
             if (!$simpleLyricsMode.get()) {
               bwE.style.setProperty("--text-shadow-opacity", `0%`);
               bwE.style.setProperty("--text-shadow-blur-radius", `4px`);
-              bwE.style.scale = IdleEmphasisLyricsScale.toString();
+              bwE.style.scale = getIdleEmphasisLyricsScale().toString();
               bwE.style.transform = `translateY(calc(var(--font-size) * 0.02))`;
             }
           } else {
@@ -669,7 +669,7 @@ export function ApplySyllableLyrics(
               bwE.style.setProperty("--gradient-position", `0%`);
               bwE.style.setProperty("--text-shadow-opacity", `0%`);
               bwE.style.setProperty("--text-shadow-blur-radius", `4px`);
-              bwE.style.scale = IdleLyricsScale.toString();
+              bwE.style.scale = getIdleLyricsScale().toString();
               bwE.style.transform = `translateY(calc(var(--font-size) * 0.01))`;
             }
 

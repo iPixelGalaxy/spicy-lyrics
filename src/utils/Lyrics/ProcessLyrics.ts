@@ -304,6 +304,7 @@ const romanizeEntry = async (
 
 export const ProcessLyrics = async (lyrics: any) => {
   normalizeLegacyRomanizationFields(lyrics);
+  NormalizeLyricsCommaSpacing(lyrics);
   // Transliterations the API already shipped are preferred and never overwritten,
   const { francText, scriptText, entries } = gatherText(lyrics);
 
@@ -371,6 +372,69 @@ function normalizeLegacyRomanizationFields(lyrics: any): void {
         normalizeEntry(bg);
         for (const syllable of bg.Syllables ?? []) normalizeEntry(syllable);
       }
+    }
+  }
+}
+
+// Keep actual lyric line breaks intact, but treat every other Unicode whitespace
+// character as removable before a comma. Apple TTML uses U+2028 here.
+const SPACE_BEFORE_COMMA = /[^\S\r\n]+,/gu;
+const TRAILING_NON_LINE_BREAK_WHITESPACE = /[^\S\r\n]+$/u;
+const TEXT_FIELDS = ["Text", "TransliteratedText", "RomanizedText", "TranslatedText"];
+
+function normalizeTextCommaSpacing(entry: any): void {
+  if (!entry || typeof entry !== "object") return;
+  for (const field of TEXT_FIELDS) {
+    if (typeof entry[field] === "string") {
+      entry[field] = entry[field].replace(SPACE_BEFORE_COMMA, ",");
+    }
+  }
+}
+
+function mergeStandaloneCommas(syllables: any[]): void {
+  for (let index = 0; index < syllables.length; index += 1) {
+    const syllable = syllables[index];
+    normalizeTextCommaSpacing(syllable);
+    if (index === 0 || syllable.Text?.trim() !== ",") continue;
+
+    const previous = syllables[index - 1];
+    for (const field of TEXT_FIELDS) {
+      if (typeof previous[field] === "string") {
+        previous[field] = previous[field].replace(TRAILING_NON_LINE_BREAK_WHITESPACE, "");
+        if (!previous[field].endsWith(",")) previous[field] += ",";
+      }
+    }
+    if (typeof syllable.EndTime === "number") {
+      previous.EndTime = Math.max(previous.EndTime ?? syllable.EndTime, syllable.EndTime);
+    }
+    if (typeof syllable.IsPartOfWord === "boolean") {
+      previous.IsPartOfWord = syllable.IsPartOfWord;
+    }
+    syllables.splice(index, 1);
+    index -= 1;
+  }
+}
+
+export function NormalizeLyricsCommaSpacing(lyrics: any): void {
+  if (!lyrics || typeof lyrics !== "object") return;
+
+  if (lyrics.Type === "Static") {
+    for (const line of lyrics.Lines ?? []) normalizeTextCommaSpacing(line);
+    return;
+  }
+
+  if (lyrics.Type === "Line") {
+    for (const line of lyrics.Content ?? []) normalizeTextCommaSpacing(line);
+    return;
+  }
+
+  if (lyrics.Type !== "Syllable") return;
+  for (const line of lyrics.Content ?? []) {
+    normalizeTextCommaSpacing(line);
+    mergeStandaloneCommas(line.Lead?.Syllables ?? []);
+    for (const background of line.Background ?? []) {
+      normalizeTextCommaSpacing(background);
+      mergeStandaloneCommas(background.Syllables ?? []);
     }
   }
 }

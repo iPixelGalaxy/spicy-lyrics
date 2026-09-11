@@ -21,7 +21,7 @@ import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx"
 import { IsCompactMode } from "../../../components/Utils/CompactMode.ts";
 import Fullscreen from "../../../components/Utils/Fullscreen.ts";
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
-import { ApplyMemeFormat } from "../ProcessLyrics.ts";
+import { ApplyMemeFormat, NormalizeLyricsCommaSpacing } from "../ProcessLyrics.ts";
 import Defaults from "../../../components/Global/Defaults.ts";
 import { captureLyricsViewportAnchor, triggerRemeasureLV } from "../LyricsVirtualizer.ts";
 import { UpdateStaticLyricsRomanization } from "../Applyer/Static.ts";
@@ -214,6 +214,7 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   if (!noticeContent) {
     lyrics = descriptor as LyricsData;
+    NormalizeLyricsCommaSpacing(lyrics);
     const sourceNeedsWordSync = lyrics.Type === "Line" || lyrics.Type === "Static";
     const shouldUseExperimentalWordSync =
       sourceNeedsWordSync && (Defaults.EnableExperimentalWordSync || $spaceGravityMode.get());
@@ -265,6 +266,10 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
         ApplyMemeFormat(lyrics);
       }
     }
+
+    // Word-sync conversion may introduce new syllables, so normalize its output
+    // before the renderer and any regenerated display text consume it.
+    NormalizeLyricsCommaSpacing(lyrics);
   }
 
   if (generation !== applyGeneration || !PageContainer) return;

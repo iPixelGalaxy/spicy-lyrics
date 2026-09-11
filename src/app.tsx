@@ -574,7 +574,12 @@ async function main() {
         }
         case "Exit Fully": {
           if (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen) {
-            await Fullscreen.Close();
+            try {
+              await Fullscreen.Close();
+            } finally {
+              Session.GoBack();
+            }
+            return true;
           }
           Session.GoBack();
           return true;
@@ -584,8 +589,11 @@ async function main() {
             return false;
           }
           if (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen) {
-            await Fullscreen.Close();
-            Session.GoBack();
+            try {
+              await Fullscreen.Close();
+            } finally {
+              Session.GoBack();
+            }
             return true;
           }
           Session.GoBack();

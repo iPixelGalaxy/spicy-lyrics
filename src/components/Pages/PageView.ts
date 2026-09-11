@@ -626,6 +626,24 @@ function AppendViewControls(ReAppend: boolean = false) {
 
     const closeButton = elem.querySelector("#Close");
     if (closeButton) {
+      closeButton.addEventListener("click", async () => {
+        if (IsPIP) {
+          await ClosePopupLyrics();
+          globalThis.focus();
+          return;
+        }
+        if (IsExternalCinemaLyrics) {
+          await CloseExternalCinemaLyrics();
+          globalThis.focus();
+          return;
+        }
+
+        try {
+          if (Fullscreen.IsOpen) await Fullscreen.Close();
+        } finally {
+          Session.GoBack();
+        }
+      });
       try {
         if (!IsPIP) {
           Tooltips.Close = Spicetify.Tippy(closeButton, {
@@ -633,24 +651,6 @@ function AppendViewControls(ReAppend: boolean = false) {
             content: `Close Page`,
           });
         }
-        closeButton.addEventListener("click", async () => {
-          if (IsPIP) {
-            await ClosePopupLyrics();
-            globalThis.focus();
-            return;
-          }
-          if (IsExternalCinemaLyrics) {
-            await CloseExternalCinemaLyrics();
-            globalThis.focus();
-            return;
-          }
-
-          if (Fullscreen.IsOpen) {
-            await Fullscreen.Close();
-          }
-
-          Session.GoBack();
-        });
       } catch (err) {
         controlsLogger.warn("Failed to setup Close tooltip", err);
       }

@@ -1448,7 +1448,7 @@ export function Animate(position: number): void {
           } */
         }
 
-        const checkNextLine = () => {
+        const settleSungLine = () => {
           const words = line.Syllables?.Lead;
           if (!words) return;
           for (let i = 0; i < words.length; i++) {
@@ -1692,21 +1692,10 @@ export function Animate(position: number): void {
           }
         };
 
-        {
-          const NextLine = arr[index + 1];
-          if (NextLine) {
-            const nextLineStatus = getElementState(
-              ProcessedPosition,
-              NextLine.StartTime,
-              NextLine.EndTime
-            );
-            if (nextLineStatus === "NotSung" || nextLineStatus === "Active") {
-              checkNextLine();
-            }
-          } else if (!NextLine) {
-            checkNextLine();
-          }
-        }
+        // A line must finish its own springs even when its successor ends on
+        // the same frame. Otherwise both lines becoming Sung leaves this one
+        // at its last active offset.
+        settleSungLine();
       }
     }
   } else if (CurrentLyricsType === "Line") {

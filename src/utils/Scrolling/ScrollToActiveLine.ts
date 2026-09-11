@@ -659,6 +659,36 @@ export function QueueSmoothForceScroll() {
   smoothForceScrollQueued = true;
 }
 
+/** Position a newly mounted synced renderer before making it visible. */
+export function PositionInitialLyrics(ScrollSimplebar: any): void {
+  const lyricsContent = PageContainer?.querySelector<HTMLElement>(
+    ".LyricsContainer .LyricsContent"
+  );
+  if (!lyricsContent) return;
+
+  QueueForceScroll();
+  requestAnimationFrame(() => {
+    ScrollToActiveLine(ScrollSimplebar);
+    let remainingFrames = 30;
+    const revealWhenVisible = () => {
+      if (!lyricsContent.isConnected) return;
+      const container = ScrollSimplebar?.getScrollElement() as HTMLElement | undefined;
+      const target = getCurrentPlaybackTargetLine();
+      if (
+        !container ||
+        !target ||
+        getActiveLineDirection(container, target.line) === null ||
+        --remainingFrames <= 0
+      ) {
+        lyricsContent.classList.remove("InitialPositionPending");
+        return;
+      }
+      requestAnimationFrame(revealWhenVisible);
+    };
+    requestAnimationFrame(revealWhenVisible);
+  });
+}
+
 /**
  * Rebind automatic scrolling after a same-track renderer rebuild. The old
  * HTMLElement was destroyed, so without this the next renderer tick treats the

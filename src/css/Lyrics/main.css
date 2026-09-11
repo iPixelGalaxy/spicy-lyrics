@@ -108,6 +108,12 @@
   opacity: 0;
 }
 
+#SpicyLyricsPage .LyricsContainer .LyricsContent.InitialPositionPending {
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
 #SpicyLyricsPage .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer {
   width: 100%;
   box-sizing: border-box;

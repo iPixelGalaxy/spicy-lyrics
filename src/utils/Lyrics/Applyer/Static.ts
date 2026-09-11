@@ -86,6 +86,7 @@ export function ApplyStaticLyrics(
   const LyricsContainerParent = PageContainer?.querySelector<HTMLElement>(
     ".LyricsContainer .LyricsContent"
   );
+  LyricsContainerParent?.classList.remove("InitialPositionPending");
   const LyricsContainerInstance = CreateLyricsContainer(viewportAnchor !== null);
   const LyricsContainer = LyricsContainerInstance.Container;
 

@@ -60,7 +60,71 @@ export function persistAtom<T>(key: string, defaultValue: T) {
 }
 
 // Setting atoms (persisted)
-export const $staticBackgroundMode = persistAtom<string>("staticBackgroundMode", "default");
+// Upstream shares this setting but cannot read Pixel Edition's "legacy" or
+// "default" values. Keep its value compatible and retain Legacy separately.
+const STATIC_BACKGROUND_MODE_KEY = "staticBackgroundMode";
+const PIXEL_LEGACY_BACKGROUND_KEY = "pixelLegacyBackground";
+const SHARED_STATIC_BACKGROUND_MODES = new Set([
+  "off",
+  "auto",
+  "artistHeader",
+  "coverArt",
+  "color",
+]);
+
+function readStaticBackgroundMode(): string {
+  const sharedMode = _settings[STATIC_BACKGROUND_MODE_KEY];
+  const remembersLegacy = _settings[PIXEL_LEGACY_BACKGROUND_KEY] === true;
+  let effectiveMode = "default";
+  let compatibleMode = sharedMode;
+  let compatibleLegacyMarker = remembersLegacy;
+
+  if (sharedMode === "legacy") {
+    effectiveMode = "legacy";
+    compatibleMode = "off";
+    compatibleLegacyMarker = true;
+  } else if (sharedMode === "default") {
+    compatibleMode = "off";
+    compatibleLegacyMarker = false;
+  } else if (sharedMode === "off") {
+    effectiveMode = remembersLegacy ? "legacy" : "default";
+  } else if (typeof sharedMode === "string" && SHARED_STATIC_BACKGROUND_MODES.has(sharedMode)) {
+    effectiveMode = sharedMode;
+    compatibleLegacyMarker = false;
+  } else if (sharedMode !== undefined) {
+    compatibleMode = "off";
+    compatibleLegacyMarker = false;
+  } else if (remembersLegacy) {
+    compatibleLegacyMarker = false;
+  }
+
+  if (
+    compatibleMode !== sharedMode ||
+    compatibleLegacyMarker !== remembersLegacy
+  ) {
+    _settings[STATIC_BACKGROUND_MODE_KEY] = compatibleMode;
+    _settings[PIXEL_LEGACY_BACKGROUND_KEY] = compatibleLegacyMarker;
+    saveSettingsBlob(_settings);
+  }
+
+  return effectiveMode;
+}
+
+export const $staticBackgroundMode = (() => {
+  const store = atom<string>(readStaticBackgroundMode());
+  store.listen((mode) => {
+    const legacy = mode === "legacy";
+    const sharedMode = legacy || mode === "default" || mode === "off"
+      ? "off"
+      : SHARED_STATIC_BACKGROUND_MODES.has(mode)
+        ? mode
+        : "off";
+    _settings[STATIC_BACKGROUND_MODE_KEY] = sharedMode;
+    _settings[PIXEL_LEGACY_BACKGROUND_KEY] = legacy;
+    saveSettingsBlob(_settings);
+  });
+  return store;
+})();
 // Blur radius (px) applied to image-based static backgrounds — not the "color" mode.
 export const $staticBackgroundBlur = persistAtom<number>("staticBackgroundBlur", 0);
 export const $simpleLyricsMode = persistAtom<boolean>("simpleLyricsMode", false);

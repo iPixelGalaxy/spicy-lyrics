@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { coerce, gt, lte } from "semver";
+import { coerce, gt, lt, lte } from "semver";
 
 const PATCH_NOTES_URL = "https://raw.githubusercontent.com/iPixelGalaxy/spicy-lyrics/dev/.change-notes/PATCH_NOTES.md";
 const PATCH_NOTES_PAGE_URL = "https://github.com/iPixelGalaxy/spicy-lyrics/blob/dev/.change-notes/PATCH_NOTES.md";
@@ -10,6 +10,9 @@ interface UpdateDialogProps { fromVersion: string; spicyLyricsVersion: string; }
 type PatchNote = { text: string; version: string; };
 
 function normalizeVersion(value: string) { return coerce(value.trim()); }
+function getLatestPatchVersion(markdown: string): string | null {
+  return markdown.match(/^##\s+v?(\d+\.\d+\.\d+)\s*$/im)?.[1] ?? null;
+}
 
 function getPatchNotes(markdown: string, fromVersion: string, installedVersion: string): PatchNote[] {
   const installed = normalizeVersion(installedVersion);
@@ -54,12 +57,24 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
   return tokens;
 }
 
-function needsWalkthrough(fromVersion: string): boolean { return !/^100\.10\.\d+$/i.test(fromVersion.trim()); }
+function hasPixelEditionVersion(fromVersion: string): boolean { return /^100\.10\.\d+$/i.test(fromVersion.trim()); }
+function needsWalkthrough(fromVersion: string): boolean { return !hasPixelEditionVersion(fromVersion); }
+function isDowngrade(fromVersion: string, installedVersion: string): boolean {
+  const from = normalizeVersion(fromVersion);
+  const installed = normalizeVersion(installedVersion);
+  return Boolean(from && installed && lt(installed, from));
+}
 
 const UpdateDialog: React.FC<UpdateDialogProps> = ({ fromVersion, spicyLyricsVersion }) => {
   const [notes, setNotes] = useState<PatchNote[]>([]);
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [retry, setRetry] = useState(0);
+  const downgraded = isDowngrade(fromVersion, spicyLyricsVersion);
+  const showUpgradeNotes = hasPixelEditionVersion(fromVersion);
+  const onLatestVersion = Boolean(
+    latestVersion && normalizeVersion(latestVersion)?.version === normalizeVersion(spicyLyricsVersion)?.version
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -68,34 +83,39 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({ fromVersion, spicyLyricsVer
     setState("loading");
     fetch(PATCH_NOTES_URL, { signal: controller.signal, cache: "no-store" })
       .then((response) => { if (!response.ok) throw new Error(`Patch notes request failed: ${response.status}`); return response.text(); })
-      .then((markdown) => { setNotes(getPatchNotes(markdown, fromVersion, spicyLyricsVersion)); setState("ready"); })
+      .then((markdown) => {
+        setLatestVersion(getLatestPatchVersion(markdown));
+        setNotes(getPatchNotes(markdown, fromVersion, spicyLyricsVersion));
+        setState("ready");
+      })
       .catch(() => { if (!closed) setState("error"); })
       .finally(() => window.clearTimeout(timeout));
     return () => { closed = true; window.clearTimeout(timeout); controller.abort(); };
   }, [fromVersion, retry, spicyLyricsVersion]);
 
   return <div className="update-card-wrapper">
-    <h2 className="uc-title">Spicy Lyrics updated!</h2>
-    <p className="uc-subtitle">You&apos;re running the latest version.</p>
+    <div className="uc-header">
+      <div>
+        <h2 className="uc-title">Spicy Lyrics {downgraded ? "downgraded" : "updated"}!</h2>
+        <p className="uc-subtitle">{onLatestVersion ? "You're running the latest version." : <>You are running: <strong>{spicyLyricsVersion}</strong> Latest is: <strong>{latestVersion ?? "Checking…"}</strong></>}</p>
+      </div>
+      <div className="uc-actions">
+        {needsWalkthrough(fromVersion) && <button className="btn-secondary" onClick={() => window.open(FEATURE_GUIDE_URL, "_blank")}>New to Pixel Edition?</button>}
+        <button className="btn-primary" onClick={() => window.open(PATCH_NOTES_PAGE_URL, "_blank")}>See all patch notes</button>
+        <button className="btn-discord" onClick={() => window.open("https://discord.com/invite/uqgXU5wh8j", "_blank")}>Discord</button>
+      </div>
+    </div>
     <div className="uc-divider" />
     {(fromVersion || spicyLyricsVersion) && <div className="uc-version-row">
       {fromVersion && <span className="uc-ver">{fromVersion}</span>}
       {fromVersion && spicyLyricsVersion && <span className="uc-arrow">-&gt;</span>}
       {spicyLyricsVersion && <span className="uc-ver new">{spicyLyricsVersion}</span>}
     </div>}
-    <section className="uc-patch-notes" aria-label="Patch notes" aria-live="polite">
+    {showUpgradeNotes && <section className="uc-patch-notes" aria-label="Patch notes" aria-live="polite">
       {state === "loading" && <p className="uc-notes-status">Loading patch notes…</p>}
       {state === "error" && <p className="uc-notes-status">Couldn&apos;t load patch notes. <button className="btn-quiet" type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></p>}
       {state === "ready" && notes.length === 0 && <p className="uc-notes-status">No patch notes are available for this update.</p>}
       {state === "ready" && notes.length > 0 && <ul>{notes.map((note, index) => <li key={`${note.version}-${index}`}>{renderInlineMarkdown(note.text)}</li>)}</ul>}
-    </section>
-    <div className="uc-actions">
-      <button className="btn-primary" onClick={() => window.open(PATCH_NOTES_PAGE_URL, "_blank")}>See all patch notes</button>
-      <button className="btn-discord" onClick={() => window.open("https://discord.com/invite/uqgXU5wh8j", "_blank")}>Join the Discord</button>
-    </div>
-    {needsWalkthrough(fromVersion) && <section className="uc-walkthrough">
-      <span>New to Pixel Edition?</span>
-      <a href={FEATURE_GUIDE_URL} target="_blank" rel="noreferrer">Read the walkthrough</a>
     </section>}
   </div>;
 };

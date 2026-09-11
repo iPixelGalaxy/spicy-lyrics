@@ -490,24 +490,14 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
   .slmodal-updateDialog .sl-modal-container-large:has(.update-card-wrapper),
   .slmodal-updateDialog .sl-modal-container:has(.update-card-wrapper) {
     width: min(824px, calc(100vw - 48px));
-    height: 80vh;
     max-height: 80vh;
   }
 
-  .slmodal-updateDialog .sl-modal-main-section,
-  .slmodal-updateDialog .sl-modal-content,
-  .slmodal-updateDialog .update-card-wrapper {
-    flex: 1;
-    min-height: 0;
-  }
-
   .slmodal-updateDialog .sl-modal-main-section {
-    display: flex;
-    overflow: hidden;
+    overflow-y: visible;
   }
 
   .update-card-wrapper {
-    min-height: 0;
     display: flex;
     gap: var(--space-3);
     flex-direction: column;
@@ -526,12 +516,24 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       color: var(--color-text-secondary);
       margin: 0;
       line-height: 1.45;
+
+      strong {
+        color: var(--color-text-primary);
+        font-variant-numeric: tabular-nums;
+      }
     }
 
     .uc-divider {
       height: 1px;
       background: var(--hairline);
       margin: var(--space-1) 0;
+    }
+
+    .uc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
     }
 
     /* Flat version display — no inner blur, no triple-inset highlight.
@@ -570,15 +572,14 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     .uc-actions {
       display: flex;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: flex-end;
       flex-wrap: wrap;
       gap: var(--space-2);
-      margin-top: var(--space-1);
+      flex-shrink: 0;
     }
 
     .uc-patch-notes {
-      flex: 1;
-      min-height: 0;
+      max-height: min(46vh, 560px);
       overflow-y: auto;
       overscroll-behavior: contain;
       padding-right: var(--space-2);
@@ -605,17 +606,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     .uc-notes-status {
       color: var(--color-text-secondary);
       margin: 0;
-    }
-
-    .uc-walkthrough {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      padding-top: var(--space-3);
-      border-top: 1px solid var(--hairline);
-      color: var(--color-text-secondary);
-      font-size: var(--text-footnote-size) !important;
     }
 
     button {

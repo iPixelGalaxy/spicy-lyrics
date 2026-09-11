@@ -62,6 +62,54 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.43
+
+### Reliability
+
+- **Updated to upstream 6.3.15**
+  Lyrics fall back to timestamped player state when Spotify's local position source stalls, return after fresh local updates, and retain that source choice through playback pauses. Lyrics requests retry once with a fresh Spotify access token after a rejected token.
+
+- **API recovery tuning**
+  The request breaker starts its recovery ladder at 30 seconds.
+
+### Update popup
+
+- **Patch notes after an update**
+  The update popup now loads every patch-note entry between the installed and previous versions, with a scrollable reading area for larger updates.
+
+- **Pixel Edition walkthrough**
+  Updates from outside the 100.10 release series include a link to the Pixel Edition feature walkthrough.
+
+### Settings
+
+- **Settings sections reorganized**
+  Appearance, Effects, Sources, and Advanced settings now appear in clearer sections with search and keyboard navigation. The panel has a pinned footer, tighter sizing, and a wider source manager.
+
+- **Hide settings controls refined**
+  Hidden settings filter correctly, protected controls stay available, and visual experiments can be hidden from the main panel.
+
+### Lyric animation
+
+- **Animator presets**
+  Choose Default, Pixel, or Custom behavior. Custom presets can be edited, saved, loaded, shared, and imported. Default matches upstream animation behavior while Pixel keeps Spicy Lyrics behavior.
+
+- **Smoother lyric transitions**
+  Lyrics position before they reveal. Lines ending at the same time now finish their animation instead of leaving one line raised. The existing low-frame-rate flash protection remains in place.
+
+- **Comma spacing**
+  Lyric commas now keep correct spacing, including Unicode punctuation.
+
+### Lyrics view
+
+- **Refined view controls**
+  Fullscreen controls have updated glass styling, wrapping, hover behavior, opacity, positioning, and rounded edges.
+
+- **Credit reveals fixed**
+  Community credit details load asynchronously and fade in place. Pinned provider and writer credits remain visible correctly.
+
+- **Other fixes**
+  The local TTML database back button now returns correctly. Source credits distinguish automatic splitting from provider-supplied timing.
+
 ## v100.10.42
 
 ### Reliability

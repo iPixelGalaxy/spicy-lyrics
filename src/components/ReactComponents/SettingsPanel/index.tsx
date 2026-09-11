@@ -42,8 +42,9 @@ export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSe
   };
 
   return (
-    <div style={{ padding: "8px 0" }} className="slm w-40">
-      <div className="sl-sp-tabs" role="tablist" aria-label="Settings categories">
+    <div style={{ padding: "8px 0" }} className="slm sl-sp-panel">
+      <div className="sl-sp-settings-main">
+        <div className="sl-sp-tabs" role="tablist" aria-label="Settings categories">
         {TABS.map(([label, tab, icon], index) => <button
           key={tab}
           ref={(element) => { tabRefs.current[index] = element; }}
@@ -55,21 +56,22 @@ export default function SettingsPanel({ onOpenHiddenSettings }: { onOpenHiddenSe
           onKeyDown={(event) => onTabKeyDown(event, index)}
         ><span aria-hidden="true">{icon}</span>{label}</button>)}
         {allowHidingSettings && <button className={`sl-sp-tab sl-sp-tab--action${hideHidingIcon ? "" : " sl-sp-tab--active"}`} type="button" aria-pressed={!hideHidingIcon} onClick={() => $hideHidingIcon.set(!hideHidingIcon)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>Hide Settings</button>}
-      </div>
-      <div className="sl-sp-toolbar">
-        <SearchBar value={query} onChange={setQuery} />
-      </div>
-
-      <ShowHiddenSettingsInSearchContext.Provider value={searching}>
-        <div role="tabpanel">
-          <AppearanceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-          <LyricsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-          <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-          <InterfaceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-          <SourcesSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-          <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} onOpenHiddenSettings={onOpenHiddenSettings ?? (() => {})} />
         </div>
-      </ShowHiddenSettingsInSearchContext.Provider>
+        <div className="sl-sp-toolbar">
+          <SearchBar value={query} onChange={setQuery} />
+        </div>
+
+        <ShowHiddenSettingsInSearchContext.Provider value={searching}>
+          <div role="tabpanel">
+            <AppearanceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+            <LyricsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+            <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+            <InterfaceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+            <SourcesSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+            <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} onOpenHiddenSettings={onOpenHiddenSettings ?? (() => {})} />
+          </div>
+        </ShowHiddenSettingsInSearchContext.Provider>
+      </div>
       <Footer />
     </div>
   );

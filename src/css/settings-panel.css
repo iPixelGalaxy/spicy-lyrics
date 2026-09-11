@@ -65,17 +65,46 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     outline: none;
   }
 
+  .sl-sp-tab--active:not(.sl-sp-tab--action) {
+    background: rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 0 14px rgba(255, 255, 255, 0.12),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.32);
+    color: var(--color-text-primary);
+  }
+
+  .sl-sp-tab--active:not(.sl-sp-tab--action):hover {
+    background: rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 0 20px rgba(255, 255, 255, 0.24),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.46);
+  }
+
   .sl-sp-tab--action.sl-sp-tab--active {
-    background: var(--accent);
-    box-shadow: none;
-    color: var(--accent-on-fill);
+    background: rgba(255, 132, 112, 0.14);
+    box-shadow:
+      0 0 14px rgba(255, 132, 112, 0.2),
+      inset 0 0 0 1px rgba(255, 132, 112, 0.42);
+    color: rgba(255, 188, 176, 0.98);
+  }
+
+  .sl-sp-tab--action.sl-sp-tab--active:hover {
+    background: rgba(255, 132, 112, 0.22);
+    box-shadow:
+      0 0 20px rgba(255, 132, 112, 0.34),
+      inset 0 0 0 1px rgba(255, 132, 112, 0.62);
   }
 
   .sl-sp-hiding-preferences { margin-bottom: var(--space-3); }
 
-  .slmodal-settingsPanel > div {
-    width: 52vw;
+  .slmodal-settingsPanel > div,
+  .slmodal-lyricsSourcesManager > div {
+    width: min(824px, calc(100vw - 48px));
     height: 80vh;
+  }
+
+  .slmodal-settingsPanel .sl-modal-main-section {
+    scrollbar-gutter: stable both-edges;
   }
 
   /* Search */
@@ -906,7 +935,8 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    width: min(620px, 68vw);
+    width: 100%;
+    min-width: 0;
     min-height: 420px;
   }
 
@@ -1530,6 +1560,31 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     transform: scale(0.97);
   }
 }
+
+.sl-sp-panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.slmodal-settingsPanel .sl-modal-main-section,
+.slmodal-settingsPanel .sl-modal-content,
+.slmodal-settingsPanel .sl-sp-page {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.sl-sp-settings-main { padding-bottom: var(--space-6); }
+.sl-sp-panel > .sl-sp-footer { margin-top: auto; }
 
 /* Settings footer */
 .sl-sp-footer { display: flex; align-items: stretch; justify-content: space-between; gap: var(--space-5); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--hairline); }

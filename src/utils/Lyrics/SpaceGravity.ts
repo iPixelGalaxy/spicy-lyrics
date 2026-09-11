@@ -1088,7 +1088,7 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   // DOM now; prepareLines reattaches only the selected floating bodies.
   for (const line of lines) line.HTMLElement.remove();
   finalVocalEnd = lines
-    .filter((line) => !line.DotLine)
+    .filter((line) => !line.BGLine && !line.DotLine)
     .reduce((end, line) => Math.max(end, ...(line.Syllables?.Lead.filter((word) => !word.Dot).map((word) => word.EndTime) ?? [line.EndTime])), Number.NEGATIVE_INFINITY);
   leadLines = lines.filter((line) => !line.BGLine && !line.DotLine);
   let wordStart = 0;

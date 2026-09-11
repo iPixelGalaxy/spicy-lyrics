@@ -258,6 +258,7 @@ async function main() {
       title: "Spicy Lyrics",
       content: div,
       isLarge: true,
+      modalId: "updateDialog",
       onClose: () => {
         reactRoot.unmount();
       },

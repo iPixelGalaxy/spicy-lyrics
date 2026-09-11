@@ -487,11 +487,27 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
 }
 
 sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
-  .sl-modal-container:has(.update-card-wrapper) {
-    width: min(28rem, 92vw);
+  .slmodal-updateDialog .sl-modal-container-large:has(.update-card-wrapper),
+  .slmodal-updateDialog .sl-modal-container:has(.update-card-wrapper) {
+    width: min(824px, calc(100vw - 48px));
+    height: 80vh;
+    max-height: 80vh;
+  }
+
+  .slmodal-updateDialog .sl-modal-main-section,
+  .slmodal-updateDialog .sl-modal-content,
+  .slmodal-updateDialog .update-card-wrapper {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .slmodal-updateDialog .sl-modal-main-section {
+    display: flex;
+    overflow: hidden;
   }
 
   .update-card-wrapper {
+    min-height: 0;
     display: flex;
     gap: var(--space-3);
     flex-direction: column;
@@ -554,9 +570,52 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     .uc-actions {
       display: flex;
       align-items: center;
-      justify-content: flex-end;
+      justify-content: flex-start;
+      flex-wrap: wrap;
       gap: var(--space-2);
       margin-top: var(--space-1);
+    }
+
+    .uc-patch-notes {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-right: var(--space-2);
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+      scrollbar-gutter: stable;
+
+      ul {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+        margin: 0;
+        padding-left: 1.3rem;
+      }
+
+      li { padding-left: var(--space-1); }
+
+      code {
+        font-family: var(--fallback-fonts, monospace);
+        font-size: 0.9em;
+      }
+    }
+
+    .uc-notes-status {
+      color: var(--color-text-secondary);
+      margin: 0;
+    }
+
+    .uc-walkthrough {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--hairline);
+      color: var(--color-text-secondary);
+      font-size: var(--text-footnote-size) !important;
     }
 
     button {
@@ -600,6 +659,12 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
         background-color: var(--accent-tint-bg);
         color: var(--color-text-primary);
       }
+    }
+
+    .uc-notes-status .btn-quiet {
+      padding: 0;
+      font-size: inherit !important;
+      text-decoration: underline;
     }
 
     .btn-secondary {

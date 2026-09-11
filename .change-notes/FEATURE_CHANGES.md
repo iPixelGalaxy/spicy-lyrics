@@ -1,5 +1,7 @@
 # What to expect from iPixel Spicy Lyrics
 
+Last Updated: September 10, 2026.
+
 iPixel Spicy Lyrics is an unofficial fork of Original Spicy Lyrics. It adds more control over lyric sources, local TTML files, appearance, and playback controls, along with optional effects such as Space Gravity and experimental word splitting.
 
 This guide describes the fork's additions and behavior changes rather than listing every release or internal code change. Features depend on the build channel you use. See the [README](../README.md) for installation, channel setup, and version-by-version release notes.

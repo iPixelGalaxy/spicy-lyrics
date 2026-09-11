@@ -30,8 +30,42 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
     margin-bottom: var(--space-4);
   }
 
+  .sl-sp-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+
+  .sl-sp-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--accent-tint-bg);
+    box-shadow: inset 0 0 0 1px var(--hairline);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: var(--text-caption-size) !important;
+    font-weight: var(--w-semibold);
+  }
+
+  .sl-sp-tab:hover,
+  .sl-sp-tab:focus-visible,
+  .sl-sp-tab--active {
+    background: var(--accent-tint-bg-hover);
+    box-shadow: inset 0 0 0 1px var(--hairline-strong);
+    color: var(--color-text-primary);
+    outline: none;
+  }
+
+  .sl-sp-hiding-preferences { margin-bottom: var(--space-3); }
+
   .slmodal-settingsPanel > div {
-    width: 40vw;
+    width: 46vw;
     height: 80vh;
   }
 

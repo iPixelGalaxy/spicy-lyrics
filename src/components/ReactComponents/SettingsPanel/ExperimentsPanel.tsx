@@ -5,44 +5,27 @@ import {
   type RegisteredExperiment,
 } from "../../../utils/experiments.ts";
 import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../../../utils/stores.ts";
-import { Row, Toggle } from "./components.tsx";
+import { Row, SectionTitle, Toggle } from "./components.tsx";
 
 /**
  * The Experiments sub-panel. Renders straight off the EXPERIMENTS registry, so a
  * new experiment shows up here the moment it's added to `utils/experiments.ts`.
  */
 export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
+  return <div style={{ padding: "8px 0" }} className="slm w-40">
+    <div className="sl-sp-subheader"><button className="sl-sp-back-btn" onClick={onBack} aria-label="Back to Settings">Settings</button></div>
+    <p className="sl-sp-experiments-note">These features are still being shaped. Toggle one off if you prefer how things worked before.</p>
+    <ExperimentSettings />
+  </div>;
+}
+
+export function ExperimentSettings({ title = false }: { title?: boolean }) {
   const experimentalWordSync = useStore($enableExperimentalWordSync);
   const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
 
   return (
-    <div style={{ padding: "8px 0" }} className="slm w-40">
-      <div className="sl-sp-subheader">
-        <button className="sl-sp-back-btn" onClick={onBack} aria-label="Back to Settings">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M8.5 2.5L4 7l4.5 4.5"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Settings
-        </button>
-      </div>
-
-      <p className="sl-sp-experiments-note">
-        These features are still being shaped. Toggle one off if you prefer how things worked
-        before.
-      </p>
-
+    <>
+      {title && <SectionTitle>Experiments</SectionTitle>}
       {EXPERIMENTS.map((exp) => (
         <ExperimentRow key={exp.id} experiment={exp} />
       ))}
@@ -66,7 +49,7 @@ export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
       <Row label="Experimental Word Sync" description="Estimate word sync for line or static lyrics.">
         <Toggle checked={experimentalWordSync} onChange={(v) => $enableExperimentalWordSync.set(v)} />
       </Row>
-    </div>
+    </>
   );
 }
 

@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/react";
 import React from "react";
 import {
-  $coverArtAnimation,
   $allowHidingSettings,
   $customFont,
   $customFontEnabled,
@@ -29,7 +28,6 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const staticBackgroundMode = useStore($staticBackgroundMode);
   const staticBackgroundBlur = useStore($staticBackgroundBlur);
   const showNpvDynamicBg = useStore($showNpvDynamicBg);
-  const coverArtAnimation = useStore($coverArtAnimation);
   const pinnedFooterMode = useStore($pinnedFooterMode);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hiddenSettingIds = useStore($hiddenSettingIds);
@@ -41,12 +39,11 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const r2 = visible("appearance-custom-font") && customFontEnabled && matches(query, "Font Name", "Font family name to use for lyrics.");
   const r3 = visible("appearance-background-type") && matches(query, "Background Type", "Choose the dynamic, legacy, static image, or color background.");
   const r4 = visible("appearance-npv-background") && matches(query, "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.");
-  const r5 = visible("appearance-cover-art-animation") && matches(query, "Cover Art Animation", "Animate cover art changes in the NowBar.");
   const blurApplies = ["auto", "artistHeader", "coverArt"].includes(staticBackgroundMode);
   const r6 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
   const r7 = visible("appearance-pinned-footer") && matches(query, "Pinned Lyrics Footer", "Keep source and community credits visible. Full also pins writers.");
 
-  if (!r1 && !r2 && !r3 && !r4 && !r5 && !r6 && !r7) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r6 && !r7) return null;
 
   return (
     <>
@@ -102,12 +99,6 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
           description="Show the animated background in the Now Playing panel."
         >
           <Toggle checked={showNpvDynamicBg} onChange={(v) => $showNpvDynamicBg.set(v)} />
-        </Row>
-      )}
-
-      {r5 && (
-        <Row settingId="appearance-cover-art-animation" label="Cover Art Animation" description="Animate cover art changes in the NowBar.">
-          <Toggle checked={coverArtAnimation} onChange={(v) => $coverArtAnimation.set(v)} />
         </Row>
       )}
 

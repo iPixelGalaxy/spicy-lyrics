@@ -158,6 +158,7 @@ export const $popupLyricsAllowed = (() => {
   return store;
 })();
 export const $externalCinemaLyricsAllowed = persistAtom<boolean>("externalCinemaLyricsAllowed", false);
+export const $openProfilesInBrowser = persistAtom<boolean>("openProfilesInBrowser", false);
 export const $viewControlsPosition = persistAtom<string>("viewControlsPosition", "Top");
 export const $ttmlMakerMode = persistAtom<boolean>("ttmlMakerMode", true);
 export const $developerMode = persistAtom<boolean>("developerMode", false);

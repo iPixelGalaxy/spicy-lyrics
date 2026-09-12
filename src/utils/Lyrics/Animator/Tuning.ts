@@ -88,7 +88,7 @@ export function resetAnimatorValues() { firstCustom = true; $animatorCustom.set(
 export function loadSavedAnimatorPreset(id: string) {
   const preset = $savedAnimatorPresets.get().find((item) => item.id === id);
   if (!preset) return;
-  firstCustom = true; $animatorPreset.set("Custom"); $animatorCustom.set({ ...defaults, ...clean(preset.values) }); $selectedAnimatorPresetId.set(id);
+  firstCustom = true; $animatorCustom.set({ ...defaults, ...clean(preset.values) }); $animatorPreset.set("Custom"); $selectedAnimatorPresetId.set(id);
 }
 export function saveAnimatorPreset(name: string): string | null {
   const trimmed = name.trim(); if (!trimmed) return null;
@@ -103,18 +103,33 @@ export function deleteSelectedAnimatorPreset() {
   const id = $selectedAnimatorPresetId.get(); if (!id) return;
   $savedAnimatorPresets.set($savedAnimatorPresets.get().filter((item) => item.id !== id)); $selectedAnimatorPresetId.set(null);
 }
-const SHARE_PREFIX = "SLAP1:";
+const SHARE_PREFIX = "SLP1:";
+const LEGACY_SHARE_PREFIX = "SLAP1:";
 const encodeBase64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 const decodeBase64Url = (value: string) => decodeURIComponent(escape(atob(value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4))));
 export function shareAnimatorPreset(name: string): string {
-  return SHARE_PREFIX + encodeBase64Url(JSON.stringify(({ name: name.trim() || "Shared Preset", values: { ...defaults, ...clean($animatorCustom.get()) } } satisfies SharedAnimatorPreset)));
+  const values = { ...defaults, ...clean($animatorCustom.get()) };
+  return `${SHARE_PREFIX}${encodeURIComponent(name.trim() || "Shared Preset")}|${ANIMATOR_PARAMETERS.map(({ id }) => values[id]).join(",")}`;
 }
 export function importAnimatorPreset(code: string): string {
-  if (code.length > 65_536 || !code.startsWith(SHARE_PREFIX)) throw new Error("Not a Spicy Lyrics animator preset.");
-  let parsed: unknown;
-  try { parsed = JSON.parse(decodeBase64Url(code.slice(SHARE_PREFIX.length))); } catch { throw new Error("Preset code is invalid or damaged."); }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Preset code has no preset data.");
-  const input = parsed as { name?: unknown; values?: unknown };
+  if (code.length > 65_536) throw new Error("Preset code is too large.");
+  let input: SharedAnimatorPreset;
+  if (code.startsWith(SHARE_PREFIX)) {
+    const separator = code.indexOf("|", SHARE_PREFIX.length);
+    if (separator < 0) throw new Error("Preset code is invalid or damaged.");
+    let name: string;
+    try { name = decodeURIComponent(code.slice(SHARE_PREFIX.length, separator)); } catch { throw new Error("Preset code is invalid or damaged."); }
+    const rawValues = code.slice(separator + 1).split(",");
+    if (rawValues.length !== ANIMATOR_PARAMETERS.length) throw new Error("Preset code has missing animator values.");
+    const numbers = rawValues.map((value) => Number(value));
+    if (rawValues.some((value, index) => !value.trim() || !Number.isFinite(numbers[index]))) throw new Error("Preset code has invalid animator values.");
+    input = { name, values: Object.fromEntries(ANIMATOR_PARAMETERS.map(({ id }, index) => [id, numbers[index]])) as Partial<AnimatorValues> };
+  } else if (code.startsWith(LEGACY_SHARE_PREFIX)) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(decodeBase64Url(code.slice(LEGACY_SHARE_PREFIX.length))); } catch { throw new Error("Preset code is invalid or damaged."); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Preset code has no preset data.");
+    input = parsed as SharedAnimatorPreset;
+  } else throw new Error("Not a Spicy Lyrics animator preset.");
   const values = clean(input.values);
   if (Object.keys(values).length === 0) throw new Error("Preset has no recognized animator values.");
   const baseName = typeof input.name === "string" && input.name.trim() ? input.name.trim().slice(0, 80) : "Imported Preset";
@@ -123,7 +138,7 @@ export function importAnimatorPreset(code: string): string {
   while (existing.has(name.toLocaleLowerCase())) name = `${baseName} (${suffix++})`;
   const id = `animator-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const preset = { id, name, values: { ...defaults, ...values } };
-  firstCustom = true; $animatorPreset.set("Custom"); $animatorCustom.set(preset.values); $savedAnimatorPresets.set([...$savedAnimatorPresets.get(), preset]); $selectedAnimatorPresetId.set(id);
+  firstCustom = true; $animatorCustom.set(preset.values); $animatorPreset.set("Custom"); $savedAnimatorPresets.set([...$savedAnimatorPresets.get(), preset]); $selectedAnimatorPresetId.set(id);
   return name;
 }
 export function randomizeAnimatorValues(ids: AnimatorParameterId[]) {

@@ -99,16 +99,16 @@ export function saveAnimatorPreset(name: string): string | null {
   $savedAnimatorPresets.set(existing ? presets.map((item) => item.id === id ? { id, name: trimmed, values } : item) : [...presets, { id, name: trimmed, values }]);
   $selectedAnimatorPresetId.set(id); return id;
 }
-export function deleteSelectedAnimatorPreset() {
-  const id = $selectedAnimatorPresetId.get(); if (!id) return;
-  $savedAnimatorPresets.set($savedAnimatorPresets.get().filter((item) => item.id !== id)); $selectedAnimatorPresetId.set(null);
+export function deleteSavedAnimatorPreset(id: string) {
+  $savedAnimatorPresets.set($savedAnimatorPresets.get().filter((item) => item.id !== id));
+  if ($selectedAnimatorPresetId.get() === id) $selectedAnimatorPresetId.set(null);
 }
 const SHARE_PREFIX = "SLP1:";
 const LEGACY_SHARE_PREFIX = "SLAP1:";
 const encodeBase64Url = (value: string) => btoa(unescape(encodeURIComponent(value))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 const decodeBase64Url = (value: string) => decodeURIComponent(escape(atob(value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4))));
-export function shareAnimatorPreset(name: string): string {
-  const values = { ...defaults, ...clean($animatorCustom.get()) };
+export function shareAnimatorPreset(name: string, source: unknown = $animatorCustom.get()): string {
+  const values = { ...defaults, ...clean(source) };
   return `${SHARE_PREFIX}${encodeURIComponent(name.trim() || "Shared Preset")}|${ANIMATOR_PARAMETERS.map(({ id }) => values[id]).join(",")}`;
 }
 export function importAnimatorPreset(code: string): string {

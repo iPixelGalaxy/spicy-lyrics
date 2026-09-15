@@ -4,6 +4,7 @@ import { $forceCompactMode } from "../../utils/uiState.ts";
 import "../../css/Loaders/DotLoader.css";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
+  ApplyLyricsIfCurrent,
   cleanupApplyLyricsAbortController,
   ShouldReapplyRenderedLyricsForSpaceGravity,
   UpdateRenderedRomanization,
@@ -352,7 +353,7 @@ async function OpenPage(
       if (LyricsQueueRetry.IsRetryingFor(currentUri)) {
         ShowQueueLoader();
       }
-      fetchLyrics(currentUri).then(ApplyLyrics);
+      fetchLyrics(currentUri).then((lyrics) => ApplyLyricsIfCurrent(currentUri, lyrics));
     }
   }
 

@@ -29,6 +29,16 @@ let cachedColorBackgroundEl: HTMLElement | null = null;
 export const KawarpMap = new Map<HTMLElement | string, Kawarp>();
 const animSpeedController = new BackgroundAnimationController();
 
+// A page opens before its NowBar has painted the final cover. Local tracks and
+// DJ sessions therefore commonly queue a fallback-cover apply followed by the
+// rendered-cover apply. Serialize those calls per target so an older image load
+// cannot finish last and replace the final background.
+type DynamicBackgroundRequest = {
+  generation: number;
+  tail: Promise<void>;
+};
+const dynamicBackgroundRequests = new WeakMap<HTMLElement, DynamicBackgroundRequest>();
+
 interface ApplyDynamicBackgroundOpts {
   doTransitionDurationAppendWithPromise?: boolean;
   forceRecreate?: boolean;
@@ -111,7 +121,32 @@ const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string, targetDocu
   await kawarpInstance.loadImage(cover);
 };
 
-export default async function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}) {
+export default function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}): Promise<void> {
+  if (!element) return Promise.resolve();
+
+  let request = dynamicBackgroundRequests.get(element);
+  if (!request) {
+    request = { generation: 0, tail: Promise.resolve() };
+    dynamicBackgroundRequests.set(element, request);
+  }
+
+  const generation = ++request.generation;
+  const previousRequest = request.tail;
+  const apply = async () => {
+    if (request!.generation !== generation) return;
+    await ApplyDynamicBackgroundInternal(element, tag, opts, () => request!.generation === generation);
+  };
+
+  request.tail = previousRequest.catch(() => undefined).then(apply);
+  return request.tail;
+}
+
+async function ApplyDynamicBackgroundInternal(
+  element: HTMLElement,
+  tag: string | undefined,
+  opts: ApplyDynamicBackgroundOpts,
+  isCurrent: () => boolean,
+) {
   if (!element) return;
   // The NPV lyrics card must stay transparent so the NPV background remains visible.
   if (element.closest("#SpicyLyricsPage.CardMode")) return;
@@ -201,6 +236,8 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
           }
         );
 
+        if (!isCurrent()) return;
+
         const colorResponse = colorQuery.data.dynamicColors[0];
         const colorBestFit = colorResponse.bestFit === "DARK" ? "dark" : colorResponse.bestFit === "LIGHT" ? "light" : "dark";
 
@@ -228,6 +265,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     }
     const staticBackgroundCover = await GetStaticBackground(TrackArtist, TrackId);
 
+    if (!isCurrent()) return;
     if (IsEpisode || !staticBackgroundCover) return;
     const prevBg = element.querySelector<HTMLElement>(".spicy-dynamic-bg.StaticBackground");
 
@@ -275,6 +313,7 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
       if (kawarpInstance) {
         existingElement.setAttribute("data-cover-id", currentImgCover ?? "");
         await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
+        if (!isCurrent()) return;
         kawarpInstance.start();
         return;
       }
@@ -297,6 +336,14 @@ export default async function ApplyDynamicBackground(element: HTMLElement, tag?:
     )
     element.appendChild(canvas);
     await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
+    if (!isCurrent()) {
+      kawarpInstance.dispose();
+      if (KawarpMap.get(tag ?? canvas) === kawarpInstance) {
+        KawarpMap.delete(tag ?? canvas);
+      }
+      canvas.remove();
+      return;
+    }
     kawarpInstance.start();
     const msDelay = KawarpOptionsStatic.transitionDuration * 2;
 

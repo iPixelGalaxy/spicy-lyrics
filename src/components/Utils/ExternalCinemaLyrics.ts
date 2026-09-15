@@ -21,6 +21,8 @@ let closingExternalWindow = false;
 let externalPlaybackPump: number | null = null;
 let externalPlaybackPumpLastUri: string | null = null;
 let externalRenderFrame: number | null = null;
+let externalCinemaOpenPromise: Promise<void> | null = null;
+let externalCinemaClosePromise: Promise<void> | null = null;
 
 function getExternalPlayerPosition(): number {
   const state = (Spicetify.Player as any)?.origin?._state ?? Spicetify.Platform?.PlayerAPI?._state;
@@ -165,16 +167,18 @@ async function copyLyricsWindowStyles(targetWindow: Window, wrapperClass: string
   }
 }
 
-export const OpenExternalCinemaLyrics = async () => {
-  if (IsPIP) return;
+export const OpenExternalCinemaLyrics = (): Promise<void> => {
+  if (IsPIP) return Promise.resolve();
+  if (externalCinemaOpenPromise) return externalCinemaOpenPromise;
+  if (externalCinemaClosePromise) return externalCinemaClosePromise.then(() => OpenExternalCinemaLyrics());
 
   IsExternalCinemaOpening = true;
-  try {
-    await OpenExternalCinemaLyricsFlow();
-  } finally {
+  externalCinemaOpenPromise = OpenExternalCinemaLyricsFlow().finally(() => {
+    externalCinemaOpenPromise = null;
     IsExternalCinemaOpening = false;
     RequestNPVCardEvaluate();
-  }
+  });
+  return externalCinemaOpenPromise;
 };
 
 const OpenExternalCinemaLyricsFlow = async () => {
@@ -218,7 +222,7 @@ const OpenExternalCinemaLyricsFlow = async () => {
   ) as HTMLElement;
 
   IsExternalCinemaLyrics = true;
-  PageView.Open(externalWrapper);
+  await PageView.Open(externalWrapper);
   PageContainer?.classList.add("ExternalCinemaMode");
   Fullscreen.Open(true, false);
   startExternalRenderLoop(externalWindow);
@@ -236,32 +240,37 @@ const OpenExternalCinemaLyricsFlow = async () => {
   window.addEventListener("beforeunload", hostPageHideHandler);
 };
 
-export const CloseExternalCinemaLyrics = async (closeWindow = true) => {
-  if (!IsExternalCinemaLyrics) return;
+export const CloseExternalCinemaLyrics = (closeWindow = true): Promise<void> => {
+  if (externalCinemaClosePromise) return externalCinemaClosePromise;
+  if (!IsExternalCinemaLyrics) return Promise.resolve();
 
   closingExternalWindow = true;
+  externalCinemaClosePromise = (async () => {
+    if (Fullscreen.IsOpen) await Fullscreen.Close(true);
+    await PageView.Destroy();
+    stopExternalRenderLoop();
+    stopExternalPlaybackPump();
 
-  if (Fullscreen.IsOpen) await Fullscreen.Close(true);
-  await PageView.Destroy();
-  stopExternalRenderLoop();
-  stopExternalPlaybackPump();
+    if (currentExternalWindow && externalPageHideHandler) {
+      currentExternalWindow.removeEventListener("pagehide", externalPageHideHandler);
+    }
+    externalPageHideHandler = null;
+    if (hostPageHideHandler) {
+      window.removeEventListener("pagehide", hostPageHideHandler);
+      window.removeEventListener("beforeunload", hostPageHideHandler);
+    }
+    hostPageHideHandler = null;
 
-  if (currentExternalWindow && externalPageHideHandler) {
-    currentExternalWindow.removeEventListener("pagehide", externalPageHideHandler);
-  }
-  externalPageHideHandler = null;
-  if (hostPageHideHandler) {
-    window.removeEventListener("pagehide", hostPageHideHandler);
-    window.removeEventListener("beforeunload", hostPageHideHandler);
-  }
-  hostPageHideHandler = null;
+    if (closeWindow && currentExternalWindow && !currentExternalWindow.closed) {
+      currentExternalWindow.close();
+    }
 
-  if (closeWindow && currentExternalWindow && !currentExternalWindow.closed) {
-    currentExternalWindow.close();
-  }
-
-  currentExternalWindow = null;
-  IsExternalCinemaLyrics = false;
-  closingExternalWindow = false;
-  RequestNPVCardEvaluate();
+    currentExternalWindow = null;
+    IsExternalCinemaLyrics = false;
+    RequestNPVCardEvaluate();
+  })().finally(() => {
+    externalCinemaClosePromise = null;
+    closingExternalWindow = false;
+  });
+  return externalCinemaClosePromise;
 };

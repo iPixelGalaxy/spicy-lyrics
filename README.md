@@ -62,6 +62,39 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.44
+
+### Upstream
+
+- **Updated to upstream 6.3.20**
+  Includes the latest upstream lyric handling, cache, and display changes.
+
+### Cinema Lyrics Window
+
+- **More reliable popout opening and closing**
+  Closing the Cinema Lyrics Window while it is opening now cancels the pending setup. Switching to the main lyrics page or Picture-in-Picture transfers the view cleanly. A temporary rendering error no longer stops lyric updates.
+
+- **Cover art no longer animates over itself**
+  Opening Cinema no longer crossfades a track's cover art into the same image. Normal cover transitions still play when the track artwork changes.
+
+### Lyrics and animation
+
+- **Romanized-only lyrics remain visible**
+  Lyrics that contain only a romanized form are kept and displayed instead of being removed as empty lines.
+
+- **Gravity mode mounts after lyrics render**
+  Space Gravity now waits for the lyric view to mount before taking over its layout.
+
+### Animator presets
+
+- **Preset sharing and clipboard actions fixed**
+  Saved animator presets copy, import, and share without dropping their settings.
+
+### Settings
+
+- **Browser profile option**
+  Add a browser profile in advanced settings and open community profiles with it.
+
 ## v100.10.43
 
 ### Reliability

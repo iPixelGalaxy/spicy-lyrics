@@ -106,6 +106,17 @@ class LyricsVirtualizer {
   private _inOnChange = false;
   private _onChangePending = false;
 
+  // The lyrics page can live in Cinema/PiP. Every lifecycle callback must use
+  // that document, not the host Spotify window; a hidden host otherwise lets
+  // TanStack calculate an empty range and unmount every lyric line.
+  private _document(): Document {
+    return this._virtualContainer?.ownerDocument ?? this._scrollEl?.ownerDocument ?? document;
+  }
+
+  private _window(): Window {
+    return this._document().defaultView ?? window;
+  }
+
   setOnNewElementMounted(cb: (() => void) | null): void {
     this._onNewElementMounted = cb;
   }
@@ -272,7 +283,7 @@ class LyricsVirtualizer {
   private _syncScrollRect(): boolean {
     const v = this._virtualizer;
     const el = this._scrollEl;
-    if (!v || !el || document.hidden) return false;
+    if (!v || !el || this._document().hidden) return false;
     const w = Math.round(el.offsetWidth);
     const h = Math.round(el.offsetHeight);
     if (w === 0 || h === 0) return false; // mirror the zero-width guards elsewhere
@@ -303,7 +314,7 @@ class LyricsVirtualizer {
     // While hidden/minimized/detached the container collapses to 0; measuring
     // then would cache zeros that corrupt the layout on restore. Mirrors the
     // zero-width guards in the resize and width observers.
-    if (document.hidden) return;
+    if (this._document().hidden) return;
     const clientWidth = el.clientWidth;
     if (clientWidth === 0) return;
     const clientHeight = el.clientHeight;
@@ -369,15 +380,15 @@ class LyricsVirtualizer {
 
   private _onScrollEnd = (): void => {
     if (this._scrollEndTimer !== null) {
-      clearTimeout(this._scrollEndTimer);
+      this._window().clearTimeout(this._scrollEndTimer);
       this._scrollEndTimer = null;
     }
     this._remeasureVisible();
   };
 
   private _onScrollDebounced = (): void => {
-    if (this._scrollEndTimer !== null) clearTimeout(this._scrollEndTimer);
-    this._scrollEndTimer = setTimeout(() => {
+    if (this._scrollEndTimer !== null) this._window().clearTimeout(this._scrollEndTimer);
+    this._scrollEndTimer = this._window().setTimeout(() => {
       this._scrollEndTimer = null;
       this._remeasureVisible();
     }, 200);
@@ -443,8 +454,8 @@ class LyricsVirtualizer {
     this.destroy();
     this._maid = new Maid();
     this._maid.Give(() => {
-      if (this._scrollEndTimer !== null) { clearTimeout(this._scrollEndTimer); this._scrollEndTimer = null; }
-      if (this._resizeRAF !== null) { cancelAnimationFrame(this._resizeRAF); this._resizeRAF = null; }
+      if (this._scrollEndTimer !== null) { this._window().clearTimeout(this._scrollEndTimer); this._scrollEndTimer = null; }
+      if (this._resizeRAF !== null) { this._window().cancelAnimationFrame(this._resizeRAF); this._resizeRAF = null; }
     });
     this._allElements = lineElements;
     this._wrappers = new Array(lineElements.length).fill(null);
@@ -457,7 +468,7 @@ class LyricsVirtualizer {
       scrollEl.removeEventListener("scroll", this._syncBottomMask);
       lyricsContent?.classList.remove("LyricsScrollAtBottom");
     });
-    requestAnimationFrame(() => {
+    this._window().requestAnimationFrame(() => {
       if (this._scrollEl === scrollEl) this._syncBottomMask();
     });
 
@@ -485,7 +496,7 @@ class LyricsVirtualizer {
         changed = true;
       }
       if (changed && this._resizeRAF === null) {
-        this._resizeRAF = requestAnimationFrame(() => {
+        this._resizeRAF = this._window().requestAnimationFrame(() => {
           this._resizeRAF = null;
           if (this._virtualizer === v) {
             virtualizerLogger.debug("ResizeObserver scheduled virtualizer update");
@@ -514,7 +525,7 @@ class LyricsVirtualizer {
         }
       }
       if (changed && this._resizeRAF === null) {
-        this._resizeRAF = requestAnimationFrame(() => {
+        this._resizeRAF = this._window().requestAnimationFrame(() => {
           this._resizeRAF = null;
           if (this._virtualizer === v) {
             virtualizerLogger.debug("Class mutation scheduled virtualizer update");
@@ -590,8 +601,8 @@ class LyricsVirtualizer {
 
     if (viewportAnchor) this._restoreViewportAnchor(viewportAnchor);
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    this._window().requestAnimationFrame(() => {
+      this._window().requestAnimationFrame(() => {
         const v = this._virtualizer;
         if (!v || !this._scrollEl) return;
         const settled = this._scrollEl.clientWidth;
@@ -615,7 +626,7 @@ class LyricsVirtualizer {
       // Keep the CSS smooth-scroll override disabled through the first layout
       // frame, then hand normal automatic scrolling back to SimpleBar.
       const initializedVirtualizer = this._virtualizer;
-      requestAnimationFrame(() => {
+      this._window().requestAnimationFrame(() => {
         if (this._virtualizer === initializedVirtualizer) {
           scrollEl.classList.remove("InstantScroll");
         }
@@ -631,7 +642,7 @@ class LyricsVirtualizer {
 
     // Permanent bottom spacer gives the footer a little breathing room without
     // letting lyrics scroll far off-screen.
-    const spacer = document.createElement("div");
+    const spacer = virtualContainer.ownerDocument.createElement("div");
     spacer.style.flexShrink = "0";
     spacer.style.pointerEvents = "none";
     spacer.setAttribute("aria-hidden", "true");
@@ -675,12 +686,12 @@ class LyricsVirtualizer {
 
       // Clear any existing timer
       if (this._resizeDebounceTimer !== null) {
-        clearTimeout(this._resizeDebounceTimer);
+        this._window().clearTimeout(this._resizeDebounceTimer);
       }
     
       // Wait 150ms after the user STOPS resizing before measuring.
       // This lets sluggish devices finish their DOM reflow before TanStack measures.
-      this._resizeDebounceTimer = setTimeout(() => {
+      this._resizeDebounceTimer = this._window().setTimeout(() => {
         this._resizeDebounceTimer = null;
         virtualizerLogger.debug("Applying debounced resize remeasure");
         this._remeasureVisible();
@@ -691,16 +702,16 @@ class LyricsVirtualizer {
 
     // Watchdog catching drift within ~250ms when an observer notification above is
     // coalesced/dropped/zero-sized. Registered on the Maid so destroy() tears it down.
-    const healInterval = setInterval(this._selfHealCheck, 250);
-    this._maid!.Give(() => clearInterval(healInterval));
+    const healInterval = this._window().setInterval(this._selfHealCheck, 250);
+    this._maid!.Give(() => this._window().clearInterval(healInterval));
 
     // After a minimize/restore cycle _mountedIndices is empty, so the observers'
     // re-triggered _remeasureVisible is a no-op. Force a full remeasure once the page
     // has re-laid out so every re-mounted item gets correct heights.
     const _handleVisibilityRestore = () => {
-      if (document.hidden) return;
+      if (this._document().hidden) return;
       virtualizerLogger.debug("Visibility restored; forcing remeasure cycle");
-      requestAnimationFrame(() => {
+      this._window().requestAnimationFrame(() => {
         const v = this._virtualizer;
         if (!v || !this._scrollEl) return;
         const w = this._scrollEl.clientWidth;
@@ -714,9 +725,10 @@ class LyricsVirtualizer {
         this._onVirtualizerChange(v);
       });
     };
-    document.addEventListener("visibilitychange", _handleVisibilityRestore);
+    const ownerDocument = this._document();
+    ownerDocument.addEventListener("visibilitychange", _handleVisibilityRestore);
     this._maid!.Give(() =>
-      document.removeEventListener("visibilitychange", _handleVisibilityRestore)
+      ownerDocument.removeEventListener("visibilitychange", _handleVisibilityRestore)
     );
   }
 
@@ -724,7 +736,7 @@ class LyricsVirtualizer {
   private _getOrCreateWrapper(index: number): HTMLElement {
     let wrapper = this._wrappers[index];
     if (!wrapper) {
-      wrapper = document.createElement("div");
+      wrapper = this._document().createElement("div");
       wrapper.setAttribute("data-index", String(index));
       wrapper.style.position = "absolute";
       wrapper.style.left = "0";
@@ -811,7 +823,7 @@ class LyricsVirtualizer {
         }
         v.measureElement(wrapper);
         if (this._resizeRAF === null) {
-          this._resizeRAF = requestAnimationFrame(() => {
+          this._resizeRAF = this._window().requestAnimationFrame(() => {
             this._resizeRAF = null;
             if (this._virtualizer === v) {
               virtualizerLogger.debug("Unmount pass scheduled virtualizer update");
@@ -851,7 +863,7 @@ class LyricsVirtualizer {
       }
     }
     if (didMeasure && this._resizeRAF === null) {
-      this._resizeRAF = requestAnimationFrame(() => {
+      this._resizeRAF = this._window().requestAnimationFrame(() => {
         this._resizeRAF = null;
         if (this._virtualizer === v) {
           virtualizerLogger.debug("Mount pass scheduled virtualizer update");
@@ -875,7 +887,7 @@ class LyricsVirtualizer {
     const container = this._virtualContainer;
     if (!container) return [];
 
-    const fragment = document.createDocumentFragment();
+    const fragment = this._document().createDocumentFragment();
     for (const element of this._allElements) fragment.appendChild(element);
     container.replaceChildren();
     return this._allElements;
@@ -898,7 +910,7 @@ class LyricsVirtualizer {
     padding: number = 0
   ): void {
     if (this._scrollVerifyRAF !== null) {
-      cancelAnimationFrame(this._scrollVerifyRAF);
+      this._window().cancelAnimationFrame(this._scrollVerifyRAF);
       this._scrollVerifyRAF = null;
     }
     this._setConverging(true);
@@ -1097,7 +1109,7 @@ class LyricsVirtualizer {
     }
 
     if (retry < LyricsVirtualizer._MAX_SCROLL_RETRIES) {
-      this._scrollVerifyRAF = requestAnimationFrame(() => {
+      this._scrollVerifyRAF = this._window().requestAnimationFrame(() => {
         this._scrollVerifyRAF = null;
         if (this._virtualizer !== v) {
           this._setConverging(false);
@@ -1145,7 +1157,7 @@ class LyricsVirtualizer {
       hasVirtualizer: Boolean(this._virtualizer),
     });
     if (this._scrollVerifyRAF !== null) {
-      cancelAnimationFrame(this._scrollVerifyRAF);
+      this._window().cancelAnimationFrame(this._scrollVerifyRAF);
       this._scrollVerifyRAF = null;
     }
     // Reset convergence so the next virtualizer instance doesn't inherit a stale `true`
@@ -1178,7 +1190,7 @@ class LyricsVirtualizer {
     this._lastVirtualWindowSignature = "";
     this._virtualContainer = null;
     if (this._resizeDebounceTimer !== null) {
-      clearTimeout(this._resizeDebounceTimer);
+      this._window().clearTimeout(this._resizeDebounceTimer);
       this._resizeDebounceTimer = null;
     }
     this._onNewElementMounted = null;

@@ -32,7 +32,8 @@ const CreateLyricsContainer = (
 
   const Resize = () => {
     if (resizeRAF !== null) return;
-    resizeRAF = requestAnimationFrame(() => {
+    const targetWindow = Container.ownerDocument.defaultView ?? window;
+    resizeRAF = targetWindow.requestAnimationFrame(() => {
       resizeRAF = null;
       if (!preserveViewport) QueueForceScroll();
       ScrollSimplebar?.recalculate();
@@ -45,7 +46,7 @@ const CreateLyricsContainer = (
 
   const Remove = () => {
     if (resizeRAF !== null) {
-      cancelAnimationFrame(resizeRAF);
+      (Container.ownerDocument.defaultView ?? window).cancelAnimationFrame(resizeRAF);
       resizeRAF = null;
     }
     ResizeListener.unobserve(Container.parentElement as HTMLElement);

@@ -6,6 +6,7 @@ import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyr
 import ApplyLyrics, {
   ApplyLyricsIfCurrent,
   cleanupApplyLyricsAbortController,
+  InvalidatePendingLyricsApplication,
   ShouldReapplyRenderedLyricsForSpaceGravity,
   UpdateRenderedRomanization,
 } from "../../utils/Lyrics/Global/Applyer.ts";
@@ -180,6 +181,13 @@ async function OpenPage(
   AppendTo: HTMLElement | undefined = undefined,
   options?: { cardMode?: boolean }
 ) {
+
+  // A request for the main lyrics page takes ownership from the detached Cinema
+  // window. Opening Cinema passes an element from its own document, so it does
+  // not trip this handoff.
+  if (IsExternalCinemaLyrics && (AppendTo === undefined || AppendTo.ownerDocument === document)) {
+    await CloseExternalCinemaLyrics();
+  }
 
   if (_IsPIP_after) {
     await ClosePopupLyrics();
@@ -448,6 +456,7 @@ async function DestroyPage() {
 
   // Return the persistent renderer loop before an auxiliary page window closes.
   SetLyricsRendererWindow(window);
+  InvalidatePendingLyricsApplication();
   cleanupApplyLyricsAbortController();
 
   if (Fullscreen.IsOpen) await Fullscreen.Close();

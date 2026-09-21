@@ -256,8 +256,18 @@ const LyricsInterval = () => {
     }
   } */
 
-  TickLyricsRenderer();
-  lyricsRenderFrame = lyricsRenderWindow.requestAnimationFrame(LyricsInterval);
+  // A renderer exception used to skip the next frame forever. Keep the loop
+  // alive so a transient DOM/WebGL failure recovers on the following frame.
+  lyricsRenderFrame = null;
+  try {
+    TickLyricsRenderer();
+  } catch (error) {
+    console.warn("Lyrics render frame failed", error);
+  } finally {
+    const targetWindow = lyricsRenderWindow.closed ? window : lyricsRenderWindow;
+    lyricsRenderWindow = targetWindow;
+    lyricsRenderFrame = targetWindow.requestAnimationFrame(LyricsInterval);
+  }
 };
 
 SetLyricsRendererWindow(window);

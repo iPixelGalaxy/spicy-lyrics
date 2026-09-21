@@ -4,9 +4,7 @@ import Fullscreen from "./Fullscreen.ts";
 import { IsPIP } from "./PopupLyrics.ts";
 import { DeRenderNPVCard, NPVCardOwnsPage, RequestNPVCardEvaluate } from "./NPVLyrics.ts";
 import Session from "../Global/Session.ts";
-import Global from "../Global/Global.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
-import { IsPlaying } from "../../utils/Addons.ts";
 import { ScrollToActiveLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
@@ -14,81 +12,66 @@ import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackgroun
 export let IsExternalCinemaLyrics = false;
 export let IsExternalCinemaOpening = false;
 
-let currentExternalWindow: Window | null = null;
-let externalPageHideHandler: ((event: Event) => void) | null = null;
+type CinemaSession = {
+  window: Window;
+  cancelled: boolean;
+  renderFrame: number | null;
+  playbackPump: number | null;
+  lastUri: string | null;
+  externalPageHideHandler: (event: Event) => void;
+};
+
+let currentSession: CinemaSession | null = null;
 let hostPageHideHandler: ((event: Event) => void) | null = null;
-let closingExternalWindow = false;
-let externalPlaybackPump: number | null = null;
-let externalPlaybackPumpLastUri: string | null = null;
-let externalRenderFrame: number | null = null;
 let externalCinemaOpenPromise: Promise<void> | null = null;
 let externalCinemaClosePromise: Promise<void> | null = null;
 
-function getExternalPlayerPosition(): number {
-  const state = (Spicetify.Player as any)?.origin?._state ?? Spicetify.Platform?.PlayerAPI?._state;
-  const rawProgress = Number(Spicetify.Player.getProgress?.());
-  if (!state) {
-    if (Number.isFinite(rawProgress)) return rawProgress;
-    return SpotifyPlayer.GetPosition() ?? 0;
+const isCurrent = (session: CinemaSession) =>
+  currentSession === session && !session.cancelled && !session.window.closed;
+
+function stopSessionLoops(session: CinemaSession): void {
+  if (session.renderFrame !== null) {
+    try { session.window.cancelAnimationFrame(session.renderFrame); } catch { /* closed window */ }
+    session.renderFrame = null;
   }
-
-  const position = Number(state.positionAsOfTimestamp ?? state.position);
-  const timestamp = Number(state.timestamp);
-  const isPaused = Boolean(state.isPaused) || !Spicetify.Player.isPlaying();
-
-  if (Number.isFinite(position)) {
-    if (isPaused || !Number.isFinite(timestamp)) return position;
-    return Math.max(0, position + (Date.now() - timestamp));
+  if (session.playbackPump !== null) {
+    try { session.window.clearInterval(session.playbackPump); } catch { /* closed window */ }
+    session.playbackPump = null;
   }
-
-  if (Number.isFinite(rawProgress)) return rawProgress;
-  return SpotifyPlayer.GetPosition() ?? 0;
 }
 
-function startExternalRenderLoop(targetWindow: Window) {
-  stopExternalRenderLoop();
+function startSessionLoops(session: CinemaSession): void {
   const renderLoop = () => {
-    KawarpMap.forEach((kawarpInstance) => {
-      kawarpInstance.renderFrame();
-    });
-    externalRenderFrame = targetWindow.requestAnimationFrame(renderLoop);
+    if (!isCurrent(session)) return;
+    try {
+      // Kawarp owns its normal loop. Only drive the popout page background here.
+      KawarpMap.get("lpagebg")?.renderFrame();
+    } catch (error) {
+      console.warn("Cinema background frame failed", error);
+    } finally {
+      if (isCurrent(session)) session.renderFrame = session.window.requestAnimationFrame(renderLoop);
+    }
   };
-  externalRenderFrame = targetWindow.requestAnimationFrame(renderLoop);
-}
+  session.renderFrame = session.window.requestAnimationFrame(renderLoop);
 
-function stopExternalRenderLoop() {
-  if (externalRenderFrame === null) return;
-  (currentExternalWindow ?? window).cancelAnimationFrame(externalRenderFrame);
-  externalRenderFrame = null;
-}
-
-function startExternalPlaybackPump(targetWindow: Window) {
-  stopExternalPlaybackPump();
-  externalPlaybackPumpLastUri = SpotifyPlayer.GetUri() ?? null;
-  externalPlaybackPump = targetWindow.setInterval(() => {
-    const currentUri = SpotifyPlayer.GetUri() ?? null;
-    SpotifyPlayer.IsPlaying = IsPlaying();
-    if (ScrollSimplebar) ScrollToActiveLine(ScrollSimplebar);
-    const position = getExternalPlayerPosition();
-    Global.Event.evoke("playback:position", position);
-    Global.Event.evoke("playback:progress", { data: { position } });
-
-    if (currentUri !== externalPlaybackPumpLastUri) {
-      externalPlaybackPumpLastUri = currentUri;
-      Global.Event.evoke("playback:songchange", { data: Spicetify.Player.data });
-      targetWindow.setTimeout(() => {
-        const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
-        if (contentBox) void ApplyDynamicBackground(contentBox, "lpagebg");
-      }, 500);
+  session.lastUri = SpotifyPlayer.GetUri() ?? null;
+  session.playbackPump = session.window.setInterval(() => {
+    if (!isCurrent(session)) return;
+    try {
+      if (ScrollSimplebar) ScrollToActiveLine(ScrollSimplebar);
+      const uri = SpotifyPlayer.GetUri() ?? null;
+      if (uri !== session.lastUri) {
+        session.lastUri = uri;
+        session.window.setTimeout(() => {
+          if (!isCurrent(session)) return;
+          const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
+          if (contentBox) void ApplyDynamicBackground(contentBox, "lpagebg");
+        }, 250);
+      }
+    } catch (error) {
+      console.warn("Cinema playback pump failed", error);
     }
   }, 250);
-}
-
-function stopExternalPlaybackPump() {
-  if (externalPlaybackPump === null) return;
-  (currentExternalWindow ?? window).clearInterval(externalPlaybackPump);
-  externalPlaybackPump = null;
-  externalPlaybackPumpLastUri = null;
 }
 
 async function copyLyricsWindowStyles(targetWindow: Window, wrapperClass: string) {
@@ -97,14 +80,8 @@ async function copyLyricsWindowStyles(targetWindow: Window, wrapperClass: string
     const classList = Array.from(link.classList || []);
     const isFont = href.startsWith("https://fonts.spikerko.org");
     const isLocalCss = /^\/[a-zA-Z]{2}.*\.css$/.test(href);
-    const isUserCss = (
-      (href.endsWith("colors.css") || href.endsWith("user.css")) &&
-      classList.length === 1 &&
-      classList[0] === "userCSS"
-    );
-
+    const isUserCss = (href.endsWith("colors.css") || href.endsWith("user.css")) && classList.length === 1 && classList[0] === "userCSS";
     if (!link.href || (!isFont && !isLocalCss && !isUserCss)) return;
-
     const externalLink = targetWindow.document.createElement("link");
     externalLink.rel = "stylesheet";
     externalLink.type = link.type || "text/css";
@@ -114,163 +91,115 @@ async function copyLyricsWindowStyles(targetWindow: Window, wrapperClass: string
     targetWindow.document.head.appendChild(externalLink);
   });
 
-  const spicyLyricsStyleElement = document.querySelector("#slstyles");
-  let spicyLyricsStyleContent: string | null = null;
-
-  if (spicyLyricsStyleElement) {
-    if (spicyLyricsStyleElement.tagName.toLowerCase() === "link") {
-      const href = spicyLyricsStyleElement.getAttribute("href");
-      if (href) {
-        try {
-          const res = await fetch(href);
-          if (res.ok) spicyLyricsStyleContent = await res.text();
-        } catch {
-          spicyLyricsStyleContent = null;
-        }
-      }
-    } else if (spicyLyricsStyleElement.tagName.toLowerCase() === "style") {
-      spicyLyricsStyleContent = spicyLyricsStyleElement.textContent;
+  const style = document.querySelector("#slstyles");
+  let content: string | null = null;
+  if (style?.tagName.toLowerCase() === "link") {
+    const href = style.getAttribute("href");
+    if (href) {
+      try { const response = await fetch(href); if (response.ok) content = await response.text(); } catch { /* optional stylesheet */ }
     }
+  } else if (style?.tagName.toLowerCase() === "style") {
+    content = style.textContent;
   }
-
-  if (spicyLyricsStyleContent) {
-    const newStyleElement = targetWindow.document.createElement("style");
-    newStyleElement.textContent = spicyLyricsStyleContent;
-    targetWindow.document.head.appendChild(newStyleElement);
+  if (content) {
+    const targetStyle = targetWindow.document.createElement("style");
+    targetStyle.textContent = content;
+    targetWindow.document.head.appendChild(targetStyle);
   }
-
-  const additionalStyling = document.getElementById("spicyLyrics-additionalStyling");
-  if (additionalStyling) {
-    const newAdditionalStyling = targetWindow.document.createElement("style");
-    newAdditionalStyling.id = "spicyLyrics-additionalStyling";
-    newAdditionalStyling.textContent = additionalStyling.textContent;
-    targetWindow.document.head.appendChild(newAdditionalStyling);
+  const additionalStyle = document.getElementById("spicyLyrics-additionalStyling");
+  if (additionalStyle) {
+    const targetStyle = targetWindow.document.createElement("style");
+    targetStyle.id = "spicyLyrics-additionalStyling";
+    targetStyle.textContent = additionalStyle.textContent;
+    targetWindow.document.head.appendChild(targetStyle);
   }
-
-  const externalStyle = targetWindow.document.createElement("style");
-  externalStyle.textContent = `
-    html,
-    body,
-    .${wrapperClass} {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      background: #000;
-    }
-  `;
-  targetWindow.document.head.appendChild(externalStyle);
-
+  const layoutStyle = targetWindow.document.createElement("style");
+  layoutStyle.textContent = `html,body,.${wrapperClass}{width:100%;height:100%;margin:0;overflow:hidden;background:#000}`;
+  targetWindow.document.head.appendChild(layoutStyle);
   const customFont = document.documentElement.style.getPropertyValue("--spicy-custom-font");
-  if (customFont) {
-    targetWindow.document.documentElement.style.setProperty("--spicy-custom-font", customFont);
+  if (customFont) targetWindow.document.documentElement.style.setProperty("--spicy-custom-font", customFont);
+}
+
+async function closeSession(session: CinemaSession, closeWindow: boolean): Promise<void> {
+  session.cancelled = true;
+  stopSessionLoops(session);
+  try { session.window.removeEventListener("pagehide", session.externalPageHideHandler); } catch { /* closed window */ }
+  if (hostPageHideHandler) {
+    window.removeEventListener("pagehide", hostPageHideHandler);
+    window.removeEventListener("beforeunload", hostPageHideHandler);
+    hostPageHideHandler = null;
   }
+  try { if (Fullscreen.IsOpen) await Fullscreen.Close(true); } catch (error) { console.warn("Cinema fullscreen cleanup failed", error); }
+  try { if (PageView.IsOpened) await PageView.Destroy(); } catch (error) { console.warn("Cinema page cleanup failed", error); }
+  if (closeWindow && !session.window.closed) {
+    try { session.window.close(); } catch (error) { console.warn("Cinema window close failed", error); }
+  }
+  if (currentSession === session) currentSession = null;
+  IsExternalCinemaLyrics = false;
+  IsExternalCinemaOpening = false;
+  RequestNPVCardEvaluate();
 }
 
 export const OpenExternalCinemaLyrics = (): Promise<void> => {
   if (IsPIP) return Promise.resolve();
   if (externalCinemaOpenPromise) return externalCinemaOpenPromise;
-  if (externalCinemaClosePromise) return externalCinemaClosePromise.then(() => OpenExternalCinemaLyrics());
-
+  if (externalCinemaClosePromise) return externalCinemaClosePromise.then(OpenExternalCinemaLyrics);
+  if (currentSession && isCurrent(currentSession)) {
+    currentSession.window.focus();
+    return Promise.resolve();
+  }
   IsExternalCinemaOpening = true;
-  externalCinemaOpenPromise = OpenExternalCinemaLyricsFlow().finally(() => {
+  externalCinemaOpenPromise = openExternalCinemaLyrics().catch(async (error) => {
+    console.warn("Cinema open failed", error);
+    await CloseExternalCinemaLyrics();
+  }).finally(() => {
     externalCinemaOpenPromise = null;
-    IsExternalCinemaOpening = false;
+    if (!currentSession) IsExternalCinemaOpening = false;
     RequestNPVCardEvaluate();
   });
   return externalCinemaOpenPromise;
 };
 
-const OpenExternalCinemaLyricsFlow = async () => {
+async function openExternalCinemaLyrics(): Promise<void> {
   if (NPVCardOwnsPage()) await DeRenderNPVCard();
-
   if (PageView.IsOpened && !IsExternalCinemaLyrics) {
-    if (Fullscreen.IsOpen) {
-      await Fullscreen.Close();
-      Session.GoBack();
-    } else {
-      await PageView.Destroy();
-      Session.GoBack();
-    }
-
-    await OpenExternalCinemaLyricsFlow();
-    return;
+    if (Fullscreen.IsOpen) await Fullscreen.Close();
+    await PageView.Destroy();
+    Session.GoBack();
   }
-
-  if (IsExternalCinemaLyrics && currentExternalWindow && !currentExternalWindow.closed) {
-    currentExternalWindow.focus();
-    return;
-  }
-
   if (PageView.IsOpened) return;
-
-  const externalWindow = window.open(
-    "",
-    "SpicyLyricsCinema",
-    "popup=yes,width=1280,height=720"
-  );
-  if (!externalWindow) return;
-
-  currentExternalWindow = externalWindow;
-  externalWindow.document.open();
-  externalWindow.document.write(`<!doctype html><html><head></head><body><div class="spicy-external-cinema-wrapper"></div></body></html>`);
-  externalWindow.document.close();
-  await copyLyricsWindowStyles(externalWindow, "spicy-external-cinema-wrapper");
-
-  const externalWrapper = externalWindow.document.body.querySelector(
-    ".spicy-external-cinema-wrapper"
-  ) as HTMLElement;
-
+  const targetWindow = window.open("", "SpicyLyricsCinema", "popup=yes,width=1280,height=720");
+  if (!targetWindow) return;
+  const session: CinemaSession = {
+    window: targetWindow, cancelled: false, renderFrame: null, playbackPump: null, lastUri: null,
+    externalPageHideHandler: () => { void CloseExternalCinemaLyrics(false); },
+  };
+  currentSession = session;
   IsExternalCinemaLyrics = true;
-  await PageView.Open(externalWrapper);
-  PageContainer?.classList.add("ExternalCinemaMode");
-  Fullscreen.Open(true, false);
-  startExternalRenderLoop(externalWindow);
-  startExternalPlaybackPump(externalWindow);
-  externalWindow.focus();
-
-  externalPageHideHandler = () => {
-    if (!closingExternalWindow) CloseExternalCinemaLyrics(false);
-  };
-  hostPageHideHandler = () => {
-    if (!closingExternalWindow) void CloseExternalCinemaLyrics(true);
-  };
-  externalWindow.addEventListener("pagehide", externalPageHideHandler);
+  targetWindow.addEventListener("pagehide", session.externalPageHideHandler);
+  hostPageHideHandler = () => { void CloseExternalCinemaLyrics(true); };
   window.addEventListener("pagehide", hostPageHideHandler);
   window.addEventListener("beforeunload", hostPageHideHandler);
-};
+  targetWindow.document.open();
+  targetWindow.document.write(`<!doctype html><html><head></head><body><div class="spicy-external-cinema-wrapper"></div></body></html>`);
+  targetWindow.document.close();
+  await copyLyricsWindowStyles(targetWindow, "spicy-external-cinema-wrapper");
+  if (!isCurrent(session)) return;
+  const wrapper = targetWindow.document.body.querySelector<HTMLElement>(".spicy-external-cinema-wrapper");
+  if (!wrapper) throw new Error("Cinema window wrapper was not created");
+  await PageView.Open(wrapper);
+  if (!isCurrent(session)) return;
+  PageContainer?.classList.add("ExternalCinemaMode");
+  Fullscreen.Open(true, false);
+  startSessionLoops(session);
+  targetWindow.focus();
+  IsExternalCinemaOpening = false;
+}
 
 export const CloseExternalCinemaLyrics = (closeWindow = true): Promise<void> => {
   if (externalCinemaClosePromise) return externalCinemaClosePromise;
-  if (!IsExternalCinemaLyrics) return Promise.resolve();
-
-  closingExternalWindow = true;
-  externalCinemaClosePromise = (async () => {
-    if (Fullscreen.IsOpen) await Fullscreen.Close(true);
-    await PageView.Destroy();
-    stopExternalRenderLoop();
-    stopExternalPlaybackPump();
-
-    if (currentExternalWindow && externalPageHideHandler) {
-      currentExternalWindow.removeEventListener("pagehide", externalPageHideHandler);
-    }
-    externalPageHideHandler = null;
-    if (hostPageHideHandler) {
-      window.removeEventListener("pagehide", hostPageHideHandler);
-      window.removeEventListener("beforeunload", hostPageHideHandler);
-    }
-    hostPageHideHandler = null;
-
-    if (closeWindow && currentExternalWindow && !currentExternalWindow.closed) {
-      currentExternalWindow.close();
-    }
-
-    currentExternalWindow = null;
-    IsExternalCinemaLyrics = false;
-    RequestNPVCardEvaluate();
-  })().finally(() => {
-    externalCinemaClosePromise = null;
-    closingExternalWindow = false;
-  });
+  const session = currentSession;
+  if (!session) return Promise.resolve();
+  externalCinemaClosePromise = closeSession(session, closeWindow).finally(() => { externalCinemaClosePromise = null; });
   return externalCinemaClosePromise;
 };

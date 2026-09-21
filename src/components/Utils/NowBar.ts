@@ -1057,11 +1057,14 @@ function OpenNowBar(skipSaving: boolean = false) {
       // Use a more reliable approach to add elements
       Whentil.When(
         () =>
-          PageContainer.querySelector(
+          spicyLyricsPage?.querySelector(
             ".ContentBox .NowBar .Header .MediaBox .MediaContent .ViewControls"
           ),
         () => {
-          const MediaBox = PageContainer.querySelector(
+          // This polling callback can run after Cinema/PiP/main-page handoff.
+          // Never let a stale setup rewrite the new page's controls.
+          if (PageContainer !== spicyLyricsPage || !spicyLyricsPage?.isConnected) return;
+          const MediaBox = spicyLyricsPage.querySelector(
             ".ContentBox .NowBar .Header .MediaBox .MediaContent"
           );
           if (!MediaBox) return;
@@ -1070,7 +1073,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           const viewControls = MediaBox.querySelector(".ViewControls");
 
           // Create a temporary fragment to avoid multiple reflows
-          const fragment = document.createDocumentFragment();
+          const fragment = spicyLyricsPage.ownerDocument.createDocumentFragment();
           AppendQueue.forEach((element) => {
             fragment.appendChild(element);
           });

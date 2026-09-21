@@ -53,6 +53,17 @@ let ActiveHeartMaid: Maid | null = null;
 let lastDisplayedReleaseYear: string | undefined;
 const releaseYearCache = new Map<string, string>();
 
+type CoverRenderState = {
+  generation: number;
+  pendingCover: string | null;
+  transitionTimer: number | null;
+};
+
+// A popout creates a fresh NowBar and then immediately rebuilds it for
+// fullscreen. Keep ownership on the actual image container so repeated calls
+// join the same artwork load instead of animating that artwork over itself.
+const coverRenderStates = new WeakMap<HTMLElement, CoverRenderState>();
+
 function getNowBarPlayerPosition(): number {
   const rawProgress = Number(Spicetify.Player.getProgress?.());
 
@@ -1436,7 +1447,7 @@ function UpdateNowBar(force = false) {
       const onEnd = (e: TransitionEvent) => {
         if (e.target === el && e.propertyName === propertyName) finish();
       };
-      const t = window.setTimeout(finish, timeoutMs);
+      const t = (el.ownerDocument.defaultView ?? window).setTimeout(finish, timeoutMs);
       el.addEventListener("transitionend", onEnd);
     });
 
@@ -1471,9 +1482,12 @@ function UpdateNowBar(force = false) {
     ? `https://i.scdn.co/image/${coverArt.slice("spotify:image:".length)}`
     : coverArt;
 
-  // Returning to an already-painted cover must invalidate another track's load.
-  const updateToken = `${SpotifyPlayer.GetId() ?? ""}:${coverArt}`;
-  MediaImageContainer.setAttribute("data-update-token", updateToken);
+  const state = coverRenderStates.get(MediaImageContainer) ?? {
+    generation: 0,
+    pendingCover: null,
+    transitionTimer: null,
+  };
+  coverRenderStates.set(MediaImageContainer, state);
 
   // Avoid re-running if the artwork hasn't changed
   if (previousCoverArt === coverArt) {
@@ -1495,7 +1509,16 @@ function UpdateNowBar(force = false) {
       toImage.classList.add("MB_hidden");
     }
     MediaImageContainer.setAttribute("data-cover-initialized", "1");
-  } else {
+  } else if (state.pendingCover !== coverArt) {
+    const generation = ++state.generation;
+    state.pendingCover = coverArt;
+    if (state.transitionTimer !== null) {
+      (MediaImageContainer.ownerDocument.defaultView ?? window).clearTimeout(state.transitionTimer);
+      state.transitionTimer = null;
+    }
+    // A new destination supersedes any interrupted crossfade immediately.
+    MediaImageContainer.querySelector(".fi_FromImage")?.classList.remove("MB_anim_fimg");
+    MediaImageContainer.querySelector(".ti_ToImage")?.classList.remove("MB_anim_enter");
     // Local files don't have a remote scdn URL to fetch; use the cover URL directly.
     const displayUrlPromise = isLocalCover
       ? Promise.resolve(finalUrl)
@@ -1505,10 +1528,14 @@ function UpdateNowBar(force = false) {
 
     displayUrlPromise
       .then((displayUrl) => {
-        // If the container was removed or a newer update ran while we were loading, skip
+        // Another call may have requested a different cover while this one was loading.
         if (!MediaImageContainer.isConnected) return;
-        const latestToken = MediaImageContainer.getAttribute("data-update-token");
-        if (latestToken !== updateToken) return;
+        if (coverRenderStates.get(MediaImageContainer) !== state || state.generation !== generation) return;
+        state.pendingCover = null;
+
+        // The first request may have painted this cover while an identical
+        // request was in flight. Never crossfade identical artwork.
+        if (MediaImageContainer.getAttribute("last-image") === coverArt) return;
 
         MediaImageContainer.setAttribute("last-image", coverArt ?? "");
         MediaImageContainer.setAttribute("last-image-url", displayUrl);
@@ -1539,10 +1566,8 @@ function UpdateNowBar(force = false) {
             fromImage?.classList.add("MB_anim_fimg");
           }
 
-          setTimeout(async () => {
-            // If another track update happened during the timeout, skip applying stale state
-            const latestInnerToken = MediaImageContainer.getAttribute("data-update-token");
-            if (latestInnerToken !== updateToken) return;
+          state.transitionTimer = (MediaImageContainer.ownerDocument.defaultView ?? window).setTimeout(async () => {
+            if (coverRenderStates.get(MediaImageContainer) !== state || state.generation !== generation) return;
             fromImage!.style.backgroundImage = `url("${displayUrl}")`
             fromImage!.classList.add("containsImage");
 
@@ -1551,11 +1576,11 @@ function UpdateNowBar(force = false) {
             fromImage!.classList.remove("MB_anim_fimg");
             await waitForTransitionEnd(fromImage!, "opacity", 950);
 
-            const latestAfterFadeToken = MediaImageContainer.getAttribute("data-update-token");
-            if (latestAfterFadeToken !== updateToken) return;
+            if (coverRenderStates.get(MediaImageContainer) !== state || state.generation !== generation) return;
             toImage.classList.add("MB_hidden");
             toImage.classList.remove("MB_anim_enter");
             MediaImageContainer.setAttribute("data-cover-initialized", "1");
+            state.transitionTimer = null;
           }, 1100)
         } else {
           // No fromImage image yet: just set fromImage (or fall back to toImage) without animation

@@ -61,7 +61,7 @@ function getDisplayText(line: LyricsLineData, useRomanized: boolean): string {
   }
   return useRomanized && line.TransliteratedText !== undefined
     ? line.TransliteratedText
-    : line.Text;
+    : line.Text || line.TransliteratedText || "";
 }
 
 export function UpdateLineLyricsRomanization(useRomanized: boolean): void {

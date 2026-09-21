@@ -3,6 +3,7 @@ import { $currentLyricsData, $currentLyricsType, $currentlyFetching } from "../s
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import PageView, { PageContainer } from "../../components/Pages/PageView.ts";
 import { ProcessLyrics } from "./ProcessLyrics.ts";
+import { IsEmptyLyrics } from "./EmptyLines.ts";
 import Logger from "../Logger.ts";
 import { LocalLyricsManager } from "./manager/index.ts";
 import { GetExpireStore } from "../../modules/Store.ts";
@@ -20,7 +21,7 @@ export { LYRICS_QUEUE_MESSAGE, ShowQueueLoader } from "./LyricsLoader.ts";
 const lyricsLogger = new Logger("Lyrics Pipeline");
 const lyricsCacheLogger = new Logger("Lyrics Cache");
 
-export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 4, {
+export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 5, {
   Unit: "Days",
   Duration: 3,
 }, isDev as true);
@@ -293,6 +294,13 @@ async function fetchLyricsInternal(
     }
 
     await ProcessLyrics(lyrics);
+
+    if (IsEmptyLyrics(lyrics)) {
+      lyricsLogger.warn("Lyrics payload had no renderable lines after pruning");
+      HideLoaderContainer(uri);
+      finishFetching(uri);
+      return ["lyrics-not-found", 404];
+    }
 
     const lyricsWithId = attachLyricsSourceCacheMetadata({ ...lyrics, id: trackId });
     if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(lyricsWithId));

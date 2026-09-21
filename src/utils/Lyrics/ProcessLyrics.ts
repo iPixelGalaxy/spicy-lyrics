@@ -8,6 +8,7 @@ import { PageContainer } from "../../components/Pages/PageView.ts";
 import Logger from "../Logger.ts";
 import Defaults from "../../components/Global/Defaults.ts";
 import { gibberishifyLine } from "./GibberishTransform.ts";
+import { StripEmptyLyricsLines } from "./EmptyLines.ts";
 
 // Constants
 const RomajiConverter = new Kuroshiro();
@@ -305,6 +306,7 @@ const romanizeEntry = async (
 export const ProcessLyrics = async (lyrics: any) => {
   normalizeLegacyRomanizationFields(lyrics);
   NormalizeLyricsCommaSpacing(lyrics);
+  StripEmptyLyricsLines(lyrics);
   // Transliterations the API already shipped are preferred and never overwritten,
   const { francText, scriptText, entries } = gatherText(lyrics);
 

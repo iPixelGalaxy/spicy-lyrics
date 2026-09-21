@@ -175,7 +175,7 @@ function getSyllableText(syllable: SyllableData, useRomanized: boolean): string 
   }
   return useRomanized && syllable.TransliteratedText !== undefined
     ? syllable.TransliteratedText
-    : syllable.Text;
+    : syllable.Text || syllable.TransliteratedText || "";
 }
 
 function setSyllableTextVariants(

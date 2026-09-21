@@ -55,7 +55,7 @@ function getDisplayText(
   }
   return useRomanized && line.TransliteratedText !== undefined
     ? line.TransliteratedText
-    : line.Text;
+    : line.Text || line.TransliteratedText || "";
 }
 
 export function UpdateStaticLyricsRomanization(useRomanized: boolean): void {

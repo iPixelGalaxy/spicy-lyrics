@@ -46,6 +46,12 @@ let holdScrollToActiveButton = false;
 
 type ActiveLineDirection = "above" | "below" | null;
 
+let scrollButtonObserver: IntersectionObserver | null = null;
+let scrollButtonRoot: HTMLElement | null = null;
+let scrollButtonLine: HTMLElement | null = null;
+let scrollButtonDocument: Document | null = null;
+let scrollButtonRefreshFrame: number | null = null;
+
 function getScrollToActiveButton(): HTMLButtonElement | null {
   return PageContainer?.querySelector<HTMLButtonElement>("#ScrollToActiveLyric") ?? null;
 }
@@ -53,7 +59,70 @@ function getScrollToActiveButton(): HTMLButtonElement | null {
 function hideScrollToActiveButton(): void {
   const button = getScrollToActiveButton();
   if (!button) return;
-  button.classList.remove("Visible", "ActiveAbove");
+  if (button.classList.contains("Visible")) button.classList.remove("Visible");
+  if (button.classList.contains("ActiveAbove")) button.classList.remove("ActiveAbove");
+}
+
+function renderScrollToActiveButton(direction: ActiveLineDirection): void {
+  const button = getScrollToActiveButton();
+  if (!button) return;
+  button.classList.toggle("Visible", direction !== null);
+  button.classList.toggle("ActiveAbove", direction === "above");
+  const label = direction === "above" ? "Scroll up to active lyric" : "Scroll down to active lyric";
+  if (button.getAttribute("aria-label") !== label) button.setAttribute("aria-label", label);
+}
+
+function cleanupScrollButtonObserver(): void {
+  if (scrollButtonRefreshFrame !== null) {
+    (scrollButtonDocument?.defaultView ?? window).cancelAnimationFrame(scrollButtonRefreshFrame);
+    scrollButtonRefreshFrame = null;
+  }
+  scrollButtonObserver?.disconnect();
+  scrollButtonObserver = null;
+  scrollButtonRoot = null;
+  scrollButtonLine = null;
+  scrollButtonDocument = null;
+}
+
+function refreshScrollButtonObservation(): void {
+  if (!scrollButtonObserver || scrollButtonRefreshFrame !== null) return;
+  const targetWindow = scrollButtonDocument?.defaultView ?? window;
+  scrollButtonRefreshFrame = targetWindow.requestAnimationFrame(() => {
+    scrollButtonRefreshFrame = null;
+    if (!scrollButtonObserver || !scrollButtonLine?.isConnected) return;
+    // A scroll can jump from above to below without crossing an intersection
+    // threshold. Request a fresh entry without synchronously measuring layout.
+    scrollButtonObserver.takeRecords();
+    scrollButtonObserver.unobserve(scrollButtonLine);
+    scrollButtonObserver.observe(scrollButtonLine);
+  });
+}
+
+function observeScrollButtonLine(container: HTMLElement, line: HTMLElement): void {
+  if (scrollButtonRoot !== container || scrollButtonDocument !== container.ownerDocument) {
+    cleanupScrollButtonObserver();
+    scrollButtonRoot = container;
+    scrollButtonDocument = container.ownerDocument;
+    const targetWindow = scrollButtonDocument.defaultView ?? window;
+    scrollButtonObserver = new targetWindow.IntersectionObserver((entries) => {
+      if (holdScrollToActiveButton || !$showScrollToActiveButton.get()) return;
+      if (scrollButtonRoot !== container || scrollButtonDocument !== container.ownerDocument) return;
+      // The browser supplies these rectangles after layout. Reading them does
+      // not flush the lyric animation's pending styles on every playback tick.
+      const entry = entries[entries.length - 1];
+      if (!entry || entry.target !== scrollButtonLine || !scrollButtonLine?.isConnected || !entry.rootBounds) return;
+      const { boundingClientRect: lineRect, rootBounds } = entry;
+      renderScrollToActiveButton(
+        lineRect.bottom <= rootBounds.top ? "above" : lineRect.top >= rootBounds.bottom ? "below" : null
+      );
+    }, { root: container, threshold: 0 });
+  }
+  if (scrollButtonLine === line) return;
+  if (scrollButtonLine) scrollButtonObserver?.unobserve(scrollButtonLine);
+  scrollButtonObserver?.takeRecords();
+  scrollButtonLine = line;
+  hideScrollToActiveButton();
+  scrollButtonObserver?.observe(line);
 }
 
 function getActiveLineDirection(
@@ -118,6 +187,7 @@ function getCurrentPlaybackTargetLine(): {
 
 export function UpdateScrollToActiveButton(): void {
   if (holdScrollToActiveButton) {
+    cleanupScrollButtonObserver();
     hideScrollToActiveButton();
     return;
   }
@@ -125,22 +195,25 @@ export function UpdateScrollToActiveButton(): void {
   const container = currentSimpleBarInstance?.getScrollElement() as HTMLElement | undefined;
   const targetLine = getCurrentPlaybackTargetLine();
   if (!$showScrollToActiveButton.get() || !button || !container || !targetLine) {
+    cleanupScrollButtonObserver();
     hideScrollToActiveButton();
     return;
   }
 
-  const direction = getActiveLineDirection(container, targetLine.line);
-  button.classList.toggle("Visible", direction !== null);
-  button.classList.toggle("ActiveAbove", direction === "above");
-  button.setAttribute(
-    "aria-label",
-    direction === "above" ? "Scroll up to active lyric" : "Scroll down to active lyric"
-  );
+  const lineElement = targetLine.line.HTMLElement as HTMLElement | undefined;
+  if (lineElement?.isConnected) {
+    observeScrollButtonLine(container, lineElement);
+  } else {
+    cleanupScrollButtonObserver();
+    // Detached virtual rows have no DOM geometry; use the mounted index range.
+    renderScrollToActiveButton(getActiveLineDirection(container, targetLine.line));
+  }
 }
 
 /** Keep the affordance hidden while a newly mounted virtualizer converges. */
 export function HoldScrollToActiveButtonUntilVisible(): void {
   holdScrollToActiveButton = true;
+  cleanupScrollButtonObserver();
   hideScrollToActiveButton();
   let remainingFrames = 30;
   const settle = () => {
@@ -226,7 +299,10 @@ export function InitializeScrollEvents(ScrollSimplebar: any) {
   currentSimpleBarInstance = ScrollSimplebar;
   wheelHandler = () => handleUserScroll(currentSimpleBarInstance);
   touchMoveHandler = () => handleUserScroll(currentSimpleBarInstance);
-  scrollHandler = () => UpdateScrollToActiveButton();
+  scrollHandler = () => {
+    UpdateScrollToActiveButton();
+    refreshScrollButtonObservation();
+  };
   // --- END NEW ---
 
   // Setup the observer
@@ -362,14 +438,17 @@ export const GetForceScrollingPolicy = () => {
 
 export function ScrollToActiveLine(ScrollSimplebar: any) {
   if (PageContainer?.classList.contains("SpaceGravityMode")) {
+    cleanupScrollButtonObserver();
     hideScrollToActiveButton();
     return;
   }
   if ($currentLyricsType.get() === "Static" || $currentLyricsType.get() === "None") {
+    cleanupScrollButtonObserver();
     hideScrollToActiveButton();
     return;
   }
   if (!$lyricsContainerExists.get() || $lyricsRendererPaused.get()) {
+    cleanupScrollButtonObserver();
     hideScrollToActiveButton();
     return;
   }
@@ -377,6 +456,7 @@ export function ScrollToActiveLine(ScrollSimplebar: any) {
   const currentType = $currentLyricsType.get() as LyricsType;
   const Lines = LyricsObject.Types[currentType]?.Lines as LyricsLine[] | LyricsSyllable[];
   if (!Lines) {
+    cleanupScrollButtonObserver();
     hideScrollToActiveButton();
     return;
   }
@@ -718,6 +798,7 @@ export function AdoptReappliedScrollPosition() {
 }
 
 export function ResetLastLine() {
+  refreshScrollButtonObservation();
   lastLine = null;
   lastViewportLine = null;
   lastViewportContainer = null;
@@ -736,6 +817,7 @@ export function ResetLastLine() {
 
 // --- NEW: Cleanup Function ---
 export function CleanupScrollEvents() {
+  cleanupScrollButtonObserver();
   // Remove scroll listeners
   const scrollElement = currentSimpleBarInstance?.getScrollElement();
   if (scrollElement) {

@@ -145,6 +145,23 @@ const hasFlacSignature = (value: unknown): boolean => {
 };
 
 export type CoverSizes = "standard" | "small" | "large" | "xlarge";
+const COVER_PLACEHOLDER = "https://images.spikerko.org/SongPlaceholderFull.png";
+const COVER_SIZE_PRIORITY: CoverSizes[] = ["xlarge", "large", "standard", "small"];
+
+type CoverImage = { url?: string; label?: string };
+
+function getCoverUrl(size: CoverSizes, source?: CoverImage[]): string | undefined {
+  const covers = source?.filter((cover) => typeof cover?.url === "string" && cover.url.trim());
+  if (!covers?.length) return undefined;
+
+  // Some tracks omit the requested size or provide images without labels.
+  for (const label of [size, ...COVER_SIZE_PRIORITY]) {
+    const cover = covers.find((image) => image.label === label);
+    if (cover) return cover.url!.trim();
+  }
+  return covers[0].url!.trim();
+}
+
 export type Artist = {
   type: "artist";
   name: string;
@@ -196,30 +213,25 @@ export const SpotifyPlayer = {
   },
   GetCover: (size: CoverSizes): string | undefined => {
     const item = Spicetify?.Player?.data?.item;
-    if (!item) return "https://images.spikerko.org/SongPlaceholderFull.png";
-    // @ts-ignore aaa
-    const covers = item.images ?? item.show?.images;
-    if (covers?.length > 0) {
-      const cover = covers.find((cover: any) => cover.label === size);
-      return (
-        cover?.url ?? "https://images.spikerko.org/SongPlaceholderFull.png"
-      );
-    }
-    return "https://images.spikerko.org/SongPlaceholderFull.png";
+    if (!item) return COVER_PLACEHOLDER;
+    const metadataCovers = COVER_SIZE_PRIORITY.map((label) => ({
+      label,
+      url: item.metadata?.[label === "standard" ? "image_url" : `image_${label}_url`],
+    }));
+    const show = (item as typeof item & { show?: { images?: CoverImage[] } }).show;
+
+    return (
+      getCoverUrl(size, [...(item.images ?? []), ...metadataCovers]) ??
+      getCoverUrl(size, item.album?.images) ??
+      getCoverUrl(size, show?.images) ??
+      COVER_PLACEHOLDER
+    );
   },
   GetCoverFrom: (
     size: CoverSizes,
     source: Array<{ url: string; label: string }> | Spicetify.ImagesEntity[]
   ): string | undefined => {
-    if (source) {
-      if (source.length > 0) {
-        const cover = source?.find((cover) => cover.label === size);
-        return (
-          cover?.url ?? "https://images.spikerko.org/SongPlaceholderFull.png"
-        );
-      }
-    }
-    return "https://images.spikerko.org/SongPlaceholderFull.png";
+    return getCoverUrl(size, source) ?? COVER_PLACEHOLDER;
   },
   GetName: (): string | undefined => {
     return Spicetify?.Player?.data?.item?.name;

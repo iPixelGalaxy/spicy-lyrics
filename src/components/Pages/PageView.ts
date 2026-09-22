@@ -135,7 +135,8 @@ const PageView = {
 };
 
 export const GetPageRoot = () =>
-  /* document.querySelector<HTMLElement>(".QdB2YtfEq0ks5O4QbtwX .WRGTOibB8qNEkgPNtMxq") ?? */
+  // Keep animated lyrics outside Spotify's observed scrollbar viewport.
+  document.querySelector<HTMLElement>(".Root__main-view .main-view-container:has([data-overlayscrollbars-viewport])") ??
   document.querySelector<HTMLElement>(
     ".Root__main-view .main-view-container div[data-overlayscrollbars-viewport]"
   ) ??

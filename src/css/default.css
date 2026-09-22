@@ -32,6 +32,15 @@
   will-change: transform;
 }
 
+.Root__main-view .main-view-container:has(> #SpicyLyricsPage) {
+  position: relative;
+}
+
+.Root__main-view .main-view-container > #SpicyLyricsPage {
+  z-index: 1;
+  border-radius: inherit;
+}
+
 #SpicyLyricsPage.frame_F_Exit {
   transform: translateY(100%);
 }

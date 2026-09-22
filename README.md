@@ -62,6 +62,26 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.45
+
+### Performance
+
+- **Less lag with lyrics open**
+  Reduced the rendering work that lyrics add when adjusting Spotify's volume and interacting with the player.
+
+- **Smoother fullscreen volume dragging**
+  Fullscreen and Cinema View volume sliders respond more smoothly, keep controls steady during dragging, and apply the final selected volume when released.
+
+### Cinema and Picture-in-Picture
+
+- **Lyrics stay visible when Spotify is hidden**
+  Fixed lyrics disappearing from the Cinema Lyrics Window or Picture-in-Picture when the main Spotify window is hidden or minimized.
+
+### Cover art
+
+- **Better artwork fallback**
+  Tracks with missing image sizes or labels now use available track, album, or podcast artwork instead of unnecessarily showing a placeholder.
+
 ## v100.10.44
 
 ### Upstream

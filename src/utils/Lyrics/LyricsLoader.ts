@@ -1,20 +1,28 @@
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { isCurrentTrack } from "./Sources/Track.ts";
+import Defaults from "../../components/Global/Defaults.ts";
+import { isRomanized } from "./lyrics.ts";
+import { PickDisplayText } from "./Applyer/Utils/PickDisplayText.ts";
+import isRtl from "./isRtl.ts";
 
 let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
 let resolveLoaderHide: (() => void) | null = null;
+let removeLoaderHideListeners: (() => void) | null = null;
 let loaderOwnerUri: string | null = null;
 let loaderTransitionId = 0;
+let loaderShownAt = 0;
+const LOADER_EXIT_MS = 140;
 
 export const LYRICS_QUEUE_MESSAGE =
-  "Your request is in the queue - hang tight, your lyrics are on the way!";
+  "Waiting for lyrics. Retrying automatically.";
 
 function getLoadingLineText(line: any): string {
-  if (typeof line?.Text === "string") return line.Text.trim();
+  const text = PickDisplayText(line, isRomanized);
+  if (typeof text === "string" && text.trim()) return text.trim();
   if (!Array.isArray(line?.Lead?.Syllables)) return "";
   return line.Lead.Syllables
-    .map((syllable: any) => typeof syllable?.Text === "string" ? syllable.Text : "")
+    .map((syllable: any) => PickDisplayText(syllable, isRomanized))
     .join("")
     .trim();
 }
@@ -59,6 +67,8 @@ function resetLoadingLyricsTemplate(loaderContainer: HTMLElement): void {
   loaderContainer.querySelectorAll<HTMLElement>(".LyricsLoadingBlobs span").forEach((blob) => {
     blob.style.removeProperty("--LyricsLoadingBlobWidth");
     blob.style.removeProperty("--LyricsLoadingBlobGap");
+    blob.hidden = false;
+    blob.classList.toggle("OppositeAligned", Defaults.RightAlignLyrics);
   });
 }
 
@@ -76,6 +86,7 @@ export function UpdateLoadingLyricsTemplate(lyrics: any, uri: string): void {
       text: getLoadingLineText(line),
       start: getLoadingLineStart(line),
       end: getLoadingLineEnd(line),
+      opposite: Boolean(line?.OppositeAligned) !== Defaults.RightAlignLyrics,
     }))
     .filter((line: { text: string }) => line.text.length > 0);
   if (!lines.length) return;
@@ -87,33 +98,35 @@ export function UpdateLoadingLyricsTemplate(lyrics: any, uri: string): void {
   const previewStart = Math.max(0, currentLineIndex < 0 ? 0 : currentLineIndex - 3);
   const previewLines = lines.slice(previewStart, previewStart + blobs.length);
   const previewBlocks = previewLines
-    .flatMap((line: { text: string; start: number | null; end: number | null }, lineIndex: number) => {
+    .flatMap((line: { text: string; start: number | null; end: number | null; opposite: boolean }, lineIndex: number) => {
       const segments = splitLoadingLine(line.text);
       const previous = previewLines[lineIndex - 1];
       const previousEnd = previous?.end ?? previous?.start;
       const gapSeconds =
-        lineIndex > 0 && line.start !== null && previousEnd !== null
+        lineIndex > 0 && line.start !== null && previousEnd != null
           ? Math.max(0, line.start - previousEnd)
           : 0;
 
       return segments.map((text, segmentIndex) => ({
         text,
         gap: segmentIndex === 0 ? Math.min(gapSeconds * 8, 28) : 7,
+        opposite: line.opposite !== isRtl(line.text),
       }));
     })
     .slice(0, blobs.length);
-  const longestBlock = Math.max(...previewBlocks.map((block) => block.text.length), 1);
+  const longestBlock = Math.max(...previewBlocks.map((block) => Array.from(block.text).length), 1);
 
   blobs.forEach((blob, index) => {
     const block = previewBlocks[index];
+    blob.hidden = !block;
     if (!block) {
-      blob.style.setProperty("--LyricsLoadingBlobWidth", "0%");
       return;
     }
 
-    const width = Math.round(25 + (block.text.length / longestBlock) * 68);
+    const width = Math.round(25 + (Array.from(block.text).length / longestBlock) * 68);
     blob.style.setProperty("--LyricsLoadingBlobWidth", `${Math.min(width, 92)}%`);
     blob.style.setProperty("--LyricsLoadingBlobGap", `${block.gap}px`);
+    blob.classList.toggle("OppositeAligned", block.opposite);
   });
 }
 
@@ -127,16 +140,10 @@ export function ShowLoaderContainer(uri: string): void {
   );
   if (!loaderContainer) return;
 
-  // The loader lives inside this pane, which is normally held hidden until lyrics
-  // finish processing. Reveal it first so the loading state can actually render.
-  const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
-  lyricsContainer?.classList.remove("Hidden");
-  lyricsContainer?.classList.add("LoadingLyrics");
-  lyricsContainer?.querySelector<HTMLElement>(".LyricsPinnedFooter")?.replaceChildren();
-  PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   beginLoading(uri, loaderContainer);
   resetLoadingLyricsTemplate(loaderContainer);
-  loaderContainer.classList.add("active");
+  // Automatic retries retain the queue message until they actually resolve.
+  setLoaderMessage(loaderContainer, loaderContainer.classList.contains("queued") ? LYRICS_QUEUE_MESSAGE : "Loading lyrics");
 }
 
 export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
@@ -147,27 +154,51 @@ export function ShowQueueLoader(message: string = LYRICS_QUEUE_MESSAGE): void {
   );
   if (!loaderContainer) return;
 
-  PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.add("LoadingLyrics");
   beginLoading(uri, loaderContainer);
-  loaderContainer.classList.add("active", "queued");
-
-  let messageEl = loaderContainer.querySelector<HTMLElement>(".loaderMessage");
-  if (!messageEl) {
-    messageEl = document.createElement("div");
-    messageEl.className = "loaderMessage";
-    loaderContainer.appendChild(messageEl);
-  }
-  messageEl.textContent = message;
+  loaderContainer.classList.add("queued");
+  resetLoadingLyricsTemplate(loaderContainer);
+  setLoaderMessage(loaderContainer, message);
 }
 
-function beginLoading(uri: string, loaderContainer: HTMLElement): void {
-  if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
+function setLoaderMessage(loaderContainer: HTMLElement, message: string): void {
+  const messageEl = loaderContainer.querySelector<HTMLElement>(".loaderMessage");
+  if (messageEl && messageEl.textContent !== message) messageEl.textContent = message;
+}
+
+function cancelLoaderHide(): void {
+  if (loaderHideTimeout !== null) clearTimeout(loaderHideTimeout);
+  removeLoaderHideListeners?.();
+  removeLoaderHideListeners = null;
   resolveLoaderHide?.();
   resolveLoaderHide = null;
   loaderHideTimeout = null;
+}
+
+export function ClearLyricsLoader(): void {
+  cancelLoaderHide();
+  loaderTransitionId++;
+  loaderOwnerUri = null;
+}
+
+function beginLoading(uri: string, loaderContainer: HTMLElement): void {
+  const newLoad = loaderOwnerUri !== uri || !loaderContainer.classList.contains("active");
+  cancelLoaderHide();
   loaderTransitionId++;
   loaderOwnerUri = uri;
+  if (newLoad) {
+    loaderShownAt = performance.now();
+    loaderContainer.classList.remove("queued");
+  }
+  // Both fetching and queued views must reveal a pane hidden by the last track.
+  const lyricsContainer = loaderContainer.closest<HTMLElement>(".LyricsContainer");
+  lyricsContainer?.classList.remove("Hidden");
+  lyricsContainer?.classList.add("LoadingLyrics");
+  lyricsContainer?.querySelector(".LyricsContent")?.setAttribute("aria-busy", "true");
+  lyricsContainer?.querySelector(".LyricsPinnedFooter")?.replaceChildren();
+  PageContainer?.querySelector(".ContentBox")?.classList.remove("LyricsHidden");
   loaderContainer.classList.remove("leaving");
+  loaderContainer.classList.add("active");
+  loaderContainer.setAttribute("aria-hidden", "false");
 }
 
 /**
@@ -180,23 +211,42 @@ export function HideLoaderContainer(uri: string): Promise<void> {
   );
   if (!loaderContainer || !loaderContainer.classList.contains("active")) return Promise.resolve();
 
-  const lyricsContainer = PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer");
-  if (loaderHideTimeout) clearTimeout(loaderHideTimeout);
-  resolveLoaderHide?.();
+  const lyricsContainer = loaderContainer.closest<HTMLElement>(".LyricsContainer");
+  const ownerWindow = loaderContainer.ownerDocument.defaultView ?? window;
+  const skipFade = ownerWindow.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    loaderContainer.ownerDocument.hidden || performance.now() - loaderShownAt < 100;
+  cancelLoaderHide();
   const transitionId = ++loaderTransitionId;
   loaderContainer.classList.add("leaving");
   return new Promise((resolve) => {
     resolveLoaderHide = resolve;
-    loaderHideTimeout = setTimeout(() => {
+    const finish = () => {
+      if (loaderTransitionId !== transitionId) return;
       if (loaderOwnerUri === uri && loaderTransitionId === transitionId) {
         loaderContainer.classList.remove("active", "leaving", "queued");
-        loaderContainer.querySelector(".loaderMessage")?.remove();
+        loaderContainer.setAttribute("aria-hidden", "true");
+        setLoaderMessage(loaderContainer, "");
         lyricsContainer?.classList.remove("LoadingLyrics");
+        lyricsContainer?.querySelector(".LyricsContent")?.setAttribute("aria-busy", "false");
         loaderOwnerUri = null;
-        loaderHideTimeout = null;
       }
-      if (resolveLoaderHide === resolve) resolveLoaderHide = null;
-      resolve();
-    }, 150);
+      cancelLoaderHide();
+    };
+    if (skipFade) {
+      finish();
+      return;
+    }
+    const onTransitionEnd = (event: TransitionEvent) => {
+      if (event.target === loaderContainer && event.propertyName === "opacity") finish();
+    };
+    loaderContainer.addEventListener("transitionend", onTransitionEnd);
+    ownerWindow.addEventListener("pagehide", finish, { once: true });
+    removeLoaderHideListeners = () => {
+      loaderContainer.removeEventListener("transitionend", onTransitionEnd);
+      ownerWindow.removeEventListener("pagehide", finish);
+    };
+    // Transition events follow the visible popout's frame clock even when the
+    // Spotify host is hidden. The timeout also settles detached or unpainted views.
+    loaderHideTimeout = setTimeout(finish, LOADER_EXIT_MS + 50);
   });
 }

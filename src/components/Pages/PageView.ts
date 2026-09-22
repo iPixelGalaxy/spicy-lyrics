@@ -1,7 +1,7 @@
 import fetchLyrics, { ShowQueueLoader } from "../../utils/Lyrics/fetchLyrics.ts";
+import { ClearLyricsLoader } from "../../utils/Lyrics/LyricsLoader.ts";
 import { LyricsQueueRetry } from "../../utils/Lyrics/LyricsQueueRetry.ts";
 import { $forceCompactMode } from "../../utils/uiState.ts";
-import "../../css/Loaders/DotLoader.css";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
   ApplyLyricsIfCurrent,
@@ -247,19 +247,17 @@ async function OpenPage(
                 </div>
             </div>
             <div class="LyricsContainer">
-                <div class="loaderContainer">
-                    <div class="LyricsLoadingBlobs" role="status" aria-label="Loading lyrics">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                <div class="loaderContainer" aria-hidden="true">
+                    <div class="LyricsLoadingContent">
+                        <div class="LyricsLoadingBlobs" aria-hidden="true">
+                            <span></span><span></span><span></span><span></span>
+                            <span></span><span></span><span></span>
+                        </div>
+                        <div class="LyricsLoadingStatus" role="status" aria-live="polite" aria-atomic="true">
+                            <span class="LyricsLoadingPulse" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <span class="loaderMessage"></span>
+                        </div>
                     </div>
-                    <div id="DotLoader"></div>
                 </div>
                 <div class="LyricsContent ScrollbarScrollable"></div>
                 <div class="LyricsPinnedFooter"></div>
@@ -458,6 +456,7 @@ async function DestroyPage() {
   // Return the persistent renderer loop before an auxiliary page window closes.
   SetLyricsRendererWindow(window);
   InvalidatePendingLyricsApplication();
+  ClearLyricsLoader();
   cleanupApplyLyricsAbortController();
 
   if (Fullscreen.IsOpen) await Fullscreen.Close();

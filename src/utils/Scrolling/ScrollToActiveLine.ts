@@ -748,6 +748,17 @@ export function PositionInitialLyrics(ScrollSimplebar: any): void {
 
   const lyricsWindow = lyricsContent.ownerDocument.defaultView ?? window;
   QueueForceScroll();
+  if (lyricsContent.ownerDocument !== document) {
+    try {
+      ScrollToActiveLine(ScrollSimplebar);
+    } catch (error) {
+      console.warn("Failed to position initial lyrics in an auxiliary window", error);
+    } finally {
+      lyricsContent.classList.remove("InitialPositionPending");
+    }
+    return;
+  }
+
   lyricsWindow.requestAnimationFrame(() => {
     ScrollToActiveLine(ScrollSimplebar);
     let remainingFrames = 30;

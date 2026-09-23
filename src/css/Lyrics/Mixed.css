@@ -415,6 +415,25 @@
   scale: 1 !important; */
 }
 
+/* Render completed lines as static text so their finished spring transforms,
+   blur shadows, and compositor hints cannot leave afterimages behind. */
+#SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.Sung {
+  --BlurAmount: 0px !important;
+  will-change: auto !important;
+  backface-visibility: visible !important;
+}
+
+#SpicyLyricsPage.SpicyRenderer
+  .LyricsContainer
+  .LyricsContent
+  .line.Sung
+  :is(.word, .letterGroup, .letter) {
+  will-change: auto !important;
+  backface-visibility: visible !important;
+  transform: none !important;
+  scale: 1 !important;
+}
+
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.FeelSung .word,
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer .LyricsContent .line.FeelSung .letter {
   --text-shadow-blur-radius: 4px !important;

@@ -6,7 +6,8 @@ import { isRomanized } from "./lyrics.ts";
 import { PickDisplayText } from "./Applyer/Utils/PickDisplayText.ts";
 import isRtl from "./isRtl.ts";
 
-let loaderHideTimeout: ReturnType<typeof setTimeout> | null = null;
+let loaderHideTimeout: ReturnType<Window["setTimeout"]> | null = null;
+let loaderHideWindow: Window | null = null;
 let resolveLoaderHide: (() => void) | null = null;
 let removeLoaderHideListeners: (() => void) | null = null;
 let loaderOwnerUri: string | null = null;
@@ -166,12 +167,15 @@ function setLoaderMessage(loaderContainer: HTMLElement, message: string): void {
 }
 
 function cancelLoaderHide(): void {
-  if (loaderHideTimeout !== null) clearTimeout(loaderHideTimeout);
+  if (loaderHideTimeout !== null) {
+    (loaderHideWindow ?? window).clearTimeout(loaderHideTimeout);
+  }
   removeLoaderHideListeners?.();
   removeLoaderHideListeners = null;
   resolveLoaderHide?.();
   resolveLoaderHide = null;
   loaderHideTimeout = null;
+  loaderHideWindow = null;
 }
 
 export function ClearLyricsLoader(): void {
@@ -247,6 +251,7 @@ export function HideLoaderContainer(uri: string): Promise<void> {
     };
     // Transition events follow the visible popout's frame clock even when the
     // Spotify host is hidden. The timeout also settles detached or unpainted views.
-    loaderHideTimeout = setTimeout(finish, LOADER_EXIT_MS + 50);
+    loaderHideWindow = ownerWindow;
+    loaderHideTimeout = ownerWindow.setTimeout(finish, LOADER_EXIT_MS + 50);
   });
 }

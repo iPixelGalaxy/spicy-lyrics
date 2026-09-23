@@ -746,8 +746,9 @@ export function PositionInitialLyrics(ScrollSimplebar: any): void {
   );
   if (!lyricsContent) return;
 
+  const lyricsWindow = lyricsContent.ownerDocument.defaultView ?? window;
   QueueForceScroll();
-  requestAnimationFrame(() => {
+  lyricsWindow.requestAnimationFrame(() => {
     ScrollToActiveLine(ScrollSimplebar);
     let remainingFrames = 30;
     const revealWhenVisible = () => {
@@ -763,9 +764,9 @@ export function PositionInitialLyrics(ScrollSimplebar: any): void {
         lyricsContent.classList.remove("InitialPositionPending");
         return;
       }
-      requestAnimationFrame(revealWhenVisible);
+      lyricsWindow.requestAnimationFrame(revealWhenVisible);
     };
-    requestAnimationFrame(revealWhenVisible);
+    lyricsWindow.requestAnimationFrame(revealWhenVisible);
   });
 }
 

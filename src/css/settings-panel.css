@@ -1622,6 +1622,11 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
 .sl-sp-settings-main { padding-bottom: var(--space-6); }
 .sl-sp-panel > .sl-sp-footer { margin-top: auto; }
 
+.sl-sp-panel::after {
+  content: "";
+  flex: 0 0 var(--space-6);
+}
+
 /* Settings footer */
 .sl-sp-footer { display: flex; align-items: stretch; justify-content: space-between; gap: var(--space-5); margin-top: var(--space-6); padding: var(--space-4); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--hairline); }
 .sl-sp-footer-links { display: flex; flex-direction: column; justify-content: center; gap: var(--space-2); flex: 1; min-width: 0; max-width: 300px; }

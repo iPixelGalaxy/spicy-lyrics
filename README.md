@@ -62,6 +62,44 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.46
+
+- **Updated to be inline with 6.3.50**
+
+### Pixel Edition fixes
+
+- **Fixed doubled and ghosted lyrics**
+  Active syllable lyrics no longer draw a second copy of the text behind moving words.
+
+- **Lyrics finish loading in popout windows**
+  Cinema and Picture-in-Picture reveal lyrics and finish their loading transitions even when the main Spotify window is hidden or minimized.
+
+- **Settings stay within reach**
+  Tabs and search stay pinned while settings scroll. Changing tabs or searching returns the content to the top, and every settings tab has 36px of scrollable space below the footer.
+
+- **Restored the settings menu entry**
+  Open Spicy Lyrics Settings directly from Spotify's menu.
+
+### How the upstream update fits Pixel Edition
+
+- **Scrolling, animation, and Gravity**
+  Upstream scrolling and animation changes are integrated with Default, Pixel, and Custom animator presets. Seek fade-in compensation also applies when clicking lyrics in Gravity mode.
+
+- **Controls in the existing settings layout**
+  Scrolling and seek controls live in Lyrics, and the Spotify lyrics-button option lives in Interface. The new controls support settings search and hiding.
+
+- **Skeleton and spinner use the same loading flow**
+  Both presentations keep the fork's queued and offline messages, track-change handling, and popout fixes. Switching the loading style during a fetch keeps the current loading state.
+
+- **TTML and alternate lyric sources**
+  Romanization spacing and background-vocal fixes are applied to the fork's TTML support. Your source priority, local TTML, and experimental word splitting are retained; alternate providers can still supply lyrics when the primary source is queued.
+
+- **Fullscreen and backgrounds**
+  Upstream fullscreen fixes respect the fork's Escape settings and optional closing animation. Progressive artwork loading uses the existing background modes and artwork fallbacks.
+
+- **Recovery follows your build channel**
+  Startup recovery supports custom channel hosts. Pinned channels keep their selected version, and official outage notices apply only to official channels. Existing Pixel installations continue loading the fork.
+
 ## v100.10.45
 
 ### Performance

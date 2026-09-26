@@ -55,6 +55,7 @@ class LyricsQueueRetryController {
    * the timing intact.
    */
   HandleQueued(uri: string): void {
+    if (SpotifyPlayer.GetUri() !== uri) return;
     ShowQueueLoader();
 
     if (this.activeUri === uri) {
@@ -131,6 +132,8 @@ class LyricsQueueRetryController {
       queueLogger.error("Retry tick failed", error);
     } finally {
       this.inTick = false;
+      // A new track may have entered the queue while the old tick was awaiting.
+      if (this.activeUri !== null && this.activeUri !== uri && this.timer === null) this.scheduleNext();
     }
 
     // Cancelled / resolved while awaiting the fetch.

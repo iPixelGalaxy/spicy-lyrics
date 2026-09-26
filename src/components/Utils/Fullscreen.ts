@@ -17,6 +17,7 @@ import Scheduler from "../../modules/Scheduler.ts";
 const Fullscreen = {
   Open,
   Close,
+  CloseImmediately,
   Toggle,
   IsOpen: false,
   CinemaViewOpen: false,
@@ -274,11 +275,28 @@ function CleanupMediaBox() {
   controlsDragLock = false;
 }
 
+// Bumped by every Open and Close. The deferred work either one schedules checks
+// it before touching the page, so a later transition (or the page being
+// destroyed) cancels it instead of being overwritten by it.
+let fullscreenGeneration = 0;
+let closeInFlight: Promise<boolean> | null = null;
+let cancelCloseAnimation: (() => void) | null = null;
+
+/** True while an animated Close is playing its exit animation. */
+export const IsFullscreenClosing = () => closeInFlight !== null;
+
 function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = true) {
   const SpicyPage = PageContainer;
   const pageDocument = getPageDocument();
   const Root = pageDocument.body as HTMLElement;
   const mainElement = pageDocument.querySelector<HTMLElement>("#main");
+  const generation = ++fullscreenGeneration;
+  // Reopening mid exit-animation supersedes that Close.
+  cancelCloseAnimation?.();
+  closeInFlight = null;
+  SpicyPage?.classList.remove("frame_F_Exit");
+  const stillOpen = () =>
+    Fullscreen.IsOpen && generation === fullscreenGeneration && PageContainer === SpicyPage;
 
   if (SpicyPage) {
     // Set state first
@@ -318,7 +336,7 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
         if (!skipDocumentFullscreen) {
           await EnterSpicyLyricsFullscreen();
         }
-        setTimeout(() => PageView.AppendViewControls(true), 50);
+        getPageWindow().setTimeout(() => { if (stillOpen()) PageView.AppendViewControls(true); }, 50);
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         console.error(`Fullscreen error: ${errorMessage}`);
@@ -358,7 +376,7 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
     Global.Event.evoke("fullscreen:open", null);
   }
   setTimeout(() => {
-    if (IsPIP) return;
+    if (IsPIP || !stillOpen()) return;
 
     Compactify();
 
@@ -369,6 +387,7 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
   }, 750);
 
   setTimeout(() => {
+    if (!stillOpen()) return;
     PageView.AppendViewControls(true);
 
     const NoLyrics = $currentLyricsData.get().includes("NO_LYRICS");
@@ -385,84 +404,162 @@ function Open(skipDocumentFullscreen: boolean = false, moveElement: boolean = tr
   GetCurrentLyricsContainerInstance()?.Resize();
 }
 
-async function Close(isPip: boolean = false) {
-  const SpicyPage = PageContainer;
-  const pageDocument = getPageDocument();
-  const mainElement = pageDocument.querySelector<HTMLElement>("#main");
-
-  if (SpicyPage) {
-    Fullscreen.IsOpen = false;
-    Fullscreen.CinemaViewOpen = false;
-    SyncFullscreenAlwaysShowClasses();
-    CleanUpVolumeSlider();
-    ActiveVolumeSliderElement?.remove();
-    ActiveVolumeSliderElement = null;
-
-    if (isPip) {
-      SpicyPage.classList.remove("Fullscreen");
-
-      ResetLastLine();
-
-      if (!$isNowBarOpen.get()) {
-        CloseNowBar();
-      }
-
-      CleanupMediaBox();
-      CleanUpNowBarComponents();
-
-      Global.Event.evoke("fullscreen:exit", null);
+/**
+ * The shared tail of a non-PiP close: put the page back into the normal flow
+ * (or leave it where it is, when it's about to be destroyed) and reset the
+ * fullscreen-only NowBar/MediaBox state.
+ */
+function finishClose(SpicyPage: HTMLElement, transfer: boolean) {
+  if (transfer) {
+    const root = GetPageRoot();
+    if (root) {
+      TransferElement(SpicyPage, root);
     } else {
-      // Show the main element again
-      if (mainElement) {
-        mainElement.style.removeProperty("display");
-      }
-
-      if (Defaults.AnimateFullscreenClose) {
-        SpicyPage.classList.add("frame_F_Exit");
-        pageDocument.body.style.pointerEvents = "none";
-        await new Promise(r => setTimeout(r, 650));
-      }
-
-      TransferElement(SpicyPage, GetPageRoot() as HTMLElement);
-      SpicyPage.classList.remove("Fullscreen");
-
-      // Kick off fullscreen exit immediately (no need to wait for animation)
-      const handleFullscreenExit = async () => {
-        await ExitFullscreenElement();
-        setTimeout(() => PageView.AppendViewControls(true), 50);
-      };
-      //setTimeout(() => {
-        handleFullscreenExit()
-      //}, !wasCinemaMode ? 70 : 0);
-
-      const NoLyrics = $currentLyricsData.get().includes("NO_LYRICS");
-      if (NoLyrics) {
-        SpicyPage
-          ?.querySelector(".ContentBox .LyricsContainer")
-          ?.classList.remove("Hidden");
-        SpicyPage
-          ?.querySelector<HTMLElement>(".ContentBox")
-          ?.classList.remove("LyricsHidden");
-        DeregisterNowBarBtn();
-      }
-
-      pageDocument.body.style.removeProperty("pointer-events");
-      SpicyPage.classList.remove("frame_F_Exit");
-
-      ResetLastLine();
-
-      if (!$isNowBarOpen.get()) {
-        CloseNowBar();
-      }
-
-      CleanupMediaBox();
-      CleanUpNowBarComponents();
-
-      Global.Event.evoke("fullscreen:exit", null);
+      // No main view to return to. Parking the page on <body> would strand it
+      // over the whole client, so drop it instead.
+      transfer = false;
+      queueMicrotask(() => void PageView.Destroy());
     }
   }
-  if (!isPip) setTimeout(Compactify, 1000);
-  GetCurrentLyricsContainerInstance()?.Resize();
+  SpicyPage.classList.remove("Fullscreen", "frame_F_Exit");
+
+  const generation = fullscreenGeneration;
+  const targetWindow = SpicyPage.ownerDocument.defaultView ?? window;
+  void ExitFullscreenElement().then(() => {
+    if (transfer) targetWindow.setTimeout(() => {
+      if (generation === fullscreenGeneration && PageContainer === SpicyPage) PageView.AppendViewControls(true);
+    }, 50);
+  });
+
+  if ($currentLyricsData.get().includes("NO_LYRICS")) {
+    SpicyPage.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+    SpicyPage.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
+    if (transfer) DeregisterNowBarBtn();
+  }
+
+  ResetLastLine();
+
+  if (!$isNowBarOpen.get()) {
+    CloseNowBar();
+  }
+
+  CleanupMediaBox();
+  CleanUpNowBarComponents();
+
+  Global.Event.evoke("fullscreen:exit", null);
+}
+
+/**
+ * Resolves true once this close has finished, or false if it was superseded
+ * (page destroyed, fullscreen reopened) — callers that navigate after closing
+ * must then leave navigation to whoever superseded it.
+ */
+function Close(isPip: boolean = false): Promise<boolean> {
+  // A second Close during the exit animation (double click, Esc + click) joins
+  // the one already running instead of replaying the animation and transfer.
+  if (closeInFlight) return closeInFlight;
+
+  const SpicyPage = PageContainer;
+  if (!SpicyPage) return Promise.resolve(false);
+
+  const generation = ++fullscreenGeneration;
+  Fullscreen.IsOpen = false;
+  Fullscreen.CinemaViewOpen = false;
+  clearFullscreenControls();
+
+  if (isPip) {
+    SpicyPage.classList.remove("Fullscreen");
+
+    ResetLastLine();
+
+    if (!$isNowBarOpen.get()) {
+      CloseNowBar();
+    }
+
+    CleanupMediaBox();
+    CleanUpNowBarComponents();
+
+    Global.Event.evoke("fullscreen:exit", null);
+    GetCurrentLyricsContainerInstance()?.Resize();
+    return Promise.resolve(true);
+  }
+
+  const pageDocument = SpicyPage.ownerDocument;
+  const targetWindow = pageDocument.defaultView ?? window;
+  pageDocument.querySelector<HTMLElement>("#main")?.style.removeProperty("display");
+
+  const run = async () => {
+    if (Defaults.AnimateFullscreenClose) {
+      SpicyPage.classList.add("frame_F_Exit");
+      pageDocument.body.style.pointerEvents = "none";
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          targetWindow.clearTimeout(timer);
+          pageDocument.body.style.removeProperty("pointer-events");
+          if (cancelCloseAnimation === finish) cancelCloseAnimation = null;
+          resolve();
+        };
+        const timer = targetWindow.setTimeout(finish, 650);
+        cancelCloseAnimation = finish;
+      });
+    }
+
+    // The page was destroyed (route change) or replaced, or fullscreen was
+    // reopened or force-closed while the animation played. Whoever did that
+    // owns the page now; re-inserting it here would resurrect a dead page.
+    if (generation !== fullscreenGeneration || PageContainer !== SpicyPage) {
+      if (PageContainer !== SpicyPage || !IsFullscreenClosing()) SpicyPage.classList.remove("frame_F_Exit");
+      return false;
+    }
+
+    finishClose(SpicyPage, true);
+    targetWindow.setTimeout(() => {
+      if (generation === fullscreenGeneration && PageContainer === SpicyPage) Compactify();
+    }, 1000);
+    GetCurrentLyricsContainerInstance()?.Resize();
+    return true;
+  };
+
+  const promise: Promise<boolean> = run().finally(() => {
+    if (closeInFlight === promise) closeInFlight = null;
+  });
+  closeInFlight = promise;
+  return promise;
+}
+
+/**
+ * Leave fullscreen synchronously, without the exit animation, for a page that
+ * is about to be destroyed. Also cancels an animated Close that is mid-flight.
+ */
+function CloseImmediately() {
+  const SpicyPage = PageContainer;
+  if (!SpicyPage || (!Fullscreen.IsOpen && closeInFlight === null)) return;
+
+  ++fullscreenGeneration;
+  cancelCloseAnimation?.();
+  closeInFlight = null;
+  Fullscreen.IsOpen = false;
+  Fullscreen.CinemaViewOpen = false;
+  SpicyPage.ownerDocument.body.style.removeProperty("pointer-events");
+  clearFullscreenControls();
+
+  if (IsPIP) {
+    SpicyPage.classList.remove("Fullscreen");
+    CleanupMediaBox();
+    CleanUpNowBarComponents();
+    Global.Event.evoke("fullscreen:exit", null);
+    return;
+  }
+
+  SpicyPage.ownerDocument.querySelector<HTMLElement>("#main")?.style.removeProperty("display");
+  finishClose(SpicyPage, false);
+}
+
+function clearFullscreenControls(): void {
+  SyncFullscreenAlwaysShowClasses();
+  CleanUpVolumeSlider();
+  ActiveVolumeSliderElement?.remove();
+  ActiveVolumeSliderElement = null;
 }
 
 function RefreshFullscreenControlsVisibility() {

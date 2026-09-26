@@ -163,9 +163,9 @@ export const OpenExternalCinemaLyrics = (): Promise<void> => {
 async function openExternalCinemaLyrics(): Promise<void> {
   if (NPVCardOwnsPage()) await DeRenderNPVCard();
   if (PageView.IsOpened && !IsExternalCinemaLyrics) {
-    if (Fullscreen.IsOpen) await Fullscreen.Close();
+    if (Fullscreen.IsOpen && !(await Fullscreen.Close())) return;
     await PageView.Destroy();
-    Session.GoBack();
+    Session.GoBackFrom("/SpicyLyrics");
   }
   if (PageView.IsOpened) return;
   const targetWindow = window.open("", "SpicyLyricsCinema", "popup=yes,width=1280,height=720");

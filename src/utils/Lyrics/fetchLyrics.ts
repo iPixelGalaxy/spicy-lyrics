@@ -14,14 +14,15 @@ import {
 } from "./LyricsSourcePreferences.ts";
 
 import { isCurrentTrack } from "./Sources/Track.ts";
-import { HideLoaderContainer, ShowLoaderContainer, UpdateLoadingLyricsTemplate } from "./LyricsLoader.ts";
+import { LyricsQueueRetry } from "./LyricsQueueRetry.ts";
+import { HideLoaderContainer, ShowLoaderContainer } from "./LyricsLoader.ts";
 
 export { LYRICS_QUEUE_MESSAGE, ShowQueueLoader } from "./LyricsLoader.ts";
 
 const lyricsLogger = new Logger("Lyrics Pipeline");
 const lyricsCacheLogger = new Logger("Lyrics Cache");
 
-export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 5, {
+export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 6, {
   Unit: "Days",
   Duration: 3,
 }, isDev as true);
@@ -91,18 +92,17 @@ function setRomanizationClass(hasTransliterations: boolean | undefined): void {
 }
 
 /**
- * Shared "lyrics are ready" presentation: toggle the romanization class, hide the
- * loader, publish the type, reveal the containers and view controls, and clear the
- * fetching flag. Used by every successful return path.
+ * Publish fetched lyrics and view controls. The applier finishes the loader
+ * after the lyrics DOM is ready, including cache and local TTML results.
  */
 async function presentLyrics(uri: string, lyricsData: any): Promise<void> {
   if (!isCurrentTrack(uri)) return;
+  LyricsQueueRetry.NotifyResolved(uri);
   setRomanizationClass(lyricsData?.HasTransliterations);
   $currentLyricsType.set(lyricsData.Type);
   PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
   PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
   PageView.AppendViewControls(true);
-  await HideLoaderContainer(uri);
   finishFetching(uri);
 }
 
@@ -112,12 +112,8 @@ type FetchLyricsOptions = {
 
 async function presentStoredLyrics(
   uri: string,
-  lyricsData: Record<string, any>,
-  options: FetchLyricsOptions
+  lyricsData: Record<string, any>
 ): Promise<[object, number]> {
-  if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) {
-    UpdateLoadingLyricsTemplate(lyricsData, uri);
-  }
   const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
   if (isCurrentTrack(uri)) $currentLyricsData.set(JSON.stringify(preparedLyrics));
   await presentLyrics(uri, preparedLyrics);
@@ -213,7 +209,6 @@ async function fetchLyricsInternal(
         const lyricsData = JSON.parse(savedLyricsData);
         // Return the stored lyrics if the ID matches the track ID
         if ((lyricsData?.id === trackId || lyricsData?.uri === uri) && isLyricsCacheCompatible(lyricsData)) {
-          if (isCurrentTrack(uri) && !options.keepCurrentLyricsVisible) UpdateLoadingLyricsTemplate(lyricsData, uri);
           const preparedLyrics = await prepareLyricsForPresentation(lyricsData);
           await presentLyrics(uri, preparedLyrics);
           return [preparedLyrics, 200];
@@ -228,12 +223,12 @@ async function fetchLyricsInternal(
 
   const sessionLyric = songKey ? SessionTTMLStore.get(songKey) : undefined;
   if (sessionLyric) {
-    return presentStoredLyrics(uri, { ...sessionLyric, id: trackId, fromCache: true }, options);
+    return presentStoredLyrics(uri, { ...sessionLyric, id: trackId, fromCache: true });
   }
 
   const localLyric = await LocalLyricsManager.get(uri);
   if (localLyric) {
-    return presentStoredLyrics(uri, { ...localLyric, id: trackId }, options);
+    return presentStoredLyrics(uri, { ...localLyric, id: trackId });
   }
 
   // Local files have no real track id (uri.split(":")[2] is the URL-encoded
@@ -256,7 +251,7 @@ async function fetchLyricsInternal(
           return ["lyrics-not-found", 404];
         }
         if (isLyricsCacheCompatible(lyricsFromCache)) {
-          return await presentStoredLyrics(uri, { ...lyricsFromCache, fromCache: true }, options);
+          return await presentStoredLyrics(uri, { ...lyricsFromCache, fromCache: true });
         }
         void LyricsStore.RemoveItem(trackId).catch(() => {});
       }
@@ -279,12 +274,13 @@ async function fetchLyricsInternal(
     const providerResult = await fetchLyricsFromProviders(
       uri,
       getActiveLyricsSourceOrder(),
-      {
-        onFirstLyrics: (lyrics) => {
-          if (isCurrentTrack(uri)) UpdateLoadingLyricsTemplate(lyrics, uri);
-        },
-      }
     );
+    if (!isCurrentTrack(uri)) return null;
+    if (providerResult?.status === 503) {
+      finishFetching(uri);
+      LyricsQueueRetry.HandleQueued(uri);
+      return ["lyrics-queued", 503];
+    }
     const lyrics = providerResult?.lyrics;
 
     if (lyrics === null || lyrics === undefined || lyrics === "") {

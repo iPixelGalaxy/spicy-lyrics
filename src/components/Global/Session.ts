@@ -32,6 +32,15 @@ const Session = {
       Session.Navigate({ pathname: "/" });
     }
   },
+  /**
+   * GoBack, but only while still on `pathname`. For flows that await something
+   * (an exit animation) before navigating: if the user already went elsewhere
+   * in the meantime, going back would undo *their* navigation instead.
+   */
+  GoBackFrom: (pathname: string) => {
+    if (Spicetify.Platform.History.location?.pathname !== pathname) return;
+    Session.GoBack();
+  },
   GetPreviousLocation: () => {
     if (sessionHistory.length > 1) {
       return sessionHistory[sessionHistory.length - 2];
@@ -107,6 +116,9 @@ const Session = {
       if (cmp > 0) return "outdated";
       if (cmp < 0) return "downgraded";
       return "current";
+    },
+    IsBehind: (currentVersion: VersionParsedData, latestVersion: VersionParsedData): boolean => {
+      return !!currentVersion && !!latestVersion && Session.SpicyLyrics.CompareVersions(currentVersion, latestVersion) < 0;
     },
     IsOutdated: async (): Promise<boolean> => {
       return (await Session.SpicyLyrics.GetVersionStatus()) === "outdated";

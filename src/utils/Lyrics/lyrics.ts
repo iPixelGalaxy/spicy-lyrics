@@ -2,6 +2,7 @@ import {
   $lyricsContainerExists,
   $lyricsRendererPaused,
   $minimalLyricsMode,
+  $seekFadeCompensation,
 } from "../stores.ts";
 import { $romanization } from "../uiState.ts";
 import Global from "../../components/Global/Global.ts";
@@ -294,8 +295,19 @@ function shouldBlockSeekForCurrentTrack() {
 }
 
 function seekToLyric(startTime: number): void {
-  SpotifyPlayer.Seek(startTime);
-  Global.Event.evoke("song:seek", startTime);
+  SeekToLineStart(startTime);
+}
+
+// Spotify fades audio in for roughly this long after a seek, so landing exactly
+// on a line's start swallows its first syllable on faster songs.
+const SEEK_FADE_COMPENSATION_MS = 300;
+
+function SeekToLineStart(startTime: number) {
+  const target = $seekFadeCompensation.get()
+    ? Math.max(0, startTime - SEEK_FADE_COMPENSATION_MS)
+    : startTime;
+  SpotifyPlayer.Seek(target);
+  Global.Event.evoke("song:seek", target);
 }
 
 // Define proper type for event parameter

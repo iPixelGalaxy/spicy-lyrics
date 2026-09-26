@@ -16,6 +16,7 @@ import {
 import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
 import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
 import { ClearLyricsContentArrays, isRomanized, setRomanizedStatus } from "../lyrics.ts";
+import { HideLoaderContainer, PaintLyricsLoader, ShowQueueLoader } from "../LyricsLoader.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
 import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx";
 import { IsCompactMode } from "../../../components/Utils/CompactMode.ts";
@@ -149,12 +150,16 @@ export async function ApplyLyricsIfCurrent(
  * @param lyrics - The lyrics data to apply
  */
 export default async function ApplyLyrics(lyricsContent: [object | string, number] | null): Promise<void> {
-  if (!PageContainer) return;
+  if (!PageContainer || !lyricsContent) return;
   const generation = ++applyGeneration;
+  const page = PageContainer;
+  const uri = SpotifyPlayer.GetUri();
   setBlurringLastLine(null);
-  if (!lyricsContent) return;
-
   const [descriptor, _status] = lyricsContent;
+  if (descriptor === "lyrics-queued") {
+    ShowQueueLoader();
+    return;
+  }
   const incomingLyricsIdentity = getLyricsIdentity(descriptor);
   const viewportAnchor =
     incomingLyricsIdentity !== null && incomingLyricsIdentity === appliedLyricsIdentity
@@ -238,7 +243,7 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
       // Keep current lyrics mounted while analysis loads. A newer apply owns the
       // page, and a Gravity toggle may have removed its temporary requirement.
-      if (generation !== applyGeneration || !PageContainer) return;
+      if (generation !== applyGeneration || PageContainer !== page || SpotifyPlayer.GetUri() !== uri) return;
 
       const forceWordSyncForSpaceGravity =
         !Defaults.EnableExperimentalWordSync && $spaceGravityMode.get();
@@ -280,7 +285,11 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
     NormalizeLyricsCommaSpacing(lyrics);
   }
 
-  if (generation !== applyGeneration || !PageContainer) return;
+  if (generation !== applyGeneration || PageContainer !== page || SpotifyPlayer.GetUri() !== uri) return;
+  if (lyrics && !viewportAnchor && uri) {
+    await PaintLyricsLoader(uri);
+    if (generation !== applyGeneration || PageContainer !== page || SpotifyPlayer.GetUri() !== uri) return;
+  }
 
   cleanupApplyLyricsAbortController();
   EmitNotApplyed();
@@ -336,10 +345,14 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
     EmitApply("None", null)
     appliedLyricsIdentity = null;
     renderedLyrics = null;
+    if (uri) await HideLoaderContainer(uri);
     return;
   }
 
-  if (!lyrics) return;
+  if (!lyrics) {
+    if (uri) await HideLoaderContainer(uri);
+    return;
+  }
 
   Defaults.CurrentLyricsType = lyrics.Type;
   $currentLyricsType.set(lyrics.Type);
@@ -366,4 +379,5 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   appliedLyricsIdentity = incomingLyricsIdentity;
   renderedLyrics = lyrics;
+  if (uri) await HideLoaderContainer(uri);
 }

@@ -15,12 +15,27 @@ import Session from "../Global/Session.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import PageView, { PageContainer } from "../Pages/PageView.ts";
 import { Icons } from "../Styling/Icons.ts";
-import Fullscreen, { CleanupMediaBox, SetControlsDragLock } from "./Fullscreen.ts";
+import Fullscreen, {
+  CleanupMediaBox,
+  IsFullscreenClosing,
+  SetControlsDragLock,
+} from "./Fullscreen.ts";
 import { IsPIP } from "./PopupLyrics.ts";
 import { IsCompactMode } from "./CompactMode.ts";
 import { Maid } from "../../modules/Maid.ts";
 import Scheduler from "../../modules/Scheduler.ts";
 import Whentil from "../../modules/Whentil.ts";
+
+// Spicetify's wrapper rescans every element's computed style on each childList
+// mutation, and textContent always replaces the text node. Editing it in place doesn't.
+function setText(el: HTMLElement, text: string): void {
+  const node = el.firstChild;
+  if (node && node === el.lastChild && node.nodeType === Node.TEXT_NODE) {
+    if (node.nodeValue !== text) node.nodeValue = text;
+  } else if (el.textContent !== text) {
+    el.textContent = text;
+  }
+}
 
 // Define interfaces for our control instances
 interface PlaybackControlsInstance {
@@ -298,7 +313,7 @@ function OpenNowBar(skipSaving: boolean = false) {
   }, 10);
 
   if (Fullscreen.IsOpen) {
-    const MediaBox = PageContainer.querySelector(
+    const MediaBox = PageContainer?.querySelector(
       ".ContentBox .NowBar .Header .MediaBox .MediaContent"
     );
 
@@ -611,8 +626,8 @@ function OpenNowBar(skipSaving: boolean = false) {
           if (!isDragging) {
             SliderBar.style.setProperty("--SliderProgress", sliderPercentage.toString());
           }
-          DurationElem.textContent = formattedDuration;
-          PositionElem.textContent = formattedPosition;
+          setText(DurationElem, formattedDuration);
+          setText(PositionElem, formattedPosition);
         };
 
         const sliderBarHandler = (event: MouseEvent) => {
@@ -1065,8 +1080,9 @@ function OpenNowBar(skipSaving: boolean = false) {
         ActiveSetupSongProgressBarInstance.Apply();
       }
 
-      // Use a more reliable approach to add elements
-      Whentil.When(
+      // Cancelled with the maid: if the page closes first, the condition never
+      // becomes true and Whentil would poll every ~4ms forever.
+      const mediaContentTask = Whentil.When(
         () =>
           spicyLyricsPage?.querySelector(
             ".ContentBox .NowBar .Header .MediaBox .MediaContent .ViewControls"
@@ -1119,6 +1135,7 @@ function OpenNowBar(skipSaving: boolean = false) {
                     }); */
         }
       );
+      NowBarFullscreenMaid.Give({ Destroy: mediaContentTask.Cancel });
     }
   }
 
@@ -1273,7 +1290,7 @@ function CleanUpActiveComponents() {
 
 function CloseNowBar() {
   NowBarObj.Open = false;
-  const NowBar = PageContainer.querySelector(".ContentBox .NowBar");
+  const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
   NowBar.classList.remove("Active");
   $isNowBarOpen.set(false);
@@ -1425,6 +1442,10 @@ async function getAVCStreamUrl(manifestUrl: string) {
         ArtistsSpan.textContent = processedArtists ?? "";
     }
 } */
+
+// Each UpdateNowBar takes a token for its delayed metadata swap; a later update
+// (fast skipping) makes the earlier one's pending timers no-ops.
+let metadataUpdateToken = 0;
 
 function UpdateNowBar(force = false) {
   const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
@@ -1602,8 +1623,10 @@ function UpdateNowBar(force = false) {
 
 
   MetadataContainer.classList.add("tr_VisuallyHidden");
+  const metadataToken = ++metadataUpdateToken;
 
   setTimeout(() => {
+    if (metadataToken !== metadataUpdateToken) return;
     const updateUri = SpotifyPlayer.GetUri();
     const songName = SpotifyPlayer.GetName();
     const navigateFromMetadata = async (pathname: string, event?: MouseEvent) => {
@@ -1621,9 +1644,8 @@ function UpdateNowBar(force = false) {
         Session.Navigate({ pathname });
         return;
       }
-      if (Fullscreen.IsOpen) {
-        await Fullscreen.Close();
-      }
+      if (IsFullscreenClosing()) return;
+      if (Fullscreen.IsOpen && !(await Fullscreen.Close())) return;
       Session.Navigate({ pathname });
     };
 
@@ -1699,11 +1721,11 @@ function UpdateNowBar(force = false) {
     const revealMetadata = () => {
       if (metadataRevealed) return;
       if (!MetadataContainer.isConnected) return;
-      if (SpotifyPlayer.GetUri() !== updateUri) return;
+      if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
       metadataRevealed = true;
       setTimeout(() => {
         if (!MetadataContainer.isConnected) return;
-        if (SpotifyPlayer.GetUri() !== updateUri) return;
+        if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
         MetadataContainer.classList.remove("tr_VisuallyHidden");
       }, 80);
     };
@@ -1766,7 +1788,7 @@ function UpdateNowBar(force = false) {
     if (shouldFetchReleaseYear) {
       SpotifyPlayer.GetAlbumReleaseYear(albumUri).then((releaseYear) => {
         if (!MetadataContainer.isConnected) return;
-        if (SpotifyPlayer.GetUri() !== updateUri) return;
+        if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
         if (releaseYear) releaseYearCache.set(albumUri, releaseYear);
         applyReleaseYear(releaseYear);
         WatchMetadataMarquee(MetadataContainer);
@@ -1776,14 +1798,14 @@ function UpdateNowBar(force = false) {
         }
         SpotifyPlayer.GetReleaseYear(trackId).then((trackReleaseYear) => {
           if (!MetadataContainer.isConnected) return;
-          if (SpotifyPlayer.GetUri() !== updateUri) return;
+          if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
           if (trackReleaseYear) releaseYearCache.set(albumUri, trackReleaseYear);
           applyReleaseYear(trackReleaseYear);
           WatchMetadataMarquee(MetadataContainer);
           revealMetadata();
         }).catch(() => {
           if (!MetadataContainer.isConnected) return;
-          if (SpotifyPlayer.GetUri() !== updateUri) return;
+          if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
           applyReleaseYear(undefined);
           WatchMetadataMarquee(MetadataContainer);
           revealMetadata();
@@ -1795,14 +1817,14 @@ function UpdateNowBar(force = false) {
         }
         SpotifyPlayer.GetReleaseYear(trackId).then((trackReleaseYear) => {
           if (!MetadataContainer.isConnected) return;
-          if (SpotifyPlayer.GetUri() !== updateUri) return;
+          if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
           if (trackReleaseYear) releaseYearCache.set(albumUri, trackReleaseYear);
           applyReleaseYear(trackReleaseYear);
           WatchMetadataMarquee(MetadataContainer);
           revealMetadata();
         }).catch(() => {
           if (!MetadataContainer.isConnected) return;
-          if (SpotifyPlayer.GetUri() !== updateUri) return;
+          if (metadataToken !== metadataUpdateToken || SpotifyPlayer.GetUri() !== updateUri) return;
           applyReleaseYear(undefined);
           WatchMetadataMarquee(MetadataContainer);
           revealMetadata();
@@ -1816,7 +1838,7 @@ function UpdateNowBar(force = false) {
 
 
 function NowBar_SwapSides() {
-  const NowBar = PageContainer.querySelector(".ContentBox .NowBar");
+  const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
 
   const spicyLyricsPage = PageContainer;
@@ -1852,7 +1874,7 @@ function NowBar_SwapSides() {
 }
 
 function Session_NowBar_SetSide() {
-  const NowBar = PageContainer.querySelector(".ContentBox .NowBar");
+  const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
   if (!NowBar) return;
 
   const spicyLyricsPage = PageContainer;

@@ -143,9 +143,11 @@ const hasFlacSignature = (value: unknown): boolean => {
     normalized.endsWith(".flac")
   );
 };
+/** What GetCover/GetCoverFrom return when the item has no cover of that size. */
+export const COVER_PLACEHOLDER_URL = "https://images.spikerko.org/SongPlaceholderFull.png";
 
 export type CoverSizes = "standard" | "small" | "large" | "xlarge";
-const COVER_PLACEHOLDER = "https://images.spikerko.org/SongPlaceholderFull.png";
+const COVER_PLACEHOLDER = COVER_PLACEHOLDER_URL;
 const COVER_SIZE_PRIORITY: CoverSizes[] = ["xlarge", "large", "standard", "small"];
 
 type CoverImage = { url?: string; label?: string };
@@ -351,6 +353,7 @@ export const SpotifyPlayer = {
     let rightContainer: HTMLElement | null;
     let sibling: HTMLElement | null;
     const buttonsStash = new Set<HTMLElement>();
+    const NATIVE_LYRICS_BUTTON_CLASSES = new Set(["main-nowPlayingBar-lyricsButton", "vVsHwFW9rx4CZOne"]);
 
     type ButtonOnClick = (btn: Button) => void;
 
@@ -373,7 +376,7 @@ export const SpotifyPlayer = {
         registerOnCreate: boolean = true
       ) {
         this.element = document.createElement("button");
-        this.element.classList.add("main-genericButton-button");
+        this.element.classList.add("main-genericButton-button", "SpicyLyrics_PlaybarButton");
         this.iconElement = document.createElement("span");
         this.iconElement.classList.add("Wrapper-sm-only", "Wrapper-small-only");
         this.element.appendChild(this.iconElement);
@@ -486,6 +489,7 @@ export const SpotifyPlayer = {
       }
       for (const className of Array.from(sibling.classList)) {
         if (className.startsWith("main-genericButton") || className === "ZfsMQKTLl695iPvUo3GK") continue;
+        if (NATIVE_LYRICS_BUTTON_CLASSES.has(className)) continue;
         element.classList.add(className);
       }
     }

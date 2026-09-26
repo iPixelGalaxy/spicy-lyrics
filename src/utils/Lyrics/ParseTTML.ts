@@ -181,6 +181,12 @@ function isPartOfWord(nodes: ChildNode[], index: number): boolean {
   return true;
 }
 
+function getLeadTransliterationText(node: Node): string {
+  if (node.nodeType === Node.ELEMENT_NODE && getAttr(node as Element, "ttm:role", "role") === "x-bg") return "";
+  if (node.nodeType === Node.TEXT_NODE || node.nodeType === Node.CDATA_SECTION_NODE) return node.nodeValue ?? "";
+  return Array.from(node.childNodes).map(getLeadTransliterationText).join("");
+}
+
 function readITunesMetadata(root: Element) {
   const translations = new Map<string, string>();
   const transliterations = new Map<string, string>();
@@ -227,17 +233,12 @@ function readITunesMetadata(root: Element) {
               .filter((piece) => piece.Text)
           )
           .filter((pieces) => pieces.length > 0);
-        const leadText = Array.from(text.childNodes)
-          .filter((child) => {
-            if (child.nodeType !== Node.ELEMENT_NODE) return true;
-            return getAttr(child as Element, "ttm:role", "role") !== "x-bg";
-          })
-          .map(getNodeText)
-          .join("")
-          .trim();
-
-        if (leadText || (spans.length === 0 && textValue)) {
-          transliterations.set(key, leadText || textValue);
+        // DOM text nodes preserve spaces between timed spans and plain-text
+        // entries. Exclude background vocals even inside nested wrappers.
+        const leadText = getLeadTransliterationText(text).replace(/\s+/g, " ").trim();
+        if (leadText) {
+          const existing = transliterations.get(key);
+          transliterations.set(key, existing ? existing + " " + leadText : leadText);
         }
 
         if (leadPieces.length > 0 || backgroundPieces.length > 0) {

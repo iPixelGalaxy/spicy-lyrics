@@ -1,6 +1,6 @@
 import { $staticBackgroundBlur, $staticBackgroundMode } from "../../utils/stores.ts";
 import Global from "../Global/Global.ts";
-import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
+import { COVER_PLACEHOLDER_URL, SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import ArtistVisuals from "./ArtistVisuals/Main.ts";
 import { PageContainer } from "../Pages/PageView.ts";
 import Kawarp, { type KawarpOptions } from "@kawarp/core";
@@ -121,6 +121,55 @@ const loadKawarpCover = async (kawarpInstance: Kawarp, cover: string, targetDocu
   await kawarpInstance.loadImage(cover);
 };
 
+const kawarpLoads = new WeakMap<Kawarp, Promise<unknown>>();
+
+async function loadCoverProgressively(
+  instance: Kawarp,
+  cover: string,
+  targetDocument: Document,
+  isCurrent: () => boolean,
+  onLoaded: () => void,
+): Promise<void> {
+  const targetWindow = targetDocument.defaultView ?? window;
+  const enqueue = async (load: () => Promise<void>) => {
+    const previous = kawarpLoads.get(instance) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(async () => {
+      if (!isCurrent()) return;
+      await load();
+      if (isCurrent()) onLoaded();
+    });
+    kawarpLoads.set(instance, next.catch(() => undefined));
+    await next;
+  };
+  if (!cover.startsWith("https://") || cover === COVER_PLACEHOLDER_URL) {
+    await enqueue(() => loadKawarpCover(instance, cover, targetDocument));
+    return;
+  }
+
+  const controller = new AbortController();
+  const fetchTimeout = targetWindow.setTimeout(() => controller.abort(), 10000);
+  const full = fetch(cover, { signal: controller.signal, priority: "high" } as RequestInit)
+    .then((response) => response.ok ? response.blob() : null)
+    .catch(() => null)
+    .finally(() => targetWindow.clearTimeout(fetchTimeout));
+  const timedOut = Symbol("preview");
+  let previewTimer: number | null = null;
+  const early = await Promise.race([
+    full,
+    new Promise<typeof timedOut>((resolve) => {
+      previewTimer = targetWindow.setTimeout(() => resolve(timedOut), 250);
+    }),
+  ]);
+  if (previewTimer !== null) targetWindow.clearTimeout(previewTimer);
+  const smallCover = normalizeCoverUrl(SpotifyPlayer.GetCover("small"));
+  if (early === timedOut && smallCover.startsWith("https://") && smallCover !== cover && smallCover !== COVER_PLACEHOLDER_URL) {
+    try { await enqueue(() => loadKawarpCover(instance, smallCover, targetDocument)); }
+    catch (error) { dynamicBgLogger.debug("Cover preview unavailable", error); }
+  }
+  const blob = early === timedOut ? await full : early;
+  await enqueue(() => blob ? instance.loadBlob(blob) : loadKawarpCover(instance, cover, targetDocument));
+}
+
 export default function ApplyDynamicBackground(element: HTMLElement, tag?: string, opts: ApplyDynamicBackgroundOpts = {}): Promise<void> {
   if (!element) return Promise.resolve();
 
@@ -131,13 +180,19 @@ export default function ApplyDynamicBackground(element: HTMLElement, tag?: strin
   }
 
   const generation = ++request.generation;
+  const trackUri = SpotifyPlayer.GetUri();
+  const cover = getDynamicBackgroundCover();
+  const isCurrent = () => request!.generation === generation && element.isConnected &&
+    SpotifyPlayer.GetUri() === trackUri && getDynamicBackgroundCover() === cover;
   const previousRequest = request.tail;
   const apply = async () => {
-    if (request!.generation !== generation) return;
-    await ApplyDynamicBackgroundInternal(element, tag, opts, () => request!.generation === generation);
+    if (!isCurrent()) return;
+    await ApplyDynamicBackgroundInternal(element, tag, opts, isCurrent);
   };
 
-  request.tail = previousRequest.catch(() => undefined).then(apply);
+  request.tail = previousRequest.catch(() => undefined).then(apply).catch((error) => {
+    dynamicBgLogger.warn("Dynamic background load failed", error);
+  });
   return request.tail;
 }
 
@@ -197,6 +252,7 @@ async function ApplyDynamicBackgroundInternal(
 
     element.appendChild(dynamicBg);
     targetWindow.setTimeout(() => {
+      if (!isCurrent()) { dynamicBg.remove(); return; }
       if (prevBg) {
         prevBg.classList.add("Hidden");
         targetWindow.setTimeout(() => prevBg?.remove(), 500);
@@ -283,6 +339,7 @@ async function ApplyDynamicBackgroundInternal(
     element.appendChild(dynamicBg);
 
     targetWindow.setTimeout(() => {
+      if (!isCurrent()) { dynamicBg.remove(); return; }
       if (prevBg) {
         prevBg.classList.add("Hidden");
         targetWindow.setTimeout(() => prevBg?.remove(), 500);
@@ -311,10 +368,9 @@ async function ApplyDynamicBackgroundInternal(
       )
 
       if (kawarpInstance) {
-        existingElement.setAttribute("data-cover-id", currentImgCover ?? "");
-        await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
-        if (!isCurrent()) return;
-        kawarpInstance.start();
+        const ownsInstance = () => isCurrent() && KawarpMap.get(tag ?? existingElement) === kawarpInstance;
+        await loadCoverProgressively(kawarpInstance, currentImgCover, targetDocument, ownsInstance, () => kawarpInstance.start());
+        if (ownsInstance()) existingElement.setAttribute("data-cover-id", currentImgCover);
         return;
       }
     }
@@ -327,6 +383,8 @@ async function ApplyDynamicBackgroundInternal(
     canvas.classList.add("spicy-dynamic-bg");
     canvas.setAttribute("data-cover-id", currentImgCover ?? "");
 
+    const mapKey = tag ?? canvas;
+    KawarpMap.get(mapKey)?.dispose();
     const kawarpInstance = new Kawarp(canvas, KawarpOptionsStatic)
     KawarpMap.set(
       tag ?
@@ -335,8 +393,16 @@ async function ApplyDynamicBackgroundInternal(
       kawarpInstance
     )
     element.appendChild(canvas);
-    await loadKawarpCover(kawarpInstance, currentImgCover, targetDocument);
-    if (!isCurrent()) {
+    const ownsInstance = () => isCurrent() && KawarpMap.get(mapKey) === kawarpInstance;
+    try {
+      await loadCoverProgressively(kawarpInstance, currentImgCover, targetDocument, ownsInstance, () => kawarpInstance.start());
+    } catch (error) {
+      kawarpInstance.dispose();
+      if (KawarpMap.get(mapKey) === kawarpInstance) KawarpMap.delete(mapKey);
+      canvas.remove();
+      throw error;
+    }
+    if (!ownsInstance()) {
       kawarpInstance.dispose();
       if (KawarpMap.get(tag ?? canvas) === kawarpInstance) {
         KawarpMap.delete(tag ?? canvas);
@@ -349,10 +415,10 @@ async function ApplyDynamicBackgroundInternal(
 
     if (opts?.doTransitionDurationAppendWithPromise) {
       await new Promise(r => targetWindow.setTimeout(r, msDelay));
-      kawarpInstance?.setOptions({ transitionDuration: KawarpTransitionDuration });
+      if (ownsInstance()) kawarpInstance.setOptions({ transitionDuration: KawarpTransitionDuration });
     } else {
       targetWindow.setTimeout(() => {
-        kawarpInstance?.setOptions({ transitionDuration: KawarpTransitionDuration });
+        if (ownsInstance()) kawarpInstance.setOptions({ transitionDuration: KawarpTransitionDuration });
       }, msDelay);
     }
   }
@@ -408,7 +474,7 @@ Global.Event.listen("playback:songchange", () => {
 
     const targetWindow = PageContainer.ownerDocument.defaultView ?? window;
     staticColorBgTransitionTimeout = targetWindow.setTimeout(() => {
-      const contentBox = PageContainer.querySelector<HTMLElement>(".ContentBox");
+      const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
       if (contentBox) ApplyDynamicBackground(contentBox);
 
       targetWindow.clearTimeout(staticColorBgTransitionTimeout);
@@ -534,6 +600,7 @@ Global.Event.listen("page:open", () => {
 });
 
 Global.Event.listen("playback:progress", async (e) => {
+  if (KawarpMap.size === 0 && $staticBackgroundMode.get() !== "legacy") return;
   const songId = SpotifyPlayer.GetId();
   if ($staticBackgroundMode.get() === "legacy") {
     setDynamicBackgroundAnimationSpeed(0.1);

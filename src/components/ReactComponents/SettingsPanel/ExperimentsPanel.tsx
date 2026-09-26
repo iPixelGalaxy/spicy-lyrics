@@ -6,6 +6,7 @@ import { Row, SectionTitle, Toggle } from "./components.tsx";
 const experimentSettingIds: Partial<Record<ExperimentId, string>> = {
   newProgressBarStyling: "appearance-sliderbar-styling",
   duetLinePadding: "lyrics-wide-duet-padding",
+  lyricsSkeleton: "lyrics-loading-skeleton",
 };
 
 /**

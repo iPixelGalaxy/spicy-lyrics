@@ -41,6 +41,8 @@ export async function fetchSpicyLyricsRaw(trackId: string): Promise<ExternalLyri
       if (retryToken !== token) lyricsQuery = await queryLyrics(retryToken);
     }
 
+    if (lyricsQuery?.httpStatus === 503) return { lyrics: null, status: 503 };
+
     if (!lyricsQuery || lyricsQuery.httpStatus !== 200) {
       return null;
     }
@@ -75,6 +77,7 @@ export async function fetchSpicyLyrics(
 ): Promise<ExternalLyricsResult | null> {
   const raw = await rawPromise;
   if (!raw) return null;
+  if (raw.status === 503) return raw;
   // Community-only: source must be "spl"
   if (raw.lyrics?.source !== "spl") return null;
   return raw;
@@ -85,6 +88,7 @@ export async function fetchAppleMusicLyrics(
 ): Promise<ExternalLyricsResult | null> {
   const raw = await rawPromise;
   if (!raw) return null;
+  if (raw.status === 503) return raw;
   // Apple Music only: source must be "aml"
   if (raw.lyrics?.source !== "aml") return null;
   return raw;

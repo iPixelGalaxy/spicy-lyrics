@@ -140,6 +140,7 @@ export async function fetchLyricsFromProviders(
   }
 
   let bestResult: ExternalLyricsResult | null = null;
+  let queuedResult: ExternalLyricsResult | null = null;
   let bestScore = 0;
   let hadPreferredResult = false;
   let appleResult: ExternalLyricsResult | null = null;
@@ -163,6 +164,7 @@ export async function fetchLyricsFromProviders(
       }
     }
 
+    if (result?.status === 503) queuedResult = result;
     if (!result?.lyrics) {
       continue;
     }
@@ -199,5 +201,6 @@ export async function fetchLyricsFromProviders(
     }
   }
 
-  return bestResult;
+  // A queue only blocks presentation when no enabled provider has usable lyrics.
+  return bestResult ?? queuedResult;
 }

@@ -1,6 +1,7 @@
 import fetchLyrics, { ShowQueueLoader } from "../../utils/Lyrics/fetchLyrics.ts";
 import { ClearLyricsLoader } from "../../utils/Lyrics/LyricsLoader.ts";
 import { LyricsQueueRetry } from "../../utils/Lyrics/LyricsQueueRetry.ts";
+import { SkeletonMarkup } from "../../utils/Lyrics/LyricsSkeleton.ts";
 import { $forceCompactMode } from "../../utils/uiState.ts";
 import { DestroyAllLyricsContainers } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
 import ApplyLyrics, {
@@ -25,7 +26,10 @@ import {
   ScrollToCurrentActiveLine,
   UpdateScrollToActiveButton,
 } from "../../utils/Scrolling/ScrollToActiveLine.ts";
-import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
+import {
+  ClearScrollSimplebar,
+  ScrollSimplebar,
+} from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import { toCssFontFamily } from "../../utils/cssFontFamily.ts";
 import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
 import {
@@ -60,6 +64,7 @@ import {
 import Fullscreen, {
   EnterSpicyLyricsFullscreen,
   ExitFullscreenElement,
+  IsFullscreenClosing,
 } from "../Utils/Fullscreen.ts";
 import {
   NowBarObj,
@@ -106,6 +111,8 @@ interface TippyInstance {
 
 export const Tooltips: {
   Close: TippyInstance | null;
+  CompactModeToggle: TippyInstance | null;
+  RomanizationToggle: TippyInstance | null;
   NowBarToggle: TippyInstance | null;
   FullscreenToggle: TippyInstance | null;
   CinemaView: TippyInstance | null;
@@ -115,6 +122,8 @@ export const Tooltips: {
   CacheAction: TippyInstance | null;
 } = {
   Close: null,
+  CompactModeToggle: null,
+  RomanizationToggle: null,
   NowBarToggle: null,
   FullscreenToggle: null,
   CinemaView: null,
@@ -204,6 +213,17 @@ async function OpenPage(
 
   if (PageView.IsOpened) return;
 
+  // The main-view page belongs to the /SpicyLyrics route. The awaits above can
+  // outlast a quick navigate-away; opening now would strand the page on
+  // whatever route the user moved to, with nothing left to destroy it.
+  if (
+    AppendTo === undefined &&
+    !options?.cardMode &&
+    Spicetify.Platform?.History?.location?.pathname !== "/SpicyLyrics"
+  ) {
+    return;
+  }
+
   IsCardMode = !!options?.cardMode;
   /* if (!HoverMode) {
         PageView.IsTippyCapable = false;
@@ -248,17 +268,10 @@ async function OpenPage(
             </div>
             <div class="LyricsContainer">
                 <div class="loaderContainer" aria-hidden="true">
-                    <div class="LyricsLoadingContent">
-                        <div class="LyricsLoadingBlobs" aria-hidden="true">
-                            <span></span><span></span><span></span><span></span>
-                            <span></span><span></span><span></span>
-                        </div>
-                        <div class="LyricsLoadingStatus" role="status" aria-live="polite" aria-atomic="true">
-                            <span class="LyricsLoadingPulse" aria-hidden="true"><i></i><i></i><i></i></span>
-                            <span class="loaderMessage"></span>
-                        </div>
-                    </div>
+                    <div id="DotLoader" aria-hidden="true"></div>
+                    <p class="loaderMessage" role="status" aria-live="polite" hidden></p>
                 </div>
+                ${SkeletonMarkup}
                 <div class="LyricsContent ScrollbarScrollable"></div>
                 <div class="LyricsPinnedFooter"></div>
                 <button id="ScrollToActiveLyric" class="ScrollToActiveLyric" type="button" aria-label="Scroll to active lyric">
@@ -449,9 +462,13 @@ export function Compactify(Element: HTMLElement | undefined = undefined) {
   }
 }
 
+// Deliberately synchronous (async only so callers can keep awaiting it): an
+// await in here let an Open, a second Destroy, or a Fullscreen close tail run
+// against a half torn-down page.
 async function DestroyPage() {
   if (!PageView.IsOpened) return;
   pageLogger.debug("Destroying page");
+  PageView.IsOpened = false;
 
   // Return the persistent renderer loop before an auxiliary page window closes.
   SetLyricsRendererWindow(window);
@@ -459,15 +476,16 @@ async function DestroyPage() {
   ClearLyricsLoader();
   cleanupApplyLyricsAbortController();
 
-  if (Fullscreen.IsOpen) await Fullscreen.Close();
-  if (!PageContainer) return;
+  // Skip the exit animation — the page is going away — and cancel any animated
+  // close already playing, so it can't re-insert this page afterwards.
+  Fullscreen.CloseImmediately();
 
   KawarpMap.get("lpagebg")?.dispose();
   KawarpMap.delete("lpagebg");
   ResetLastLine();
   CleanupScrollEvents();
   PageResizeListener?.disconnect(); // Disconnect the observer
-  PageView.IsOpened = false;
+  PageResizeListener = null;
   $lyricsContainerExists.set(false);
   $lyricsRendererPaused.set(false);
   DestroyAllLyricsContainers();
@@ -482,10 +500,11 @@ async function DestroyPage() {
 
   PageContainer?.remove();
   removeLinesEvListener();
-  Object.values(Tooltips).forEach((a) => {
-    a?.destroy();
+  (Object.keys(Tooltips) as (keyof typeof Tooltips)[]).forEach((key) => {
+    Tooltips[key]?.destroy();
+    Tooltips[key] = null;
   });
-  ScrollSimplebar?.unMount();
+  ClearScrollSimplebar();
   IsCardMode = false;
   Global.Event.evoke("page:destroy", null);
   PageView.IsTippyCapable = true;
@@ -648,11 +667,8 @@ function AppendViewControls(ReAppend: boolean = false) {
           return;
         }
 
-        try {
-          if (Fullscreen.IsOpen) await Fullscreen.Close();
-        } finally {
-          Session.GoBack();
-        }
+        if ((Fullscreen.IsOpen || IsFullscreenClosing()) && !(await Fullscreen.Close())) return;
+        Session.GoBackFrom("/SpicyLyrics");
       });
       try {
         if (!IsPIP) {
@@ -670,7 +686,7 @@ function AppendViewControls(ReAppend: boolean = false) {
     if (compactModeToggle) {
       try {
         if (!IsPIP) {
-          Tooltips.Close = Spicetify.Tippy(compactModeToggle, {
+          Tooltips.CompactModeToggle = Spicetify.Tippy(compactModeToggle, {
             ...tippyProps(compactModeToggle),
             content: `${
               IsCompactMode() ? "Disable Compact Mode" : "Enable Compact Mode"
@@ -716,7 +732,7 @@ function AppendViewControls(ReAppend: boolean = false) {
     if (romanizationToggle) {
       try {
         if (!IsPIP) {
-          Tooltips.Close = Spicetify.Tippy(romanizationToggle, {
+          Tooltips.RomanizationToggle = Spicetify.Tippy(romanizationToggle, {
             ...tippyProps(romanizationToggle),
             content: isRomanized ? `Disable Romanization` : `Enable Romanization`,
           });

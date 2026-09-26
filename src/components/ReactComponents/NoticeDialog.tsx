@@ -141,7 +141,7 @@ export function showNotice({ title, content, primary, extraActions, secondaryLab
           )}
           <div className="sl-notice-actions" style={stagger(content.length + 1)}>
             {extraActions?.map((action) => (
-              <button key={action.label} type="button" className="sl-notice-button sl-notice-button--quiet" onClick={action.onClick}>
+              <button key={action.label} type="button" className="sl-notice-button sl-notice-button--secondary" onClick={action.onClick}>
                 {action.label}
               </button>
             ))}

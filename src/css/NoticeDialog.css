@@ -267,6 +267,16 @@
   background-color: #fff;
 }
 
+.sl-notice-button--secondary {
+  background-color: var(--sl-tint);
+  color: var(--sl-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sl-ink) 24%, transparent);
+}
+
+.sl-notice-button--secondary:hover {
+  background-color: color-mix(in oklab, var(--sl-tint) 70%, var(--sl-field-deep));
+}
+
 .sl-notice-button--quiet {
   padding: 0 16px;
   background-color: transparent;

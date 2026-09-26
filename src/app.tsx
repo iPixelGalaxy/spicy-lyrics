@@ -205,6 +205,30 @@ function bindForkDefaults() {
 
 bindForkDefaults();
 
+let settingsMenuItemRegistered = false;
+function registerSettingsMenuItem(): void {
+  if (settingsMenuItemRegistered) return;
+
+  try {
+    const MenuItem = (globalThis as any).Spicetify?.Menu?.Item;
+    if (typeof MenuItem !== "function") {
+      console.warn("Spicetify Menu.Item API unavailable; settings menu item not registered");
+      return;
+    }
+
+    const item = new MenuItem(
+      "Spicy Lyrics Settings",
+      false,
+      () => openSettingsPanel(),
+      Icons.Settings
+    );
+    item.register();
+    settingsMenuItemRegistered = true;
+  } catch (error) {
+    console.error("Failed to register Spicy Lyrics Settings menu item", error);
+  }
+}
+
 async function main() {
   const appLogger = new Logger("App");
   const dynamicBgLogger = new Logger("Dynamic Background");
@@ -217,6 +241,7 @@ async function main() {
   }
 
   await Platform.OnSpotifyReady;
+  registerSettingsMenuItem();
 
   if (needsMigration()) {
     showMigrationModal();

@@ -109,6 +109,7 @@ export function showUpdatedDialog(fromVersion: string, toVersion: string) {
   showNotice({
     title: downgraded ? `Changed to ${toVersion}` : `Updated to ${toVersion}`,
     content,
+    wide: true,
     primary: { label: "See all patch notes", onClick: () => window.open(PATCH_NOTES_PAGE_URL, "_blank", "noopener,noreferrer") },
     extraActions: needsWalkthrough(fromVersion)
       ? [{ label: "New to Pixel Edition?", onClick: () => window.open(FEATURE_GUIDE_URL, "_blank", "noopener,noreferrer") }]

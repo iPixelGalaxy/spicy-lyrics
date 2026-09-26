@@ -76,6 +76,10 @@
     transform 0.22s var(--sl-ease);
 }
 
+.sl-notice--wide {
+  width: min(38rem, 100%);
+}
+
 .sl-notice-overlay.is-open .sl-notice {
   opacity: 1;
   transform: scale(1);
@@ -181,7 +185,8 @@
 }
 
 .sl-notice-patch-notes {
-  max-height: min(38vh, 360px);
+  max-height: min(48vh, 480px);
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;

@@ -31,6 +31,7 @@ export type NoticeOptions = {
   primary: { label: string; onClick: () => void };
   extraActions?: { label: string; onClick: () => void }[];
   secondaryLabel: string;
+  wide?: boolean;
   /** Escape, a backdrop click, and the secondary button all land here. */
   onDismiss?: () => void;
   /** A box the dialog grows out of, like the toast that opened it. */
@@ -48,7 +49,7 @@ const centerOf = (rect: DOMRect, width = rect.width) => ({
 
 let closeActive: ((immediate?: boolean) => void) | null = null;
 
-export function showNotice({ title, content, primary, extraActions, secondaryLabel, onDismiss, origin }: NoticeOptions) {
+export function showNotice({ title, content, primary, extraActions, secondaryLabel, wide, onDismiss, origin }: NoticeOptions) {
   closeActive?.(true);
 
   const host = document.createElement("div");
@@ -123,7 +124,7 @@ export function showNotice({ title, content, primary, extraActions, secondaryLab
           if (pressedBackdrop && event.target === event.currentTarget) dismiss();
         }}
       >
-        <div className="sl-notice" role="dialog" aria-modal="true" aria-labelledby="sl-notice-title" tabIndex={-1}>
+        <div className={wide ? "sl-notice sl-notice--wide" : "sl-notice"} role="dialog" aria-modal="true" aria-labelledby="sl-notice-title" tabIndex={-1}>
           <div className="sl-notice-mark">
             <BrandMark />
           </div>

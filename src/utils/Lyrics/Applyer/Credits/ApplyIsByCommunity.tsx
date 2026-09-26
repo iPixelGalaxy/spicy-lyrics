@@ -196,7 +196,6 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     ...GetLyricsFooterDetails(LyricsContainer),
     songInfoElement,
   ])];
-  const creditWindow = LyricsContainer.ownerDocument.defaultView ?? window;
   const creditStates = communityCreditElements.map((element) => ({
     element: element as HTMLElement,
     opacity: element.classList.contains("Credits") ? "0.6"
@@ -210,14 +209,24 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   });
 
   let creditsRevealed = false;
-  let revealFrame: number | null = null;
-  signal.addEventListener("abort", () => {
-    if (revealFrame !== null) creditWindow.cancelAnimationFrame(revealFrame);
-  }, { once: true });
-
   const revealCredits = () => {
     if (creditsRevealed || signal.aborted) return;
     creditsRevealed = true;
+
+    // Pinned details can belong to the popout before the writer footer is mounted.
+    const creditDocument = songInfoElement.ownerDocument;
+    if (creditDocument !== document) {
+      creditStates.forEach(({ element, opacity }) => {
+        element.style.opacity = opacity;
+      });
+      return;
+    }
+
+    const creditWindow = creditDocument.defaultView ?? window;
+    let revealFrame: number | null = null;
+    signal.addEventListener("abort", () => {
+      if (revealFrame !== null) creditWindow.cancelAnimationFrame(revealFrame);
+    }, { once: true });
     revealFrame = creditWindow.requestAnimationFrame(() => {
       if (signal.aborted) return;
       revealFrame = creditWindow.requestAnimationFrame(() => {
@@ -231,8 +240,15 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     });
   };
 
+  // Resolve the owning document after the renderer mounts its detached tree.
+  // Popouts show the supplied names while optional profile lookups finish.
+  queueMicrotask(() => {
+    if (songInfoElement.ownerDocument !== document || !data.TTMLUploadMetadata) {
+      revealCredits();
+    }
+  });
+
   if (!data.TTMLUploadMetadata) {
-    revealCredits();
     return;
   }
 

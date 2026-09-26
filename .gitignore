@@ -180,3 +180,9 @@ CHANGELOG.md
 
 VOLUME_SLIDER_PLAN.md
 .change-notes/LATEST_PATCH_NOTES.md
+
+api-backend/
+
+docs/
+
+perf/

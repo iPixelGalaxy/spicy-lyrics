@@ -1,5 +1,5 @@
-import { Query } from "../../utils/API/Query.ts";
 import { $spicyLyricsVersion } from "../../utils/stores.ts";
+import { fetchSelectedChannelVersion } from "../../utils/version/ChannelVersion.ts";
 import Global from "./Global.ts";
 
 interface Location {
@@ -83,15 +83,8 @@ const Session = {
       return Session.SpicyLyrics.ParseVersion($spicyLyricsVersion.get());
     },
     GetLatestVersion: async (): Promise<VersionParsedData> => {
-      const res = await Query([
-        {
-          operation: "ext_version",
-        },
-      ]);
-      const versionJob = res.get("0");
-      if (!versionJob || versionJob.httpStatus !== 200 || versionJob.format !== "text") return undefined;
-      const data = versionJob.data;
-      return Session.SpicyLyrics.ParseVersion(data);
+      const version = await fetchSelectedChannelVersion();
+      return version ? Session.SpicyLyrics.ParseVersion(version) : undefined;
     },
     /**
      * Compares two parsed versions.

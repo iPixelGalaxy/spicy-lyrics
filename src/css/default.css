@@ -311,8 +311,13 @@ body:not(.SpicyLyrics_StaticBackground)
 body:not(.SpicyLyrics_StaticBackground)
   .Root__right-sidebar:has(.spicy-dynamic-bg):has(.main-nowPlayingView-section, canvas)
   .main-nowPlayingView-content,
+/* A :has() ancestor with a bare `> div` subject made Blink restyle every div in
+   the document on any DOM change. The aside carries .spicy-dynamic-bg-in-this
+   exactly while it holds the background, and the section implies the old
+   :has(.main-nowPlayingView-section) check; the doubled class keeps specificity. */
 body:not(.SpicyLyrics_StaticBackground)
-  .Root__right-sidebar:has(.spicy-dynamic-bg):has(.main-nowPlayingView-section, canvas)
+  .Root__right-sidebar
+  .spicy-dynamic-bg-in-this.spicy-dynamic-bg-in-this
   .main-nowPlayingView-section > div {
   background: transparent;
 }
@@ -326,24 +331,8 @@ body:not(.SpicyLyrics_StaticBackground)
 body:not(.SpicyLyrics_StaticBackground)
   .Root__right-sidebar:has(.spicy-dynamic-bg):has(.main-nowPlayingView-section, canvas)
   .spicy-dynamic-bg
-  div[data-overlayscrollbars-viewport],
-.Root__right-sidebar:has(.main-nowPlayingView-section, canvas)
-  .spicy-dynamic-bg
-  div[data-overlayscrollbars-viewport]
-  > div {
+  div[data-overlayscrollbars-viewport] {
   background: transparent;
-}
-
-body:not(.SpicyLyrics_StaticBackground)
-  .Root__right-sidebar:has(.spicy-dynamic-bg):has(.main-nowPlayingView-section, canvas)
-  .spicy-dynamic-bg
-  .main-nowPlayingView-coverArtContainer
-  div:has(video)::after,
-.Root__right-sidebar:has(.main-nowPlayingView-section, canvas)
-  .spicy-dynamic-bg
-  .main-nowPlayingView-coverArtContainer
-  div:has(video):before {
-  display: none;
 }
 
 body:not(.SpicyLyrics_StaticBackground)
@@ -556,85 +545,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
       margin: var(--space-1) 0;
     }
 
-    .uc-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-4);
-    }
-
-    /* Flat version display — no inner blur, no triple-inset highlight.
-       The accent token does the work; the headline matters more than
-       the chrome around it. */
-    .uc-version-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-3);
-      padding: 14px var(--space-4);
-      background: var(--accent-tint-bg);
-      box-shadow: inset 0 0 0 1px var(--hairline);
-      border-radius: var(--radius-md);
-      margin: var(--space-1) 0 var(--space-2);
-
-      .uc-ver {
-        font-size: 1.05rem !important;
-        font-weight: var(--w-semibold);
-        color: var(--color-text-secondary);
-        font-variant-numeric: tabular-nums;
-        letter-spacing: -0.01em;
-
-        &.new {
-          color: var(--color-text-primary);
-        }
-      }
-
-      .uc-arrow {
-        display: inline-flex;
-        align-items: center;
-        color: var(--color-text-tertiary);
-      }
-    }
-
-    .uc-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      flex-wrap: wrap;
-      gap: var(--space-2);
-      flex-shrink: 0;
-    }
-
-    .uc-patch-notes {
-      max-height: min(46vh, 560px);
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      padding-right: var(--space-2);
-      color: var(--color-text-secondary);
-      line-height: 1.5;
-      scrollbar-gutter: stable;
-
-      ul {
-        display: flex;
-        flex-direction: column;
-        gap: var(--space-2);
-        margin: 0;
-        padding-left: 1.3rem;
-      }
-
-      li { padding-left: var(--space-1); }
-
-      code {
-        font-family: var(--fallback-fonts, monospace);
-        font-size: 0.9em;
-      }
-    }
-
-    .uc-notes-status {
-      color: var(--color-text-secondary);
-      margin: 0;
-    }
-
     button {
       border: none;
       border-radius: var(--radius-sm);
@@ -660,39 +570,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
 
       &:hover {
         background-color: var(--accent-hover);
-      }
-    }
-
-    /* Quiet text-style button. No background until hover. Used as the
-       "Later" affordance — it should let the user dismiss without
-       drawing attention to the act of dismissing. */
-    .btn-quiet {
-      background-color: transparent;
-      color: var(--color-text-secondary);
-      box-shadow: none;
-      padding: 9px 14px;
-
-      &:hover {
-        background-color: var(--accent-tint-bg);
-        color: var(--color-text-primary);
-      }
-    }
-
-    .uc-notes-status .btn-quiet {
-      padding: 0;
-      font-size: inherit !important;
-      text-decoration: underline;
-    }
-
-    .btn-secondary {
-      background-color: var(--accent-tint-bg);
-      color: var(--color-text-primary);
-      box-shadow: inset 0 0 0 1px var(--hairline);
-      border: 0;
-
-      &:hover {
-        background-color: var(--accent-tint-bg-hover);
-        box-shadow: inset 0 0 0 1px var(--hairline-strong);
       }
     }
 
@@ -728,15 +605,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal-overlay {
 
       button {
         width: 100%;
-      }
-    }
-
-    .btn-discord {
-      background-color: #5865f2;
-      color: #ffffff;
-
-      &:hover {
-        background-color: #6872f5;
       }
     }
 

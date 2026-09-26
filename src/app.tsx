@@ -76,9 +76,10 @@ import { OpenBuildChannelPanel } from "./utils/openBuildChannelPanel.tsx";
 import "./css/settings-panel.css";
 import "./components/ReactComponents/LyricsManager/styles.css";
 import "./css/polyfills/generic-modal-polyfill.css";
+import "./css/NoticeDialog.css";
 import "./css/polyfills/sonner-polyfill.css";
 import "./css/NPVLyrics.css";
-import UpdateDialog from "./components/ReactComponents/UpdateDialog.tsx";
+import { showUpdatedDialog } from "./components/ReactComponents/UpdateDialog.tsx";
 import { IsPIP, OpenPopupLyrics, ClosePopupLyrics } from "./components/Utils/PopupLyrics.ts";
 import {
   IsExternalCinemaLyrics,
@@ -88,6 +89,7 @@ import {
 import { GetNPVCardElement, initNPVLyrics } from "./components/Utils/NPVLyrics.ts";
 import ReactDOM from "react-dom/client";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
+import { guardSpicetifyScrollingFix } from "./utils/scrollFixGuard.ts";
 import "./utils/settings.ts";
 import SLToaster from "./components/ReactComponents/SLToaster.tsx";
 import { openSettingsPanel } from "./utils/settings.ts";
@@ -98,7 +100,7 @@ import Whentil from "./modules/Whentil.ts";
 import App from "./utils/app.ts";
 import { toCssFontFamily } from "./utils/cssFontFamily.ts";
 import { initSession } from "./utils/SessionManager/index.ts";
-import { jitter } from "./utils/jitter.ts";
+import { CheckForUpdates } from "./utils/version/CheckForUpdates.tsx";
 
 function bindDefault<T>(store: { get: () => T; listen: (listener: (value: T) => void) => () => void }, assign: (value: T) => void) {
   assign(store.get());
@@ -246,6 +248,8 @@ async function main() {
   await Platform.OnSpotifyReady;
   registerSettingsMenuItem();
 
+  guardSpicetifyScrollingFix();
+
   if (needsMigration()) {
     showMigrationModal();
     return;
@@ -278,23 +282,8 @@ async function main() {
 
   const fromVersion = $fromVersion.get();
   const spicyLyricsVersion = $spicyLyricsVersion.get();
-  if (fromVersion !== spicyLyricsVersion) {
-    const div = document.createElement("div");
-    const reactRoot = ReactDOM.createRoot(div);
-    reactRoot.render(
-      <UpdateDialog fromVersion={fromVersion} spicyLyricsVersion={spicyLyricsVersion} />
-    );
-
-    PopupModal.display({
-      title: "Spicy Lyrics",
-      content: div,
-      isLarge: true,
-      modalId: "updateDialog",
-      onClose: () => {
-        reactRoot.unmount();
-      },
-    });
-  }
+  const updatedFromPreviousVersion = Boolean(fromVersion && spicyLyricsVersion && fromVersion !== spicyLyricsVersion);
+  if (updatedFromPreviousVersion) showUpdatedDialog(fromVersion, spicyLyricsVersion);
 
   $fromVersion.set(spicyLyricsVersion);
   void initSession();
@@ -912,6 +901,16 @@ async function main() {
       });
     };
 
+    // CSS gates on this body class rather than body:has(aside.spicy-dynamic-bg-in-this),
+    // which made every DOM change a candidate for a full-document restyle.
+    // Derived from the live aside so a React-swapped aside can't leave it stale.
+    const syncNPVDynamicBackgroundClass = () => {
+      document.body.classList.toggle(
+        "SpicyLyrics_NPVDynamicBackground",
+        Boolean(document.querySelector("aside.spicy-dynamic-bg-in-this"))
+      );
+    };
+
     const CleanupNowBarDynamicBgLets = () => {
       const nowPlayingBar = getNowPlayingBarElement() ?? lastNowPlayingBarElement;
 
@@ -922,6 +921,7 @@ async function main() {
       }
       nowPlayingBar?.querySelector<HTMLElement>(".spicy-dynamic-bg")?.remove();
       nowPlayingBar?.classList.remove("spicy-dynamic-bg-in-this");
+      syncNPVDynamicBackgroundClass();
       lastNowPlayingBarElement = null;
       lastImgUrl = null;
     };
@@ -990,6 +990,8 @@ async function main() {
     );
 
     async function applyDynamicBackgroundToNowPlayingBar(coverUrl: string | undefined) {
+      // Up front so the early returns below can't leave it stale after an aside swap.
+      syncNPVDynamicBackgroundClass();
       if (!$showNpvDynamicBg.get()) return;
       if (SpotifyPlayer.GetContentType() === "unknown" && !SpotifyPlayer.IsDJ()) return;
       if (!coverUrl) return;
@@ -1011,6 +1013,7 @@ async function main() {
         if (coverUrl === lastImgUrl) return;
 
         nowPlayingBar.classList.add("spicy-dynamic-bg-in-this");
+        syncNPVDynamicBackgroundClass();
 
         await ApplyDynamicBackground(nowPlayingBar, "npvbg");
 
@@ -1400,19 +1403,17 @@ async function main() {
         }
       });
 
-      // 15 minutes, jittered. The `finally` matters: CheckForUpdates reaches the
-      // network, and a single throw used to skip the reschedule entirely, which
-      // silently stopped update checks for the rest of the session.
+      // Check the selected channel's version file every five minutes.
       const CheckForUpdates_Intervaled = async () => {
         try {
           await CheckForUpdates();
         } catch (error) {
           console.warn("Update check failed", error);
         } finally {
-          setTimeout(CheckForUpdates_Intervaled, jitter(900 * 1000, 0.2));
+          setTimeout(CheckForUpdates_Intervaled, 300_000);
         }
       };
-      setTimeout(async () => await CheckForUpdates_Intervaled(), 1000);
+      setTimeout(CheckForUpdates_Intervaled, updatedFromPreviousVersion ? 300_000 : 1000);
     }
   };
 

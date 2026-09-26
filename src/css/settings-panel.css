@@ -1658,6 +1658,8 @@ sl-generic-modal.SpicyLyricsModal .slmodal-settingsPanel .sl-modal-main-section:
   flex: 0 0 var(--space-6);
 }
 
+.sl-sp-settings-content::after { flex-basis: calc(var(--space-6) * 1.5); }
+
 .sl-sp-panel--settings::after { content: none; }
 
 /* Settings footer */

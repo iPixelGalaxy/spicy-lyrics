@@ -35,7 +35,8 @@ export function openSettingsPanel(targetDocument: Document = document) {
     currentState = { ...state, scrollTop: currentState.scrollTop };
   };
   const captureScrollPosition = () => {
-    const scrollElement = targetDocument.querySelector<HTMLElement>(".slmodal-settingsPanel .sl-modal-main-section");
+    const mainSection = targetDocument.querySelector<HTMLElement>(".slmodal-settingsPanel .sl-modal-main-section");
+    const scrollElement = mainSection?.querySelector<HTMLElement>(".sl-sp-settings-scroll") ?? mainSection;
     if (scrollElement) currentState.scrollTop = scrollElement.scrollTop;
   };
   const saveLocation = () => {

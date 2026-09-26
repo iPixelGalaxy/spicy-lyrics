@@ -26,6 +26,7 @@ export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, 
   const allowHidingSettings = useStore($allowHidingSettings);
   const hideHidingIcon = useStore($hideHidingIcon);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const searching = Boolean(query.trim());
 
   useEffect(() => {
@@ -35,6 +36,7 @@ export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, 
   const selectTab = (tab: string) => {
     setSectionFilter(tab);
     setQuery("");
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
   };
 
   const onTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -47,8 +49,8 @@ export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, 
   };
 
   return (
-    <div style={{ padding: "8px 0" }} className="slm sl-sp-panel">
-      <div className="sl-sp-settings-main">
+    <div className="slm sl-sp-panel sl-sp-panel--settings">
+      <div className="sl-sp-settings-header">
         <div className="sl-sp-tabs" role="tablist" aria-label="Settings categories">
         {TABS.map(([label, tab, icon], index) => <button
           key={tab}
@@ -63,21 +65,30 @@ export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, 
         {allowHidingSettings && <button className={`sl-sp-tab sl-sp-tab--action${hideHidingIcon ? "" : " sl-sp-tab--active"}`} type="button" aria-pressed={!hideHidingIcon} onClick={() => $hideHidingIcon.set(!hideHidingIcon)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>Hide Settings</button>}
         </div>
         <div className="sl-sp-toolbar">
-          <SearchBar value={query} onChange={setQuery} />
+          <SearchBar value={query} onChange={(value) => {
+            setQuery(value);
+            if (scrollRef.current) scrollRef.current.scrollTop = 0;
+          }} />
         </div>
-
-        <ShowHiddenSettingsInSearchContext.Provider value={searching}>
-          <div role="tabpanel">
-            <AppearanceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-            <LyricsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-            <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} onManageAnimator={() => onManageAnimator?.({ query, sectionFilter, scrollTop: (document.querySelector(".slmodal-settingsPanel .sl-modal-main-section") as HTMLElement | null)?.scrollTop ?? 0 })} />
-            <InterfaceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-            <SourcesSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
-            <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} onOpenHiddenSettings={onOpenHiddenSettings ?? (() => {})} />
-          </div>
-        </ShowHiddenSettingsInSearchContext.Provider>
       </div>
-      <Footer />
+
+      <div className="sl-sp-settings-scroll" ref={scrollRef}>
+        <div className="sl-sp-settings-content">
+          <div className="sl-sp-settings-main">
+            <ShowHiddenSettingsInSearchContext.Provider value={searching}>
+              <div role="tabpanel">
+                <AppearanceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+                <LyricsSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+                <EffectsSection query={query} sectionFilter={searching ? "All" : sectionFilter} onManageAnimator={() => onManageAnimator?.({ query, sectionFilter, scrollTop: scrollRef.current?.scrollTop ?? 0 })} />
+                <InterfaceSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+                <SourcesSection query={query} sectionFilter={searching ? "All" : sectionFilter} />
+                <DeveloperSection query={query} sectionFilter={searching ? "All" : sectionFilter} onOpenHiddenSettings={onOpenHiddenSettings ?? (() => {})} />
+              </div>
+            </ShowHiddenSettingsInSearchContext.Provider>
+          </div>
+          <Footer />
+        </div>
+      </div>
     </div>
   );
 }

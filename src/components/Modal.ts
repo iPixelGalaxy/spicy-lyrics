@@ -121,7 +121,7 @@ class _HTMLGenericModal extends HTMLElement {
 
 	private _restoreContentScroll(scrollTop: number): void {
 		const targetWindow = this._getWindow();
-		const scrollTargets = Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm"));
+		const scrollTargets = Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm, .sl-sp-settings-scroll"));
 
 		const applyScroll = () => {
 			for (const target of scrollTargets) {
@@ -136,7 +136,7 @@ class _HTMLGenericModal extends HTMLElement {
 	}
 
 	private _resetContentScroll(): void {
-		for (const target of Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm"))) {
+		for (const target of Array.from(this.querySelectorAll<HTMLElement>("main, .sl-modal-main-section, .sl-modal-container-large, .sl-modal-container, .sl-modal-content, .slm, .sl-sp-settings-scroll"))) {
 			target.scrollTop = 0;
 		}
 	}

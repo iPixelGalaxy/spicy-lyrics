@@ -1,3 +1,24 @@
+## v100.10.47
+
+- **Updated to be inline with 6.3.98**
+
+### Pixel Edition fixes
+
+- **Automatic update checks**
+  Checks the selected build channel's version file every five minutes. Choosing Update reloads Spotify to load the new version. Fixed-version channels stay pinned.
+
+- **Clearer update prompts**
+  The wider post-update prompt shows patch notes for Pixel Edition upgrades and a visible "New to Pixel Edition?" button. Available updates use the new notice design.
+
+- **Credits in popout windows**
+  Pinned community credits appear in Cinema and Picture-in-Picture while profile details load.
+
+- **Smoother lyrics and loading**
+  The expanded Now Playing lyrics card changes size more smoothly. Loading skeletons align with lyrics in sidebar, compact, fullscreen, and Picture-in-Picture views.
+
+- **Less interface stutter**
+  Lyrics, Spotify scrolling, and dynamic Now Playing backgrounds trigger less page restyling across Default, Pixel, and Custom animator presets.
+
 ## v100.10.46
 
 - **Updated to be inline with 6.3.50**

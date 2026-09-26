@@ -12,7 +12,7 @@ import { onExperimentChange } from "../../utils/experiments.ts";
 import { $isNowBarOpen, $nowBarSide } from "../../utils/uiState.ts";
 import Global from "../Global/Global.ts";
 import Session from "../Global/Session.ts";
-import { COVER_PLACEHOLDER_URL, SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
+import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import PageView, { PageContainer } from "../Pages/PageView.ts";
 import { Icons } from "../Styling/Icons.ts";
 import Fullscreen, {
@@ -78,36 +78,6 @@ type CoverRenderState = {
 // fullscreen. Keep ownership on the actual image container so repeated calls
 // join the same artwork load instead of animating that artwork over itself.
 const coverRenderStates = new WeakMap<HTMLElement, CoverRenderState>();
-const trackCoverCache = new Map<string, string>();
-const trackCoverRequests = new Set<string>();
-const trackCoverFailures = new Map<string, number>();
-
-function getTrackCoverFallback(uri: string): string | undefined {
-  const cached = trackCoverCache.get(uri);
-  if (cached) return cached;
-  if (!/^spotify:track:[A-Za-z0-9]{22}$/.test(uri)) return undefined;
-  if (trackCoverRequests.has(uri) || Date.now() - (trackCoverFailures.get(uri) ?? 0) < 60_000) {
-    return undefined;
-  }
-
-  trackCoverRequests.add(uri);
-  const trackId = uri.split(":")[2];
-  (Spicetify as any).CosmosAsync.get(`https://api.spotify.com/v1/tracks/${trackId}`)
-    .then((track: { album?: { images?: Array<{ url?: string }> } }) => {
-      const cover = track?.album?.images?.find((image) => image?.url)?.url;
-      if (!cover) {
-        trackCoverFailures.set(uri, Date.now());
-        return;
-      }
-      trackCoverCache.set(uri, cover);
-      trackCoverFailures.delete(uri);
-      if (SpotifyPlayer.GetUri() === uri) UpdateNowBar(true);
-    })
-    .catch(() => trackCoverFailures.set(uri, Date.now()))
-    .finally(() => trackCoverRequests.delete(uri));
-
-  return undefined;
-}
 
 function getNowBarPlayerPosition(): number {
   const rawProgress = Number(Spicetify.Player.getProgress?.());
@@ -1516,11 +1486,7 @@ function UpdateNowBar(force = false) {
 
   if (!$isNowBarOpen.get() && !force) return;
 
-  let coverArt = SpotifyPlayer.GetCover("xlarge");
-  if (coverArt === COVER_PLACEHOLDER_URL) {
-    const uri = SpotifyPlayer.GetUri();
-    if (uri) coverArt = getTrackCoverFallback(uri) ?? coverArt;
-  }
+  const coverArt = SpotifyPlayer.GetCover("xlarge");
 
   // If we have no container or cover art, bail out early
   if (!MediaImageContainer || !coverArt) {

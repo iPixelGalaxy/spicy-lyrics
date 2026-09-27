@@ -200,7 +200,7 @@ class _HTMLGenericModal extends HTMLElement {
 		// Reset tracked modalId since innerHTML below replaces the previous `.sl-modal` element.
 		this._currentModalId = null;
 		this.innerHTML = `
-<div class="sl-modal-overlay sl-modal-overlay-animated" style="z-index: 100;">
+<div class="sl-modal-overlay sl-modal-overlay-animated">
 	<div class="sl-modal" tabindex="-1" role="dialog" aria-label="${title}" aria-modal="true">
 		<div class="${isLarge ? "sl-modal-container-large" : "sl-modal-container"}">
 			<div class="sl-modal-header">
@@ -215,7 +215,7 @@ class _HTMLGenericModal extends HTMLElement {
 </div>`;
 
 		const hidePopup = closeHandler ?? this.hide.bind(this);
-		const closeButton = this.querySelector("button");
+		const closeButton = this.querySelector(".sl-modal-close-btn");
 		if (closeButton) {
 			(closeButton as HTMLButtonElement).onclick = hidePopup;
 		}

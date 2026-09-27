@@ -2,7 +2,7 @@
 import Spline from "cubic-spline";
 import { easeSinOut } from "d3-ease";
 import { $currentLyricsType, $simpleLyricsMode, $simpleLyricsModeRenderingType } from "../../../../utils/stores.ts";
-import { LyricsObject, SimpleLyricsMode_LetterEffectsStrengthConfig, preHiddenDotLineMs } from "../../lyrics.ts";
+import { LyricsObject, type LyricsLine, type LyricsSyllable, SimpleLyricsMode_LetterEffectsStrengthConfig, preHiddenDotLineMs } from "../../lyrics.ts";
 import { BlurMultiplier, getIdleEmphasisLyricsScale, getIdleLyricsScale, timeOffset } from "../Shared.ts";
 import { setOnNewElementMounted } from "../../LyricsVirtualizer.ts";
 import { Spring } from "../../../../modules/Spring.ts";
@@ -10,12 +10,12 @@ import { $animatorPreset, $animatorValues } from "../Tuning.ts";
 import { UPSTREAM_ANIMATOR_VALUES } from "../Upstream.ts";
 /* import { CurveInterpolator } from "curve-interpolator"; */
 
-const getSLMAnimation = (duration: number) => {
-  return `SLM_Animation ${duration}ms linear forwards`;
+const getSLMAnimation = (duration: number, elapsed = 0) => {
+  return `SLM_Animation ${duration}ms linear -${elapsed}ms forwards`;
 };
 
-const getPreSLMAnimation = (duration: number) => {
-  return `Pre_SLM_GradientAnimation ${duration}ms linear forwards`;
+const getPreSLMAnimation = (duration: number, delay: number) => {
+  return `Pre_SLM_GradientAnimation ${duration}ms linear ${delay}ms forwards`;
 };
 
 // Define types for animation ranges
@@ -596,13 +596,110 @@ function getProgressPercentage(currentTime: number, startTime: number, endTime: 
   return (currentTime - startTime) / (endTime - startTime);
 }
 
+function reconcileLineAnimation(line: LyricsSyllable | LyricsLine, position: number): void {
+  const simple = $simpleLyricsMode.get();
+  const active = position >= line.StartTime && position < line.EndTime;
+  const progress = getProgressPercentage(position, line.StartTime, line.EndTime);
+
+  if (!line.DotLine && line.AnimatorStore) {
+    line.AnimatorStore.Glow?.SetGoal(LineGlowSpline.at(progress), true);
+    line.HTMLElement.style.setProperty("--gradient-position", `${progress === 1 ? 100 : active ? progress * 100 : -20}%`);
+  }
+
+  for (const word of line.Syllables?.Lead ?? []) {
+    const wordProgress = getProgressPercentage(position, word.StartTime, word.EndTime);
+    const wordState = getElementState(position, word.StartTime, word.EndTime);
+    const wordActive = wordState === "Active";
+
+    if (word.Dot) {
+      if (!word.AnimatorStore && active) {
+        word.AnimatorStore = createDotSprings();
+        promoteToGPU(word.HTMLElement);
+      }
+      const scale = DotScaleSpline.at(wordProgress);
+      const yOffset = DotYOffsetSpline.at(wordProgress);
+      const glow = DotGlowSpline.at(wordProgress);
+      const opacity = DotOpacitySpline.at(wordProgress);
+      word.AnimatorStore?.Scale.SetGoal(scale, true);
+      word.AnimatorStore?.YOffset.SetGoal(yOffset, true);
+      word.AnimatorStore?.Glow.SetGoal(glow, true);
+      word.AnimatorStore?.Opacity.SetGoal(opacity, true);
+      if (word.AnimatorStore) {
+        setStyleIfChanged(word.HTMLElement, "opacity", `${opacity}`);
+      }
+      if (word.AnimatorStore && !simple) {
+        setStyleIfChanged(word.HTMLElement, "scale", `${scale}`);
+        setStyleIfChanged(word.HTMLElement, "transform", `translate3d(0, calc(var(--DefaultLyricsSize) * ${yOffset}), 0)`, 0, yOffset);
+        setStyleIfChanged(word.HTMLElement, "--text-shadow-blur-radius", `${4 + 6 * glow}px`);
+        setStyleIfChanged(word.HTMLElement, "--text-shadow-opacity", `${glow * 90}%`);
+      }
+      continue;
+    }
+
+    if (!word.AnimatorStore && active) {
+      word.AnimatorStore = createWordSprings();
+      promoteToGPU(word.HTMLElement);
+    }
+    const scale = ScaleSpline.at(wordProgress);
+    const yOffset = YOffsetSpline.at(wordProgress);
+    const glow = GlowSpline.at(wordProgress);
+    word.AnimatorStore?.Scale.SetGoal(scale, true);
+    word.AnimatorStore?.YOffset.SetGoal(yOffset, true);
+    word.AnimatorStore?.Glow.SetGoal(glow, true);
+    if (word.AnimatorStore) {
+      if (!simple) setStyleIfChanged(word.HTMLElement, "scale", `${scale}`);
+      setStyleIfChanged(word.HTMLElement, "transform", `translate3d(0, calc(var(--DefaultLyricsSize) * ${yOffset}), 0)`, 0, yOffset);
+      if (!word.LetterGroup && !simple) {
+        setStyleIfChanged(word.HTMLElement, "--text-shadow-blur-radius", `${4 + 2 * glow}px`);
+        setStyleIfChanged(word.HTMLElement, "--text-shadow-opacity", `${Math.min(glow * 35, 100)}%`);
+      }
+    }
+
+    word.SLMAnimated = false;
+    word.PreSLMAnimated = false;
+    word.HTMLElement.style.animation = "none";
+    if (!word.LetterGroup) {
+      if (simple) word.HTMLElement.style.setProperty("--SLM_GradientPosition", wordState === "Sung" ? "100%" : "-50%");
+      else word.HTMLElement.style.setProperty("--gradient-position", `${wordState === "Sung" ? 100 : wordActive ? -20 + 120 * wordProgress : -20}%`);
+    }
+
+    for (const letter of word.Letters ?? []) {
+      const letterProgress = getProgressPercentage(position, letter.StartTime, letter.EndTime);
+      const letterState = getElementState(position, letter.StartTime, letter.EndTime);
+      if (!letter.AnimatorStore && active) {
+        letter.AnimatorStore = createLetterSprings();
+        promoteToGPU(letter.HTMLElement);
+      }
+      const letterScale = LetterScaleSpline.at(letterProgress);
+      const letterYOffset = LetterYOffsetSpline.at(letterProgress);
+      const letterGlow = GlowSpline.at(letterProgress);
+      letter.AnimatorStore?.Scale.SetGoal(letterScale, true);
+      letter.AnimatorStore?.YOffset.SetGoal(letterYOffset, true);
+      letter.AnimatorStore?.Glow.SetGoal(letterGlow, true);
+      if (letter.AnimatorStore) {
+        setStyleIfChanged(letter.HTMLElement, "scale", `${letterScale}`);
+        setStyleIfChanged(letter.HTMLElement, "transform", `translate3d(0, calc(var(--DefaultLyricsSize) * ${letterYOffset * 2}), 0)`, 0, letterYOffset * 2);
+        setStyleIfChanged(letter.HTMLElement, "--text-shadow-blur-radius", `${4 + 12 * letterGlow}px`);
+        setStyleIfChanged(letter.HTMLElement, "--text-shadow-opacity", `${letterGlow * LetterGlowMultiplier_Opacity}%`);
+      }
+      letter.SLMAnimated = false;
+      letter.PreSLMAnimated = false;
+      letter.HTMLElement.style.animation = "none";
+      if (simple) letter.HTMLElement.style.setProperty("--SLM_GradientPosition", letterState === "Sung" ? "100%" : "-50%");
+      else letter.HTMLElement.style.setProperty("--gradient-position", `${letterState === "Sung" ? 100 : letterState === "Active" ? -20 + 120 * letterProgress : -20}%`);
+    }
+  }
+}
+
 let lastAnimateFrameTime = 0;
 
 export function Animate(position: number): void {
-  lastPlaybackPosition = position;
   const ProcessedPosition = position + timeOffset - ($simpleLyricsMode.get() ? 33.5 : 0);
 
   const now = performance.now();
+  const playbackJumped = lastPlaybackPosition !== null &&
+    (position < lastPlaybackPosition - 80 || position - lastPlaybackPosition > Math.max(250, now - lastFrameTime + 120));
+  lastPlaybackPosition = position;
 
   const deltaTime = (now - lastFrameTime) / 1000;
   lastFrameTime = now;
@@ -716,6 +813,12 @@ export function Animate(position: number): void {
       const line = arr[index];
       if (!line.HTMLElement.isConnected) continue;
       const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
+      if (lineState === "Active" && (playbackJumped || !line.HTMLElement.classList.contains("Active"))) {
+        reconcileLineAnimation(line, ProcessedPosition);
+      } else if (lineState === "NotSung" &&
+        (line.HTMLElement.classList.contains("Active") || line.HTMLElement.classList.contains("Sung"))) {
+        reconcileLineAnimation(line, ProcessedPosition);
+      }
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {
@@ -833,16 +936,12 @@ export function Animate(position: number): void {
                 if (wordState === "Active") {
                   if ($simpleLyricsModeRenderingType.get() === "animate") {
                     const nextWord = words[wordIndex + 1];
-                    if (nextWord && !nextWord?.LetterGroup) {
+                    if (nextWord && !nextWord.LetterGroup && ProcessedPosition < nextWord.StartTime) {
                       if (!nextWord.PreSLMAnimated) {
                         nextWord.PreSLMAnimated = true;
                         nextWord.HTMLElement.style.removeProperty("--SLM_GradientPosition");
-                        setTimeout(
-                          () => {
-                            nextWord.HTMLElement.style.animation = getPreSLMAnimation(250);
-                          },
-                          Number(totalDuration * 0.845 - 130) ?? totalDuration
-                        );
+                        const delay = Math.max(0, word.StartTime + totalDuration * 0.845 - 130 - ProcessedPosition);
+                        nextWord.HTMLElement.style.animation = getPreSLMAnimation(250, delay);
                       }
                     }
                   }
@@ -860,20 +959,16 @@ export function Animate(position: number): void {
                   } else {
                     word.HTMLElement.style.removeProperty("--SLM_GradientPosition");
                     //word.HTMLElement.style.removeProperty("--SLM_TranslateY");
-                    word.HTMLElement.style.animation = getSLMAnimation(totalDuration);
+                    word.HTMLElement.style.animation = getSLMAnimation(totalDuration, ProcessedPosition - word.StartTime);
                     word.SLMAnimated = true;
                     word.PreSLMAnimated = false;
                     const nextWord = words[wordIndex + 1];
-                    if (nextWord) {
+                    if (nextWord && ProcessedPosition < nextWord.StartTime) {
                       if (!nextWord.PreSLMAnimated) {
                         nextWord.PreSLMAnimated = true;
                         nextWord.HTMLElement.style.removeProperty("--SLM_GradientPosition");
-                        setTimeout(
-                          () => {
-                            nextWord.HTMLElement.style.animation = getPreSLMAnimation(125);
-                          },
-                          Number(totalDuration * 0.6 - 22) ?? totalDuration
-                        );
+                        const delay = Math.max(0, word.StartTime + totalDuration * 0.6 - 22 - ProcessedPosition);
+                        nextWord.HTMLElement.style.animation = getPreSLMAnimation(125, delay);
                       }
                     }
                   }
@@ -1202,7 +1297,7 @@ export function Animate(position: number): void {
                   } else {
                     if (letterState === "Active" && !letter.SLMAnimated) {
                       letter.HTMLElement.style.removeProperty("--SLM_GradientPosition");
-                      letter.HTMLElement.style.animation = getSLMAnimation(totalDuration);
+                      letter.HTMLElement.style.animation = getSLMAnimation(totalDuration, ProcessedPosition - letter.StartTime);
                       letter.SLMAnimated = true;
                     }
                     if (letterState === "NotSung") {
@@ -1705,6 +1800,12 @@ export function Animate(position: number): void {
       const line = arr[index];
       if (!line.HTMLElement.isConnected) continue;
       const lineState = getElementState(ProcessedPosition, line.StartTime, line.EndTime);
+      if (lineState === "Active" && (playbackJumped || !line.HTMLElement.classList.contains("Active"))) {
+        reconcileLineAnimation(line, ProcessedPosition);
+      } else if (lineState === "NotSung" &&
+        (line.HTMLElement.classList.contains("Active") || line.HTMLElement.classList.contains("Sung"))) {
+        reconcileLineAnimation(line, ProcessedPosition);
+      }
 
       if (lineState === "Active") {
         if (Blurring_LastLine !== index) {

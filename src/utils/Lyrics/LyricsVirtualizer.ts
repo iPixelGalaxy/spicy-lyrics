@@ -651,7 +651,10 @@ class LyricsVirtualizer {
       });
     };
     fontSet.addEventListener("loadingdone", remeasureAfterFonts);
-    void fontSet.ready.then(remeasureAfterFonts);
+    const fontReady = fontSet.ready;
+    if (fontReady && typeof fontReady.then === "function") {
+      void fontReady.then(remeasureAfterFonts);
+    }
     this._maid.Give(() => {
       fontSet.removeEventListener("loadingdone", remeasureAfterFonts);
       if (fontFrame !== null) fontWindow?.cancelAnimationFrame(fontFrame);

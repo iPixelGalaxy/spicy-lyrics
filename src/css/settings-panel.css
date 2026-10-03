@@ -1761,7 +1761,7 @@ sl-generic-modal.SpicyLyricsModal.Exp_NewSettingsDesign .sl-modal-overlay-animat
 }
 
 /* Header: the popups' brand line over a heavier title. */
-sl-generic-modal.SpicyLyricsModal.Exp_NewSettingsDesign .sl-modal.slmodal-settingsPanel .sl-modal-header {
+sl-generic-modal.SpicyLyricsModal .sl-modal.slmodal-settingsPanel .sl-modal-header {
   align-items: flex-start;
 
   h1 {
@@ -1770,7 +1770,6 @@ sl-generic-modal.SpicyLyricsModal.Exp_NewSettingsDesign .sl-modal.slmodal-settin
     line-height: 1.1;
     letter-spacing: -0.025em;
   }
-
 }
 
 /* Both designs keep the brand line above the settings title. */
@@ -1785,11 +1784,6 @@ sl-generic-modal.SpicyLyricsModal .sl-modal.slmodal-settingsPanel .sl-modal-head
     line-height: 16px;
     letter-spacing: normal;
     color: var(--sl-sp-ink-muted, var(--color-text-secondary));
-}
-
-sl-generic-modal.SpicyLyricsModal:not(.Exp_NewSettingsDesign) .sl-modal.slmodal-settingsPanel .sl-modal-header h1::before {
-  padding-left: 0;
-  background: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {

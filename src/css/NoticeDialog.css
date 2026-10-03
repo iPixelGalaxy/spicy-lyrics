@@ -325,8 +325,7 @@
   transform: none;
 }
 
-.sl-notice-overlay--classic .sl-notice-mark,
-.sl-notice-overlay--classic .sl-notice-brand {
+.sl-notice-overlay--classic .sl-notice-mark {
   display: none;
 }
 

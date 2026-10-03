@@ -39,6 +39,13 @@ function migrateSettingsKeys(blob: Record<string, any>): Record<string, any> {
       changed = true;
     }
   }
+  // Combining the design switches must preserve either existing opt-out.
+  const updateDesignKey = "experiment:newUpdatePromptDesign";
+  if (updateDesignKey in blob) {
+    if (blob[updateDesignKey] === false) blob["experiment:newSettingsDesign"] = false;
+    delete blob[updateDesignKey];
+    changed = true;
+  }
   if (changed) saveSettingsBlob(blob);
   return blob;
 }

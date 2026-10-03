@@ -10,7 +10,7 @@ const toasterLogger = new Logger("Toaster");
 export default function SLToaster() {
   const [nowPlayingBarHeight, setNowPlayingBarHeight] = useState(0);
   const isGlobalNav = useStore($isGlobalNav);
-  const newUpdatePromptDesign = useStore($experiment("newUpdatePromptDesign"));
+  const newDesign = useStore($experiment("newSettingsDesign"));
 
   useEffect(() => {
     // Spotify 1.3.x drops the mapped class; the wrapper is still the bar's parent.
@@ -40,7 +40,7 @@ export default function SLToaster() {
 
   return (
     <Toaster
-      className={newUpdatePromptDesign ? undefined : "sl-update-prompts--classic"}
+      className={newDesign ? undefined : "sl-update-prompts--classic"}
       position="bottom-center"
       offset={{ bottom: `var(--sltoaster-bottom-padding, ${String(nowPlayingBarHeight + 16 + (isGlobalNav ? 0 : 8))}px)` }}
       theme="dark"

@@ -45,14 +45,8 @@ export type Experiment = {
 export const EXPERIMENTS = [
   {
     id: "newSettingsDesign",
-    label: "New Settings Design",
-    description: "Use the lavender settings design. Disable to use the classic neutral design.",
-    default: true,
-  },
-  {
-    id: "newUpdatePromptDesign",
-    label: "New Update Prompt Design",
-    description: "Use the branded design for update dialogs and notifications. Disable to use classic neutral styling.",
+    label: "New Settings and Update Design",
+    description: "Use the lavender design for settings, update dialogs, and notifications. Disable for classic neutral styling.",
     default: true,
   },
   {

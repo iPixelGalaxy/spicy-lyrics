@@ -59,7 +59,7 @@ export function showNotice({ title, content, primary, extraActions, secondaryLab
   const root = ReactDOM.createRoot(host);
   const previousFocus = document.activeElement;
   let closed = false;
-  const designStore = $experiment("newUpdatePromptDesign");
+  const designStore = $experiment("newSettingsDesign");
   let unsubscribeDesign: (() => void) | undefined;
   let morphAnimation: Animation | undefined;
   // Only a press that starts and ends on the backdrop dismisses, so a text selection dragged outside doesn't.

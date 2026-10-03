@@ -1771,8 +1771,10 @@ sl-generic-modal.SpicyLyricsModal.Exp_NewSettingsDesign .sl-modal.slmodal-settin
     letter-spacing: -0.025em;
   }
 
-  /* Icon colour is --sl-sp-ink-muted in sRGB. */
-  h1::before {
+}
+
+/* Both designs keep the brand line above the settings title. */
+sl-generic-modal.SpicyLyricsModal .sl-modal.slmodal-settingsPanel .sl-modal-header h1::before {
     content: "Spicy Lyrics";
     display: block;
     margin-bottom: 10px;
@@ -1782,8 +1784,12 @@ sl-generic-modal.SpicyLyricsModal.Exp_NewSettingsDesign .sl-modal.slmodal-settin
     font-weight: 600;
     line-height: 16px;
     letter-spacing: normal;
-    color: var(--sl-sp-ink-muted);
-  }
+    color: var(--sl-sp-ink-muted, var(--color-text-secondary));
+}
+
+sl-generic-modal.SpicyLyricsModal:not(.Exp_NewSettingsDesign) .sl-modal.slmodal-settingsPanel .sl-modal-header h1::before {
+  padding-left: 0;
+  background: none;
 }
 
 @media (prefers-reduced-transparency: reduce) {

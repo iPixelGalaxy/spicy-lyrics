@@ -61,6 +61,8 @@ interface VolumeControlInstance {
 
 let ActivePlaybackControlsInstance: PlaybackControlsInstance | null = null;
 let ActiveVolumeControlInstance: VolumeControlInstance | null = null;
+const DEFAULT_UNMUTE_VOLUME = 0.5;
+let lastAudibleVolume = DEFAULT_UNMUTE_VOLUME;
 const ActiveSongProgressBarInstance_Map = new Map<string, any>();
 let ActiveSetupSongProgressBarInstance: SongProgressBarInstance | null = null;
 
@@ -886,8 +888,23 @@ function OpenNowBar(skipSaving: boolean = false) {
         let isDragging = false;
         let currentLevel = 0;
         let previousUserSelect = "";
+        let startedInIcon = false;
+        let dragHasMoved = false;
+        let dragStartY = 0;
+        let suppressIconClickUntil = 0;
 
         const clamp = (value: number) => Math.max(0, Math.min(1, value));
+        const readMute = () => {
+          try {
+            return Boolean(Spicetify.Player.getMute?.());
+          } catch {
+            return false;
+          }
+        };
+        const readVolume = () => {
+          const volume = Number(Spicetify.Player.getVolume());
+          return Number.isFinite(volume) ? clamp(volume) : currentLevel;
+        };
 
         // The glyph rests near the foot of the capsule (centered ~3cqh up a 32cqh
         // track); once the fill's top edge clears it the icon sits on solid white,
@@ -895,14 +912,10 @@ function OpenNowBar(skipSaving: boolean = false) {
         // this class — the legacy skin's traveled colour keeps the glyph white.
         const ICON_COVERED_LEVEL = 0.09;
 
-        // `getVolume()` returns 0 while muted and `toggleMute()` restores the previous
-        // level internally, so a single number drives both the bar and the icon —
-        // there's nothing to remember on our side and no `getMute()` call anywhere.
-        // Dragging to a genuine 0 therefore shows the muted icon, which is intended.
-
         const render = (volume: number) => {
           const level = clamp(volume);
           currentLevel = level;
+          if (level > 0) lastAudibleVolume = level;
           // One variable drives both skins: the new skin's fill scale and the
           // legacy skin's gradient stop plus handle offset all read --VolumeLevel.
           VolumeElement.style.setProperty("--VolumeLevel", level.toString());
@@ -914,30 +927,26 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         const commit = (volume: number) => {
           const level = clamp(volume);
-          const wasMuted = currentLevel <= 0;
           render(level);
           try {
-            // Raising the bar out of a mute: lift the mute flag first, in case
-            // setVolume alone doesn't clear it.
-            if (wasMuted && level > 0) {
-              Spicetify.Player.setMute?.(false);
-            }
+            Spicetify.Player.setMute?.(level <= 0);
             Spicetify.Player.setVolume(level);
           } catch (err) {
             console.error("Spicy Lyrics: couldn't set the volume", err);
           }
         };
 
-        const percentageFromEvent = (event: MouseEvent | TouchEvent) => {
-          let clientY: number;
+        const clientYFromEvent = (event: MouseEvent | TouchEvent): number => {
           if ("touches" in event && event.touches.length > 0) {
-            clientY = event.touches[0].clientY;
+            return event.touches[0].clientY;
           } else if ("changedTouches" in event && event.changedTouches.length > 0) {
-            clientY = event.changedTouches[0].clientY;
-          } else {
-            clientY = (event as MouseEvent).clientY;
+            return event.changedTouches[0].clientY;
           }
+          return (event as MouseEvent).clientY;
+        };
 
+        const percentageFromEvent = (event: MouseEvent | TouchEvent) => {
+          const clientY = clientYFromEvent(event);
           if (!Number.isFinite(clientY)) return currentLevel;
           const rect = VolumeElement.getBoundingClientRect();
           if (rect.height === 0) return currentLevel;
@@ -949,15 +958,14 @@ function OpenNowBar(skipSaving: boolean = false) {
         // starts the drag and immediately commits the position under the cursor.
         const handleDragStart = (event: MouseEvent | TouchEvent) => {
           if (isDragging || ("button" in event && event.button !== 0)) return;
-          // The glyph zone at the foot of the capsule is the mute button, not part
-          // of the track — starting a drag there would slam the volume to ~5% on
-          // every mute click.
-          if ((event.target as HTMLElement | null)?.closest?.(".VolumeIcon")) return;
+          startedInIcon = Boolean((event.target as HTMLElement | null)?.closest?.(".VolumeIcon"));
+          dragStartY = clientYFromEvent(event);
+          dragHasMoved = false;
           if (event.cancelable) event.preventDefault();
           isDragging = true;
           // .Dragging keeps the capsule expanded and turns off the fill's eased
           // glide so it tracks the pointer 1:1.
-          VolumeElement.classList.add("Dragging");
+          if (!startedInIcon) VolumeElement.classList.add("Dragging");
           previousUserSelect = volumeDocument.body.style.userSelect;
           volumeDocument.body.style.userSelect = "none";
           // Keep the overlay from fading out when the pointer leaves the artwork
@@ -976,6 +984,12 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         const handleDragMove = (event: MouseEvent | TouchEvent) => {
           if (!isDragging) return;
+          // Tapping the glyph toggles mute; moving 6 px turns it into a drag.
+          if (startedInIcon && !dragHasMoved) {
+            if (Math.abs(clientYFromEvent(event) - dragStartY) < 6) return;
+            dragHasMoved = true;
+            VolumeElement.classList.add("Dragging");
+          }
           if (event.cancelable) event.preventDefault();
           commit(percentageFromEvent(event));
         };
@@ -993,18 +1007,33 @@ function OpenNowBar(skipSaving: boolean = false) {
           volumeDocument.removeEventListener("touchend", handleDragEnd);
           volumeDocument.removeEventListener("touchcancel", handleDragCancel);
           volumeWindow.removeEventListener("blur", handleDragCancel);
+          startedInIcon = false;
+          dragHasMoved = false;
         };
 
         const handleDragEnd = (event: MouseEvent | TouchEvent) => {
           if (!isDragging) return;
           const percentage = percentageFromEvent(event);
+          const wasIcon = startedInIcon;
+          const tappedIcon = startedInIcon && !dragHasMoved;
           handleDragCancel();
-          commit(percentage);
+          if (wasIcon) suppressIconClickUntil = volumeWindow.performance.now() + 500;
+          if (tappedIcon) iconHandler();
+          else commit(percentage);
         };
 
-        const iconHandler = () => {
+        const iconHandler = (event?: MouseEvent) => {
+          if (event && event.detail > 0 && volumeWindow.performance.now() < suppressIconClickUntil) return;
           try {
-            Spicetify.Player.toggleMute();
+            if (readMute() || currentLevel <= 0 || readVolume() <= 0) {
+              commit(lastAudibleVolume > 0 ? lastAudibleVolume : DEFAULT_UNMUTE_VOLUME);
+            } else {
+              lastAudibleVolume = currentLevel;
+              Spicetify.Player.setMute?.(true);
+              render(0);
+              // Some clients keep reporting the pre-mute level after setMute.
+              if (readVolume() > 0) Spicetify.Player.setVolume(0);
+            }
           } catch (err) {
             console.error("Spicy Lyrics: couldn't toggle mute", err);
             return;
@@ -1014,7 +1043,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           // resync covers the case where that internal emitter isn't available.
           const resync = volumeWindow.setTimeout(() => {
             if (isDragging) return;
-            render(Spicetify.Player.getVolume() ?? 0);
+            render(readMute() ? 0 : readVolume());
           }, 60);
           volumeMaid.Give(() => volumeWindow.clearTimeout(resync), "MuteResync");
         };
@@ -1043,7 +1072,7 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         // The `volume` event only fires on change, so seed the initial state here
         // and let events drive it from then on.
-        render(Spicetify.Player.getVolume() ?? 0);
+        render(readMute() ? 0 : readVolume());
 
         const cleanup = () => {
           volumeMaid.Destroy();
@@ -1058,7 +1087,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           },
           CleanUp: cleanup,
           GetElement: () => VolumeElement,
-          SetVolume: (volume: number) => render(volume),
+          SetVolume: (volume: number) => render(readMute() ? 0 : volume),
           IsDragging: () => isDragging,
         };
       };

@@ -1,4 +1,5 @@
 import Logger from "./Logger";
+import { onAnimationFrame } from "./AnimationFrameLoop.ts";
 
 const intervalLogger = new Logger("Interval Manager");
 
@@ -6,8 +7,7 @@ class IntervalManager {
   private generation = 0;
   private callback: () => void;
   private duration: number; // Duration in milliseconds
-  private lastTimestamp: number | null;
-  private animationFrameId: number | null;
+  private unsubscribeFrame: (() => void) | null;
   private intervalId: ReturnType<typeof setInterval> | null;
   private targetWindowProvider: () => Window;
   private activeWindow: Window | null;
@@ -21,8 +21,7 @@ class IntervalManager {
 
     this.callback = callback;
     this.duration = duration === Infinity ? 0 : duration * 1000; // Convert seconds to milliseconds or set to 0 for immediate execution
-    this.lastTimestamp = null;
-    this.animationFrameId = null;
+    this.unsubscribeFrame = null;
     this.intervalId = null;
     this.targetWindowProvider = targetWindowProvider;
     this.activeWindow = null;
@@ -43,7 +42,6 @@ class IntervalManager {
     }
 
     this.Running = true;
-    this.lastTimestamp = null;
     const generation = ++this.generation;
 
     if (this.duration > 0 && Number.isFinite(this.duration)) {
@@ -57,40 +55,22 @@ class IntervalManager {
     }
 
     let reportedCallbackError = false;
-    const loop = (timestamp: number) => {
+    const loop = () => {
       if (!this.Running || this.Destroyed || generation !== this.generation) return;
-      this.animationFrameId = null;
 
       try {
-        if (this.lastTimestamp === null) {
-          this.lastTimestamp = timestamp;
-        }
-
-        const elapsed = timestamp - this.lastTimestamp;
-
-        if (this.duration === 0 || elapsed >= this.duration) {
-          this.callback();
-          reportedCallbackError = false;
-          if (generation === this.generation) {
-            this.lastTimestamp = this.duration === 0 ? null : timestamp;
-          }
-        }
+        this.callback();
+        reportedCallbackError = false;
       } catch (error) {
         if (!reportedCallbackError) {
           intervalLogger.error("Animation frame callback failed", error);
           reportedCallbackError = true;
         }
-      } finally {
-        // A callback may stop or restart the manager. Only its own run can
-        // schedule another frame, including when the callback throws.
-        if (this.Running && !this.Destroyed && generation === this.generation) {
-          this.animationFrameId = (this.activeWindow ?? this.targetWindowProvider()).requestAnimationFrame(loop);
-        }
       }
     };
 
     this.activeWindow = this.targetWindowProvider();
-    this.animationFrameId = this.activeWindow.requestAnimationFrame(loop);
+    this.unsubscribeFrame = onAnimationFrame(loop, this.activeWindow);
 
   }
 
@@ -101,12 +81,11 @@ class IntervalManager {
       (this.activeWindow ?? window).clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (this.animationFrameId !== null) {
-      (this.activeWindow ?? window).cancelAnimationFrame(this.animationFrameId);
-      this.animationFrameId = null;
+    if (this.unsubscribeFrame !== null) {
+      this.unsubscribeFrame();
+      this.unsubscribeFrame = null;
     }
     this.Running = false;
-    this.lastTimestamp = null;
     this.activeWindow = null;
   }
 

@@ -7,7 +7,7 @@ import Session from "../Global/Session.ts";
 import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import { ScrollToActiveLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
-import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
+import ApplyDynamicBackground from "../DynamicBG/dynamicBackground.ts";
 
 export let IsExternalCinemaLyrics = false;
 export let IsExternalCinemaOpening = false;
@@ -15,7 +15,6 @@ export let IsExternalCinemaOpening = false;
 type CinemaSession = {
   window: Window;
   cancelled: boolean;
-  renderFrame: number | null;
   playbackPump: number | null;
   lastUri: string | null;
   externalPageHideHandler: (event: Event) => void;
@@ -30,10 +29,6 @@ const isCurrent = (session: CinemaSession) =>
   currentSession === session && !session.cancelled && !session.window.closed;
 
 function stopSessionLoops(session: CinemaSession): void {
-  if (session.renderFrame !== null) {
-    try { session.window.cancelAnimationFrame(session.renderFrame); } catch { /* closed window */ }
-    session.renderFrame = null;
-  }
   if (session.playbackPump !== null) {
     try { session.window.clearInterval(session.playbackPump); } catch { /* closed window */ }
     session.playbackPump = null;
@@ -41,19 +36,6 @@ function stopSessionLoops(session: CinemaSession): void {
 }
 
 function startSessionLoops(session: CinemaSession): void {
-  const renderLoop = () => {
-    if (!isCurrent(session)) return;
-    try {
-      // Kawarp owns its normal loop. Only drive the popout page background here.
-      KawarpMap.get("lpagebg")?.renderFrame();
-    } catch (error) {
-      console.warn("Cinema background frame failed", error);
-    } finally {
-      if (isCurrent(session)) session.renderFrame = session.window.requestAnimationFrame(renderLoop);
-    }
-  };
-  session.renderFrame = session.window.requestAnimationFrame(renderLoop);
-
   session.lastUri = SpotifyPlayer.GetUri() ?? null;
   session.playbackPump = session.window.setInterval(() => {
     if (!isCurrent(session)) return;
@@ -171,7 +153,7 @@ async function openExternalCinemaLyrics(): Promise<void> {
   const targetWindow = window.open("", "SpicyLyricsCinema", "popup=yes,width=1280,height=720");
   if (!targetWindow) return;
   const session: CinemaSession = {
-    window: targetWindow, cancelled: false, renderFrame: null, playbackPump: null, lastUri: null,
+    window: targetWindow, cancelled: false, playbackPump: null, lastUri: null,
     externalPageHideHandler: () => { void CloseExternalCinemaLyrics(false); },
   };
   currentSession = session;

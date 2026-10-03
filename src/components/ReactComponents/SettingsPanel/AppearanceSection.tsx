@@ -2,6 +2,8 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import {
   $allowHidingSettings,
+  $animationFpsCap,
+  $animationFpsCapEnabled,
   $customFont,
   $customFontEnabled,
   $showNpvDynamicBg,
@@ -14,6 +16,8 @@ import { matches, Row, SectionTitle, Select, Slider, Toggle } from "./components
 import { ExperimentSettings } from "./ExperimentsPanel.tsx";
 
 const SECTION_NAME = "Appearance";
+const FPS_CAP_DESCRIPTION = "Limit how often lyrics, animated backgrounds, and smooth scrolling redraw. Turn off to redraw on every display refresh.";
+const FPS_SLIDER_DESCRIPTION = "Frames per second while the cap is on.";
 const bgModeOptions = ["default", "legacy", "auto", "artistHeader", "coverArt", "color"];
 const bgModeLabels = ["Default", "Legacy", "Auto", "Artist Header", "Cover Art", "Color"];
 
@@ -32,6 +36,8 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const pinnedFooterMode = useStore($pinnedFooterMode);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hiddenSettingIds = useStore($hiddenSettingIds);
+  const fpsCapEnabled = useStore($animationFpsCapEnabled);
+  const fpsCap = useStore($animationFpsCap);
 
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
 
@@ -44,8 +50,10 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
   const r6 = visible("appearance-background-blur") && blurApplies && matches(query, "Background Blur", "Soften the static background image.");
   const r7 = visible("appearance-pinned-footer") && matches(query, "Pinned Lyrics Footer", "Keep source and community credits visible. Full also pins writers.");
   const r8 = visible("appearance-sliderbar-styling") && matches(query, "New SliderBar Styling", "New glass-like style for the SliderBar. Disable to revert back to the original one.");
+  const r9 = visible("appearance-fps-limit") && matches(query, "Limit Animation Frame Rate", FPS_CAP_DESCRIPTION);
+  const r10 = visible("appearance-fps-cap") && fpsCapEnabled && matches(query, "Animation Frame Rate", FPS_SLIDER_DESCRIPTION);
 
-  if (!r1 && !r2 && !r3 && !r4 && !r6 && !r7 && !r8) return null;
+  if (!r1 && !r2 && !r3 && !r4 && !r6 && !r7 && !r8 && !r9 && !r10) return null;
 
   return (
     <>
@@ -90,6 +98,19 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
         </Row>
       )}
       {r8 && <ExperimentSettings experimentIds={["newProgressBarStyling"]} showBuiltIn={false} />}
+
+      {r9 && (
+        <Row settingId="appearance-fps-limit" label="Limit Animation Frame Rate" description={FPS_CAP_DESCRIPTION}>
+          <Toggle checked={fpsCapEnabled} onChange={(value) => $animationFpsCapEnabled.set(value)} />
+        </Row>
+      )}
+
+      {r10 && (
+        <Row settingId="appearance-fps-cap" label="Animation Frame Rate" description={FPS_SLIDER_DESCRIPTION} stacked>
+          <Slider value={fpsCap} min={15} max={240} step={5} defaultValue={60} unit="FPS"
+            onChange={(value) => $animationFpsCap.set(value)} />
+        </Row>
+      )}
 
       {r1 && (
         <Row settingId="appearance-custom-font" label="Use Custom Font" description="Use a custom font instead of the bundled Spicy Lyrics font.">

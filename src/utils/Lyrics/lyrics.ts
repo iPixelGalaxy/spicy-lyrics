@@ -11,6 +11,7 @@ import { Lyrics } from "./Animator/Main.ts";
 import { tickSpaceGravity } from "./SpaceGravity.ts";
 import { PageContainer } from "../../components/Pages/PageView.ts";
 import { Maid } from "../../modules/Maid.ts";
+import { onAnimationFrame } from "../AnimationFrameLoop.ts";
 
 export const ScrollingIntervalTime = Infinity;
 
@@ -193,7 +194,7 @@ export const TickLyricsRenderer = () => {
 };
 
 let lyricsRenderWindow: Window = window;
-let lyricsRenderFrame: number | null = null;
+let unsubscribeLyricsRenderer: (() => void) | null = null;
 
 /**
  * Keep one lyrics frame loop alive while the page moves between documents.
@@ -202,18 +203,12 @@ let lyricsRenderFrame: number | null = null;
  */
 export function SetLyricsRendererWindow(nextWindow: Window | null | undefined): void {
   const targetWindow = nextWindow && !nextWindow.closed ? nextWindow : window;
-  if (lyricsRenderWindow === targetWindow && lyricsRenderFrame !== null) return;
+  if (lyricsRenderWindow === targetWindow && unsubscribeLyricsRenderer !== null) return;
 
-  if (lyricsRenderFrame !== null) {
-    try {
-      lyricsRenderWindow.cancelAnimationFrame(lyricsRenderFrame);
-    } catch {
-      // A closing auxiliary window can reject cancellation. Its frame is gone.
-    }
-  }
+  unsubscribeLyricsRenderer?.();
 
   lyricsRenderWindow = targetWindow;
-  lyricsRenderFrame = targetWindow.requestAnimationFrame(LyricsInterval);
+  unsubscribeLyricsRenderer = onAnimationFrame(LyricsInterval, targetWindow);
 }
 
 const LyricsInterval = () => {
@@ -259,15 +254,12 @@ const LyricsInterval = () => {
 
   // A renderer exception used to skip the next frame forever. Keep the loop
   // alive so a transient DOM/WebGL failure recovers on the following frame.
-  lyricsRenderFrame = null;
   try {
     TickLyricsRenderer();
   } catch (error) {
     console.warn("Lyrics render frame failed", error);
   } finally {
-    const targetWindow = lyricsRenderWindow.closed ? window : lyricsRenderWindow;
-    lyricsRenderWindow = targetWindow;
-    lyricsRenderFrame = targetWindow.requestAnimationFrame(LyricsInterval);
+    if (lyricsRenderWindow.closed) SetLyricsRendererWindow(window);
   }
 };
 

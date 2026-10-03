@@ -7,6 +7,7 @@ import Kawarp, { type KawarpOptions } from "@kawarp/core";
 import { BackgroundAnimationController, type AudioAnalysisData } from "./BackgroundAnimationController.ts";
 import { getDynamicAudioAnalysis } from "../../utils/audioAnalysis.ts";
 import Logger from "../../utils/Logger.ts";
+import { onAnimationFrame } from "../../utils/AnimationFrameLoop.ts";
 
 const dynamicBgLogger = new Logger("Dynamic Background");
 
@@ -28,6 +29,24 @@ let cachedColorBackgroundEl: HTMLElement | null = null;
 
 export const KawarpMap = new Map<HTMLElement | string, Kawarp>();
 const animSpeedController = new BackgroundAnimationController();
+
+const runningKawarps = new WeakSet<Kawarp>();
+
+function startKawarp(kawarp: Kawarp, mapKey: HTMLElement | string, canvas: HTMLElement): void {
+  if (runningKawarps.has(kawarp)) return;
+  // Seed Kawarp's clock, then let the owning window's shared loop render it.
+  kawarp.start();
+  kawarp.stop();
+  runningKawarps.add(kawarp);
+  const unsubscribe = onAnimationFrame(() => {
+    if (KawarpMap.get(mapKey) !== kawarp || !canvas.isConnected) {
+      unsubscribe();
+      runningKawarps.delete(kawarp);
+      return;
+    }
+    kawarp.renderFrame();
+  }, canvas.ownerDocument.defaultView ?? window);
+}
 
 // A page opens before its NowBar has painted the final cover. Local tracks and
 // DJ sessions therefore commonly queue a fallback-cover apply followed by the
@@ -369,7 +388,8 @@ async function ApplyDynamicBackgroundInternal(
 
       if (kawarpInstance) {
         const ownsInstance = () => isCurrent() && KawarpMap.get(tag ?? existingElement) === kawarpInstance;
-        await loadCoverProgressively(kawarpInstance, currentImgCover, targetDocument, ownsInstance, () => kawarpInstance.start());
+        await loadCoverProgressively(kawarpInstance, currentImgCover, targetDocument, ownsInstance,
+          () => startKawarp(kawarpInstance, tag ?? existingElement, existingElement));
         if (ownsInstance()) existingElement.setAttribute("data-cover-id", currentImgCover);
         return;
       }
@@ -395,7 +415,8 @@ async function ApplyDynamicBackgroundInternal(
     element.appendChild(canvas);
     const ownsInstance = () => isCurrent() && KawarpMap.get(mapKey) === kawarpInstance;
     try {
-      await loadCoverProgressively(kawarpInstance, currentImgCover, targetDocument, ownsInstance, () => kawarpInstance.start());
+      await loadCoverProgressively(kawarpInstance, currentImgCover, targetDocument, ownsInstance,
+        () => startKawarp(kawarpInstance, mapKey, canvas));
     } catch (error) {
       kawarpInstance.dispose();
       if (KawarpMap.get(mapKey) === kawarpInstance) KawarpMap.delete(mapKey);
@@ -410,7 +431,7 @@ async function ApplyDynamicBackgroundInternal(
       canvas.remove();
       return;
     }
-    kawarpInstance.start();
+    startKawarp(kawarpInstance, mapKey, canvas);
     const msDelay = KawarpOptionsStatic.transitionDuration * 2;
 
     if (opts?.doTransitionDurationAppendWithPromise) {

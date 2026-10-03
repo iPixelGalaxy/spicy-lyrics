@@ -1142,10 +1142,9 @@ export function tickSpaceGravity(position: number): void {
   for (const body of activeBodies) spawnBody(body, stageBounds.Width, stageBounds.Height);
   const now = performance.now();
   settleBodyPresence(now);
-  const delta = Math.min(0.05, Math.max(0, (now - lastTick) / 1000));
+  const elapsed = Math.min(0.1, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
   for (const body of activeBodies) recoverInvalidBodyMotion(body);
-  applyWindowGravity(delta);
   if (reducedMotion) {
     if (staticLayoutDirty) {
       applyStaticLayout(stageBounds.Width, stageBounds.Height);
@@ -1153,24 +1152,32 @@ export function tickSpaceGravity(position: number): void {
     }
     return;
   }
-  applySoftAvoidance(delta);
-  for (const body of activeBodies) {
-    const speed = Math.hypot(body.VX, body.VY);
-    const maxSpeed = MAX_SPEED * body.SpeedMultiplier;
-    if (speed > maxSpeed) {
-      const drag = Math.exp(-HIGH_SPEED_DRAG * delta);
-      const nextSpeed = maxSpeed + (speed - maxSpeed) * drag;
-      body.VX = body.VX / speed * nextSpeed;
-      body.VY = body.VY / speed * nextSpeed;
+  // A 15 FPS frame spans 67 ms. Substeps preserve physics speed without
+  // letting a hidden window's elapsed time launch words across the viewport.
+  let remaining = elapsed;
+  while (remaining > 0) {
+    const delta = Math.min(0.05, remaining);
+    remaining -= delta;
+    applyWindowGravity(delta);
+    applySoftAvoidance(delta);
+    for (const body of activeBodies) {
+      const speed = Math.hypot(body.VX, body.VY);
+      const maxSpeed = MAX_SPEED * body.SpeedMultiplier;
+      if (speed > maxSpeed) {
+        const drag = Math.exp(-HIGH_SPEED_DRAG * delta);
+        const nextSpeed = maxSpeed + (speed - maxSpeed) * drag;
+        body.VX = body.VX / speed * nextSpeed;
+        body.VY = body.VY / speed * nextSpeed;
+      }
+      body.VY -= UPWARD_ACCELERATION * Math.max(0, (body.Y / stageBounds.Height - 0.45) / 0.55) * delta;
+      body.X += body.VX * delta;
+      body.Y += body.VY * delta;
+      body.AngularVelocity *= Math.exp(-ANGULAR_DAMPING * delta);
+      body.Angle = ((body.Angle + body.AngularVelocity * delta + 180) % 360 + 360) % 360 - 180;
+      resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
     }
-    body.VY -= UPWARD_ACCELERATION * Math.max(0, (body.Y / stageBounds.Height - 0.45) / 0.55) * delta;
-    body.X += body.VX * delta;
-    body.Y += body.VY * delta;
-    body.AngularVelocity *= Math.exp(-ANGULAR_DAMPING * delta);
-    body.Angle = ((body.Angle + body.AngularVelocity * delta + 180) % 360 + 360) % 360 - 180;
-    resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
-    renderBody(body);
   }
+  for (const body of activeBodies) renderBody(body);
 }
 
 /**

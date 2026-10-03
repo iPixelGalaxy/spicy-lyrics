@@ -62,6 +62,21 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.48
+
+- **Updated to be inline with 6.3.142**
+
+### Pixel Edition changes
+
+- **Settings and update design switch**
+  Added New Settings and Update Design in Appearance. One switch controls settings, update dialogs, and update notifications together, and is enabled by default. Disable it for classic neutral styling. Both settings styles keep the Spicy Lyrics header, logo, and larger title, with a white logo in classic mode.
+
+- **Lyric highlights after seeking**
+  Fixed stale word and letter highlights after seeking or changing lines, including Simple Lyrics Mode. Fixed a lyric-rendering failure when font readiness cannot be checked.
+
+- **Settings dialog layering**
+  Fixed settings appearing behind other interface elements.
+
 ## v100.10.47
 
 - **Updated to be inline with 6.3.98**

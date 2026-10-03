@@ -9,8 +9,12 @@ import Fullscreen from "../components/Utils/Fullscreen.ts";
 import type { SettingsPanelState } from "../components/ReactComponents/SettingsPanel/index.tsx";
 import { $settingsMenuLocation } from "./uiState.ts";
 import { $rememberSettingsMenuLocation } from "./stores.ts";
+import { $experiment } from "./experiments.ts";
 
 const MODAL_ID = "settingsPanel";
+$experiment("newSettingsDesign").subscribe((enabled) => {
+  PopupModal.classList.toggle("Exp_NewSettingsDesign", enabled);
+});
 type Direction = "forward" | "back";
 
 function renderPanel(targetDocument: Document, element: React.ReactElement, direction?: Direction) {

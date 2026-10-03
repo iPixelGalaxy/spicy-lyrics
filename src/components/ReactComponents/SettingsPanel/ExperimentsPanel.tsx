@@ -4,6 +4,8 @@ import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../..
 import { Row, SectionTitle, Toggle } from "./components.tsx";
 
 const experimentSettingIds: Partial<Record<ExperimentId, string>> = {
+  newSettingsDesign: "appearance-settings-design",
+  newUpdatePromptDesign: "appearance-update-prompt-design",
   newProgressBarStyling: "appearance-sliderbar-styling",
   duetLinePadding: "lyrics-wide-duet-padding",
   lyricsSkeleton: "lyrics-loading-skeleton",

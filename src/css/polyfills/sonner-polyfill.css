@@ -168,6 +168,21 @@
   box-shadow: none;
 }
 
+/* Limit the opt-out to update notices; other toast types keep their styling. */
+[data-sonner-toaster][data-sonner-theme].sl-update-prompts--classic [data-sonner-toast].sl-update-toast {
+  --sl-field: #181818;
+  --sl-field-deep: #121212;
+  --sl-ink: var(--color-text-primary, #f5f5f5);
+  --sl-ink-muted: var(--color-text-secondary, #b3b3b3);
+  --sl-cta: var(--accent, #fff);
+  --sl-cta-ink: var(--accent-on-fill, #121212);
+  background-image: none;
+  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  scale: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-sonner-toaster][data-sonner-theme] [data-sonner-toast] {
     transition-property: opacity, height;

@@ -23,6 +23,7 @@ function showUpdateDismissWarning(currentVersion: any) {
   if (WarningInFlight) return;
   WarningInFlight = true;
   toast.warning(currentVersion?.Text ? `Staying on ${currentVersion.Text}` : "Staying on this version", {
+    className: "sl-update-toast",
     description: "Some lyrics sources and features need the latest version. Updating reloads Spotify.",
     duration: 9000,
     action: {
@@ -39,6 +40,7 @@ function presentUpdateAvailable(currentVersion: any, latestVersion: any) {
   let viewClicked = false;
 
   toast(latestVersion?.Text ? `Spicy Lyrics ${latestVersion.Text} is out` : "A Spicy Lyrics update is out", {
+    className: "sl-update-toast",
     description: currentVersion?.Text ? `You're on ${currentVersion.Text}.` : undefined,
     duration: Infinity,
     closeButton: true,

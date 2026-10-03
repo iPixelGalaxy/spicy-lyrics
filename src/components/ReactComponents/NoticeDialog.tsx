@@ -1,6 +1,7 @@
 import React from "react";
 import { flushSync } from "react-dom";
 import ReactDOM from "react-dom/client";
+import { $experiment } from "../../utils/experiments.ts";
 
 // Same outlines as BRAND_MARK_PATHS in builds/main/entrypoint.mjs.
 const BRAND_MARK_PATHS = [
@@ -58,12 +59,16 @@ export function showNotice({ title, content, primary, extraActions, secondaryLab
   const root = ReactDOM.createRoot(host);
   const previousFocus = document.activeElement;
   let closed = false;
+  const designStore = $experiment("newUpdatePromptDesign");
+  let unsubscribeDesign: (() => void) | undefined;
+  let morphAnimation: Animation | undefined;
   // Only a press that starts and ends on the backdrop dismisses, so a text selection dragged outside doesn't.
   let pressedBackdrop = false;
 
   const close = (immediate = false) => {
     if (closed) return;
     closed = true;
+    unsubscribeDesign?.();
     if (closeActive === close) closeActive = null;
     document.removeEventListener("keydown", onKeyDown, true);
     document.removeEventListener("focusin", onFocusIn);
@@ -168,6 +173,13 @@ export function showNotice({ title, content, primary, extraActions, secondaryLab
   const overlay = host.firstElementChild as HTMLElement;
   const dialog = overlay.firstElementChild as HTMLElement;
   const primaryButton = overlay.querySelector<HTMLElement>(".sl-notice-button--primary")!;
+  const syncDesign = () => {
+    const enabled = designStore.get();
+    overlay.classList.toggle("sl-notice-overlay--classic", !enabled);
+    if (!enabled) morphAnimation?.cancel();
+  };
+  syncDesign();
+  unsubscribeDesign = designStore.listen(syncDesign);
   document.body.append(host);
   document.addEventListener("keydown", onKeyDown, true);
   document.addEventListener("focusin", onFocusIn);
@@ -181,10 +193,10 @@ export function showNotice({ title, content, primary, extraActions, secondaryLab
   overlay.getBoundingClientRect();
   overlay.classList.add("is-open");
 
-  if (origin && !reducedMotion.matches) {
+  if (origin && designStore.get() && !reducedMotion.matches) {
     const from = centerOf(dialog.getBoundingClientRect(), dialog.offsetWidth);
     const to = centerOf(origin);
-    dialog.animate(
+    morphAnimation = dialog.animate(
       [
         { transform: `translate(${to.x - from.x}px, ${to.y - from.y}px) scale(${to.width / from.width})`, opacity: 0 },
         { opacity: 1, offset: 0.35 },

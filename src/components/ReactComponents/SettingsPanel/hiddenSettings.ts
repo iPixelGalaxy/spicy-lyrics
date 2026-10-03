@@ -4,6 +4,8 @@ export const SETTING_CATALOG = [
   ["appearance-background-blur", "Background Blur", "Soften the static background image.", "Appearance"],
   ["appearance-npv-background", "Display Dynamic Background in Now Playing View", "Show the animated background in the Now Playing panel.", "Appearance"],
   ["appearance-sliderbar-styling", "New SliderBar Styling", "New glass-like style for the SliderBar. Disable to revert back to the original one.", "Appearance"],
+  ["appearance-settings-design", "New Settings Design", "Use the lavender settings design. Disable to use the classic neutral design.", "Appearance"],
+  ["appearance-update-prompt-design", "New Update Prompt Design", "Use the branded design for update dialogs and notifications. Disable to use classic neutral styling.", "Appearance"],
   ["appearance-fps-limit", "Limit Animation Frame Rate", "Limit how often lyrics, animated backgrounds, and smooth scrolling redraw. Turn off to redraw on every display refresh.", "Appearance"],
   ["appearance-fps-cap", "Animation Frame Rate", "Frames per second while the cap is on.", "Appearance"],
   ["appearance-cover-art-animation", "Cover Art Animation", "Animate cover art changes in the NowBar.", "Effects"],

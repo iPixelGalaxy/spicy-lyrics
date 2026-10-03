@@ -44,6 +44,18 @@ export type Experiment = {
 
 export const EXPERIMENTS = [
   {
+    id: "newSettingsDesign",
+    label: "New Settings Design",
+    description: "Use the lavender settings design. Disable to use the classic neutral design.",
+    default: true,
+  },
+  {
+    id: "newUpdatePromptDesign",
+    label: "New Update Prompt Design",
+    description: "Use the branded design for update dialogs and notifications. Disable to use classic neutral styling.",
+    default: true,
+  },
+  {
     id: "newProgressBarStyling",
     label: "New SliderBar Styling",
     description:
@@ -97,7 +109,7 @@ export function setExperiment(id: ExperimentId, value: boolean): void {
 /** Sync every experiment's `pageClass` onto the page root. Safe to call anytime. */
 export function ApplyExperimentClasses(el: HTMLElement): void {
   for (const exp of EXPERIMENTS) {
-    if (!exp.pageClass) continue;
+    if (!("pageClass" in exp) || !exp.pageClass) continue;
     el.classList.toggle(exp.pageClass, isExperimentEnabled(exp.id));
   }
 }

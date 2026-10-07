@@ -58,10 +58,6 @@ aside.NowPlayingView.spicy-dynamic-bg-in-this
 #SpicyLyricsPage:not(.UseSpicyFont),
 #SpicyLyricsPage:not(.UseSpicyFont) *:not(.musical-line, .musical-line *) {
   font-family: var(--spicy-custom-font, var(--encore-body-font-stack, sans-serif)), "Noto Sans Georgian", "VazirmatnRegular", sans-serif !important;
-}
-
-#SpicyLyricsPage:not(.UseSpicyFont),
-#SpicyLyricsPage:not(.UseSpicyFont) *:not(.musical-line, .musical-line *) {
   font-synthesis: none;
 }
 

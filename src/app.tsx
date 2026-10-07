@@ -87,6 +87,7 @@ import {
   CloseExternalCinemaLyrics,
 } from "./components/Utils/ExternalCinemaLyrics.ts";
 import { GetNPVCardElement, GetNPVElement, GetNPVObserverRoot, initNPVLyrics } from "./components/Utils/NPVLyrics.ts";
+import { SyncNPVVisuals } from "./components/Utils/NPVVisuals.ts";
 import ReactDOM from "react-dom/client";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
 import { guardSpicetifyScrollingFix } from "./utils/scrollFixGuard.ts";
@@ -783,6 +784,7 @@ async function main() {
     const startNowPlayingBarObserver = () => {
       const sidebar = GetNPVObserverRoot();
       if (!sidebar) return;
+      SyncNPVVisuals(getNowPlayingBarElement());
       if (nowPlayingBarObserver && sidebar === nowPlayingBarObservedRoot) return;
       nowPlayingBarObserver?.disconnect();
       nowPlayingBarObservedRoot = sidebar;
@@ -811,6 +813,7 @@ async function main() {
         });
 
         if (!shouldReapply) return;
+        SyncNPVVisuals(getNowPlayingBarElement());
         scheduleNowPlayingBarDynamicBackgroundApply();
       });
 

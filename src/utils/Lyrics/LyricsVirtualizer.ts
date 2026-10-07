@@ -17,6 +17,18 @@ const GAP_NORMAL = 1;      // 1cqw — line↔line and bg-line↔next-line
 const GAP_LINE_TO_BG = 0.2; // 0.2cqw — line↔bg-line (bg sits closer to its parent)
 const PINNED_FOOTER_BOTTOM_OFFSET = 20;
 
+function setPinnedFooterProperty(element: HTMLElement | null | undefined, name: string, value: string): void {
+  if (!element) return;
+  const style = element.style;
+  if (value) {
+    if (style.getPropertyValue(name) !== value || style.getPropertyPriority(name)) {
+      style.setProperty(name, value);
+    }
+  } else if (style.getPropertyValue(name)) {
+    style.removeProperty(name);
+  }
+}
+
 const ESTIMATE: Record<string, number> = {
   // Inactive musical-lines have line-height: 0 → measured height ~0.
   "musical-line": 0,
@@ -106,6 +118,8 @@ class LyricsVirtualizer {
   private _classObserver: MutationObserver | null = null;
 
   private _pinnedFooterObserver: ResizeObserver | null = null;
+  private _pinnedFooterElement: HTMLElement | null = null;
+  private _pinnedFooterHeight: number | null = null;
 
   // Permanent spacer appended after the virtual container so the last item can
   // always be scrolled to center without temporarily inflating container height.
@@ -248,9 +262,9 @@ class LyricsVirtualizer {
       (!page?.classList.contains("PinnedFooterMode_NoWriters") && !page?.classList.contains("PinnedFooterMode_Full")) ||
       page.classList.contains("CardMode")
     ) {
-      scrollContainer?.style.removeProperty("--SL-PinnedFooterBottomMargin");
-      lyricsContent?.style.removeProperty("--SL-PinnedFooterTrackBottom");
-      lyricsContent?.style.removeProperty("--SL-PinnedFooterFadeHeight");
+      setPinnedFooterProperty(scrollContainer, "--SL-PinnedFooterBottomMargin", "");
+      setPinnedFooterProperty(lyricsContent, "--SL-PinnedFooterTrackBottom", "");
+      setPinnedFooterProperty(lyricsContent, "--SL-PinnedFooterFadeHeight", "");
       return;
     }
 
@@ -259,49 +273,53 @@ class LyricsVirtualizer {
     );
     if (!footerLayer) return;
 
-    const trackBottom = footerLayer.offsetHeight + PINNED_FOOTER_BOTTOM_OFFSET;
-    lyricsContent.style.setProperty("--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+    // Read all geometry before writing inherited CSS properties. Interleaving
+    // those writes with height reads forced another layout for each read.
+    // Scrolling changes the virtual window, not the footer's border-box height.
+    // Reuse ResizeObserver's measurement instead of forcing layout on each scroll.
+    const observedFooter = footerLayer === this._pinnedFooterElement;
+    const footerHeight = observedFooter && this._pinnedFooterHeight !== null
+      ? this._pinnedFooterHeight
+      : footerLayer.offsetHeight;
+    if (observedFooter) this._pinnedFooterHeight = footerHeight;
+    const trackBottom = footerHeight + PINNED_FOOTER_BOTTOM_OFFSET;
     // A one-line source stays compact; each additional wrapped footer line
     // widens the fade so lyrics do not abruptly meet the pinned block.
-    const fadeHeight = Math.max(48, Math.min(120, footerLayer.offsetHeight * 0.75));
-    lyricsContent.style.setProperty("--SL-PinnedFooterFadeHeight", `${Math.ceil(fadeHeight)}px`);
-    lyricsContent.classList.toggle("PinnedFooterSingleLine", footerLayer.childElementCount === 1);
+    const fadeHeight = Math.max(48, Math.min(120, footerHeight * 0.75));
+    const singleLine = footerLayer.childElementCount === 1;
+    let bottomMargin: number | null = null;
 
     if (page.classList.contains("PinnedFooterMode_NoWriters")) {
-      // The writer footer already contributes to scroll height. The pinned layer's
-      // The screen offset is outside the scroll content, so reserve its height
+      // The writer footer already contributes to scroll height. The pinned
+      // screen offset is outside the scroll content, so reserve its height
       // only; that preserves the normal writer-to-source gap.
-      scrollContainer.style.setProperty(
-        "--SL-PinnedFooterBottomMargin",
-        `${Math.ceil(footerLayer.offsetHeight + 4)}px`
-      );
-      return;
+      bottomMargin = footerHeight + 4;
+    } else {
+      const scrollEl = this._scrollEl;
+      const lastMeasurement = this._virtualizer?.measurementsCache[
+        this._allElements.length - 1
+      ] as { end: number } | undefined;
+      if (scrollEl && lastMeasurement) {
+        const scrollRect = scrollEl.getBoundingClientRect();
+        const containerOffset =
+          virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
+        const terminalBottomAtMaxScroll =
+          scrollRect.top + containerOffset + lastMeasurement.end -
+          Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+        const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - fadeHeight;
+        const currentMargin = parseFloat(this._window().getComputedStyle(scrollContainer).marginBottom);
+        if (Number.isFinite(currentMargin)) {
+          bottomMargin = Math.max(0, currentMargin + terminalBottomAtMaxScroll - terminalOpaqueBoundary);
+        }
+      }
     }
 
-    const scrollEl = this._scrollEl;
-    const lastMeasurement = this._virtualizer?.measurementsCache[
-      this._allElements.length - 1
-    ] as { end: number } | undefined;
-    if (!scrollEl || !lastMeasurement) return;
-
-    const scrollRect = scrollEl.getBoundingClientRect();
-    const containerOffset =
-      virtualContainer.getBoundingClientRect().top - scrollRect.top + scrollEl.scrollTop;
-    const terminalBottomAtMaxScroll =
-      scrollRect.top + containerOffset + lastMeasurement.end -
-      Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-    const terminalOpaqueBoundary = scrollRect.bottom - trackBottom - fadeHeight;
-
-    const currentMargin = parseFloat(getComputedStyle(scrollContainer).marginBottom);
-    if (!Number.isFinite(currentMargin)) return;
-    const requiredMargin = Math.max(
-      0,
-      currentMargin + terminalBottomAtMaxScroll - terminalOpaqueBoundary
-    );
-    scrollContainer.style.setProperty(
-      "--SL-PinnedFooterBottomMargin",
-      `${Math.ceil(requiredMargin)}px`
-    );
+    setPinnedFooterProperty(lyricsContent, "--SL-PinnedFooterTrackBottom", `${Math.ceil(trackBottom)}px`);
+    setPinnedFooterProperty(lyricsContent, "--SL-PinnedFooterFadeHeight", `${Math.ceil(fadeHeight)}px`);
+    lyricsContent.classList.toggle("PinnedFooterSingleLine", singleLine);
+    if (bottomMargin !== null) {
+      setPinnedFooterProperty(scrollContainer, "--SL-PinnedFooterBottomMargin", `${Math.ceil(bottomMargin)}px`);
+    }
   }
 
   private _remeasureVisible(): void {
@@ -623,11 +641,17 @@ class LyricsVirtualizer {
       .closest<HTMLElement>(".LyricsContent")
       ?.parentElement?.querySelector<HTMLElement>(".LyricsPinnedFooter");
     if (footerLayer) {
-      this._pinnedFooterObserver = this._maid!.Give(new ResizeObserver(() => {
+      this._pinnedFooterElement = footerLayer;
+      this._pinnedFooterObserver = this._maid!.Give(new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.target === footerLayer) {
+            this._pinnedFooterHeight = Math.round(entry.borderBoxSize[0]?.blockSize ?? footerLayer.offsetHeight);
+          }
+        }
         this._updatePinnedFooterLayout();
         this._syncBottomMask();
       }));
-      this._pinnedFooterObserver.observe(footerLayer);
+      this._pinnedFooterObserver.observe(footerLayer, { box: "border-box" });
       if (virtualContainer.parentElement) {
         this._pinnedFooterObserver.observe(virtualContainer.parentElement);
       }
@@ -1616,6 +1640,8 @@ class LyricsVirtualizer {
     this._containerHeight = 0;
     this._classObserver = null;
     this._pinnedFooterObserver = null;
+    this._pinnedFooterElement = null;
+    this._pinnedFooterHeight = null;
     this._spacer = null;
 
     try {

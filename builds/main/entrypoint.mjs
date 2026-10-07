@@ -1238,9 +1238,9 @@ const POPUP_STYLES = `
 `;
 
 const ensurePopupStyles = () => {
-  if (document.getElementById("spicy-lyrics-entry-styles")) return;
+  if (document.getElementById("spicy-lyrics-entry-popup-styles")) return;
   const style = document.createElement("style");
-  style.id = "spicy-lyrics-entry-styles";
+  style.id = "spicy-lyrics-entry-popup-styles";
   style.textContent = POPUP_STYLES;
   document.head.append(style);
 };

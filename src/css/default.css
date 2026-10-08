@@ -61,6 +61,11 @@ aside.NowPlayingView.spicy-dynamic-bg-in-this
   font-synthesis: none;
 }
 
+#SpicyLyricsPage.LyricsFontFallback .LyricsContainer :is(.line, .line *, .SpaceGravityWord, .SpaceGravityWord *) {
+  font-family: SpicyLyrics, "Noto Sans Georgian", "VazirmatnRegular", sans-serif !important;
+  font-synthesis: auto;
+}
+
 :is(.Root__main-view, :where(#main-view)):has(#SpicyLyricsPage) .main-view-container__scroll-node-child,
 :is(.Root__main-view, :where(#main-view)):has(#SpicyLyricsPage) .main-view-container__scroll-node-child-spacer,
 :is(.Root__main-view, :where(#main-view)):has(#SpicyLyricsPage) .main-view-container__scroll-node-child,

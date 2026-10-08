@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { $currentLyricsData, $currentLyricsType, $spaceGravityMode } from "../../stores.ts";
+import { $currentLyricsData, $currentLyricsType, $customFont, $customFontEnabled, $spaceGravityMode } from "../../stores.ts";
 import { ClearScrollSimplebar } from "../../Scrolling/Simplebar/ScrollSimplebar.ts";
 import { setBlurringLastLine } from "../Animator/Lyrics/LyricsAnimator.ts";
 import { DestroyAllLyricsContainers } from "../Applyer/CreateLyricsContainer.ts";
@@ -15,7 +15,7 @@ import {
 } from "../ExperimentalWordSync.ts";
 import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
 import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
-import { ClearLyricsContentArrays, isRomanized, setRomanizedStatus } from "../lyrics.ts";
+import { ClearLyricsContentArrays, isRomanized, LyricsObject, setRomanizedStatus } from "../lyrics.ts";
 import { HideLoaderContainer, PaintLyricsLoader, ShowQueueLoader } from "../LyricsLoader.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
 import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx";
@@ -28,6 +28,7 @@ import { captureLyricsViewportAnchor, triggerRemeasureLV } from "../LyricsVirtua
 import { UpdateStaticLyricsRomanization } from "../Applyer/Static.ts";
 import { UpdateLineLyricsRomanization } from "../Applyer/Synced/Line.ts";
 import { UpdateSyllableLyricsRomanization } from "../Applyer/Synced/Syllable.ts";
+import { needsDefaultLyricsFont } from "../LyricsFontFallback.ts";
 
 /**
  * Union type for all lyrics data types
@@ -52,6 +53,47 @@ let currentAbortController: AbortController | null = null;
 let appliedLyricsIdentity: string | null = null;
 let renderedLyrics: LyricsData | null = null;
 let applyGeneration = 0;
+let fontCheckGeneration = 0;
+const watchedFontDocuments = new WeakSet<Document>();
+
+async function refreshLyricsFontFallback(): Promise<void> {
+  const checkGeneration = ++fontCheckGeneration;
+  const renderGeneration = applyGeneration;
+  const page = PageContainer;
+  const lyrics = renderedLyrics;
+  if (!page || !lyrics) return;
+
+  const targetDocument = page.ownerDocument;
+  if (targetDocument.fonts && !watchedFontDocuments.has(targetDocument)) {
+    watchedFontDocuments.add(targetDocument);
+    targetDocument.fonts.addEventListener("loadingdone", () => {
+      if (PageContainer?.ownerDocument === targetDocument) void refreshLyricsFontFallback();
+    });
+  }
+
+  let fallback = false;
+  if ($customFontEnabled.get()) {
+    const elements = lyrics.Type === "Syllable"
+      ? LyricsObject.Types.Syllable.Lines.filter(line => !line.DotLine).flatMap(line =>
+          line.Syllables?.Lead.filter(word => !word.Dot).map(word => word.HTMLElement) ?? [])
+      : lyrics.Type === "Line"
+        ? LyricsObject.Types.Line.Lines.filter(line => !line.DotLine).map(line => line.HTMLElement)
+        : LyricsObject.Types.Static.Lines.map(line => line.HTMLElement);
+    const variant = isRomanized ? "lyricsRomanizedText" : "lyricsOriginalText";
+    const text = elements.map(element => element.dataset[variant] ?? element.textContent ?? "").join("\n");
+    fallback = await needsDefaultLyricsFont($customFont.get(), text, targetDocument);
+  }
+
+  if (checkGeneration !== fontCheckGeneration || renderGeneration !== applyGeneration ||
+      PageContainer !== page || renderedLyrics !== lyrics) return;
+  if (page.classList.contains("LyricsFontFallback") !== fallback) {
+    page.classList.toggle("LyricsFontFallback", fallback);
+    triggerRemeasureLV();
+  }
+}
+
+$customFont.listen(() => { void refreshLyricsFontFallback(); });
+$customFontEnabled.listen(() => { void refreshLyricsFontFallback(); });
 
 /**
  * A song change starts a new rendering epoch before its lyrics request settles.
@@ -85,6 +127,7 @@ export function UpdateRenderedRomanization(useRomanized: boolean): boolean {
   }
 
   setRomanizedStatus(useRomanized);
+  void refreshLyricsFontFallback();
   triggerRemeasureLV();
   return true;
 }
@@ -292,6 +335,8 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   }
 
   cleanupApplyLyricsAbortController();
+  renderedLyrics = null;
+  page.classList.remove("LyricsFontFallback");
   EmitNotApplyed();
   ClearSyllableRenderSession();
   DestroyAllLyricsContainers();
@@ -379,5 +424,6 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
 
   appliedLyricsIdentity = incomingLyricsIdentity;
   renderedLyrics = lyrics;
+  void refreshLyricsFontFallback();
   if (uri) await HideLoaderContainer(uri);
 }

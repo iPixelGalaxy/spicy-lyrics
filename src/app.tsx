@@ -223,7 +223,7 @@ async function main() {
   }
 
   await Platform.OnSpotifyReady;
-  registerSettingsMenu(Icons.Settings);
+  registerSettingsMenu(Icons.LyricsPage);
 
   guardSpicetifyScrollingFix();
 

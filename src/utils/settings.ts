@@ -146,15 +146,6 @@ export function registerSettingsMenu(icon: string) {
   const profileSelector = '[data-testid="user-widget-link"]';
   const menuSelector = '#context-menu ul[role="menu"]';
 
-  try {
-    const MenuItem = (globalThis as any).Spicetify?.Menu?.Item;
-    if (typeof MenuItem === "function") {
-      new MenuItem(name, false, () => openSettingsPanel(), icon).register();
-    }
-  } catch (error) {
-    console.warn("Failed to register Spicy Lyrics Settings menu item", error);
-  }
-
   const syncMenu = () => {
     const profile = document.querySelector<HTMLButtonElement>(profileSelector);
     const owned = document.getElementById(itemId);
@@ -165,10 +156,6 @@ export function registerSettingsMenu(icon: string) {
     }
 
     const rows = [...menu.querySelectorAll<HTMLLIElement>(':scope > li[role="presentation"]')];
-    if (rows.some(row => row.id !== itemId && row.textContent?.trim() === name)) {
-      owned?.remove();
-      return;
-    }
     if (owned?.parentElement === menu) return;
     owned?.remove();
 
@@ -191,6 +178,11 @@ export function registerSettingsMenu(icon: string) {
     label.style.flex = "1";
     label.textContent = name;
     const graphic = new DOMParser().parseFromString(icon, "image/svg+xml").documentElement;
+    graphic.removeAttribute("id");
+    graphic.removeAttribute("class");
+    graphic.setAttribute("width", "16");
+    graphic.setAttribute("height", "16");
+    graphic.setAttribute("fill", "currentColor");
     graphic.setAttribute("aria-hidden", "true");
     button.append(document.importNode(graphic, true), label);
     button.addEventListener("click", event => {

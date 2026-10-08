@@ -62,6 +62,34 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.49
+
+- **Updated to be inline with 6.3.153**
+  Added lyrics-card support for Spotify's newer Now Playing layout. Fixed doubled playback-bar offsets and faint duplicate interlude dots while they bounce.
+
+### Pixel Edition changes
+
+- **Lyric font fallback**
+  Lyrics fall back to Spicy Lyrics' built-in font when more than half of their visible characters are unsupported by your custom font. Rechecks when the song, font, or romanization changes, while keeping your font preference saved.
+
+- **Space Gravity in popout windows**
+  Fixed starting and switching Space Gravity in popout windows while the main Spotify window is minimized.
+
+- **Popout cover artwork**
+  Fixed known artwork being replaced by generic covers. Popout artwork and backgrounds now refresh when cover metadata arrives late.
+
+- **Loading errors and appearance**
+  Fixed loading errors not appearing for invalid build hosts. Loading dialogs and retry notifications now follow New Settings and Update Design, including classic mode, even when the plugin cannot load.
+
+- **Spotify 1.3.4 button highlight**
+  Restored the active highlight on the Spicy Lyrics playbar icon in Spotify 1.3.4.
+
+- **Settings menu entry**
+  Spicy Lyrics Settings now uses the Spicy Lyrics logo and appears more consistently in Spotify's profile menu.
+
+- **Less sidebar stutter**
+  Reduced stutter during lyrics scrolling and in the Now Playing sidebar, including pinned credits and dynamic backgrounds.
+
 ## v100.10.48
 
 - **Updated to be inline with 6.3.142**

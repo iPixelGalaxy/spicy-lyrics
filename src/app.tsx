@@ -86,7 +86,7 @@ import {
   OpenExternalCinemaLyrics,
   CloseExternalCinemaLyrics,
 } from "./components/Utils/ExternalCinemaLyrics.ts";
-import { GetNPVCardElement, GetNPVElement, GetNPVObserverRoot, initNPVLyrics } from "./components/Utils/NPVLyrics.ts";
+import { GetNPVCardElement, GetNPVElementForBackground, GetNPVObserverRoot, initNPVLyrics } from "./components/Utils/NPVLyrics.ts";
 import { SyncNPVVisuals } from "./components/Utils/NPVVisuals.ts";
 import ReactDOM from "react-dom/client";
 import { runThemeMatcher } from "./utils/themeMatcher.ts";
@@ -768,7 +768,7 @@ async function main() {
     let nowPlayingBarObservedRoot: Element | null = null;
     let nowPlayingBarMutationTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const getNowPlayingBarElement = GetNPVElement;
+    const getNowPlayingBarElement = GetNPVElementForBackground;
 
     const scheduleNowPlayingBarDynamicBackgroundApply = () => {
       if (nowPlayingBarMutationTimeout) {

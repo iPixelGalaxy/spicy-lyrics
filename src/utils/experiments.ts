@@ -92,6 +92,10 @@ export function $experiment(id: ExperimentId): ExperimentStore {
   return store;
 }
 
+$experiment("newSettingsDesign").listen(() => {
+  window.dispatchEvent(new Event("spicy-lyrics:settings-design-changed"));
+});
+
 export function isExperimentEnabled(id: ExperimentId): boolean {
   return stores.get(id)?.get() ?? false;
 }

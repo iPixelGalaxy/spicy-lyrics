@@ -13,6 +13,33 @@ const CHANNELS_CHANGED_EVENT = "spicy-lyrics:channels-changed";
 const lsGet = (key) => Spicetify.LocalStorage.get(`${LS_PREFIX}${key}`);
 const lsSet = (key, value) => Spicetify.LocalStorage.set(`${LS_PREFIX}${key}`, value);
 
+const usesNewSettingsDesign = () => {
+  try {
+    const raw = window.Spicetify?.LocalStorage?.get?.("SL:settings") ?? window.localStorage.getItem("SL:settings");
+    const settings = JSON.parse(raw ?? "{}");
+    return settings?.["experiment:newSettingsDesign"] !== false &&
+      settings?.["experiment:newUpdatePromptDesign"] !== false;
+  } catch {
+    return true;
+  }
+};
+
+const applySettingsDesign = (element, enabled = usesNewSettingsDesign()) => {
+  element.classList.toggle("sle-classic", !enabled);
+};
+
+const syncSettingsDesign = () => {
+  const enabled = usesNewSettingsDesign();
+  for (const element of document.querySelectorAll(".sle-overlay, .sle-pill")) {
+    applySettingsDesign(element, enabled);
+  }
+};
+
+window.addEventListener("spicy-lyrics:settings-design-changed", syncSettingsDesign);
+window.addEventListener("storage", (event) => {
+  if (event.key === "SL:settings" || event.key === null) syncSettingsDesign();
+});
+
 // ─── Channel Storage Helpers ───
 
 const getCustomChannels = () => {
@@ -1214,6 +1241,57 @@ const POPUP_STYLES = `
   white-space: nowrap;
   border: 0;
 }
+.sle-classic .sle-dialog,
+.sle-pill.sle-classic {
+  --sle-field: #181818;
+  --sle-field-deep: #121212;
+  --sle-tint: var(--accent-tint-bg, rgba(255, 255, 255, 0.08));
+  --sle-ink: var(--color-text-primary, #f5f5f5);
+  --sle-ink-muted: var(--color-text-secondary, #b3b3b3);
+  --sle-cta: var(--accent, #fff);
+  --sle-cta-ink: var(--accent-on-fill, #121212);
+}
+.sle-overlay.sle-classic.is-open {
+  background-color: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.sle-classic .sle-dialog {
+  background-color: rgba(22, 22, 22, 0.55);
+  background-image: none;
+  -webkit-backdrop-filter: blur(40px) saturate(1.5);
+  backdrop-filter: blur(40px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 64px -12px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.16s ease;
+  transform: none;
+}
+.sle-classic .sle-mark {
+  display: none;
+}
+.sle-classic .sle-title {
+  font-size: var(--text-title-size, 1.25rem);
+  font-weight: var(--w-semibold, 600);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.sle-classic .sle-dialog > :not(.sle-mark) {
+  transition: none;
+}
+.sle-pill.sle-classic {
+  background-image: none;
+  border-color: var(--hairline-strong, rgba(255, 255, 255, 0.16));
+  border-radius: var(--radius-md, 12px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .sle-classic .sle-dialog {
+    background-color: var(--sle-field);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .sle-overlay,
   .sle-dialog,
@@ -1338,7 +1416,7 @@ const setLine = (node, text, state) => {
     return;
   }
 
-  const animate = node.isConnected && !reducedMotion.matches;
+  const animate = node.isConnected && !reducedMotion.matches && usesNewSettingsDesign();
   const from = animate ? (node.hidden ? collapsedFrame(node) : boxFrame(node)) : null;
   for (const animation of node.getAnimations({ subtree: true })) {
     if (animation.id === LINE_ANIMATION) animation.cancel();
@@ -1393,7 +1471,7 @@ const setButtonContent = (button, label, busy) => {
   if (busy) content.append(h("span", { class: "sle-spinner", "aria-hidden": "true" }));
   content.append(label);
   button.replaceChildren(content);
-  if (!button.isConnected || reducedMotion.matches) return;
+  if (!button.isConnected || reducedMotion.matches || !usesNewSettingsDesign()) return;
 
   const to = button.getBoundingClientRect().width;
   if (from !== to) {
@@ -1458,6 +1536,7 @@ let activePopup = null;
 
 // tone: "lavender" while waiting on something outside the extension, "red" when its own code failed.
 const showPopup = ({ tone = "lavender", title, content, primary, secondary, onDismiss, onRender, origin }) => {
+  const newDesign = usesNewSettingsDesign();
   const swapping = activePopup !== null;
   activePopup?.close({ immediate: true });
   ensurePopupStyles();
@@ -1486,6 +1565,7 @@ const showPopup = ({ tone = "lavender", title, content, primary, secondary, onDi
   );
   // One popup replacing another keeps the backdrop in place, so only the dialog animates.
   const overlay = h("div", { class: swapping ? "sle-overlay sle-overlay--swap" : "sle-overlay" }, dialog);
+  applySettingsDesign(overlay, newDesign);
   const previousFocus = document.activeElement;
   let closed = false;
   let busy = false;
@@ -1509,7 +1589,7 @@ const showPopup = ({ tone = "lavender", title, content, primary, secondary, onDi
     }
     overlay.classList.add("is-closing");
     overlay.classList.remove("is-open");
-    if (!to || reducedMotion.matches) {
+    if (!to || reducedMotion.matches || !usesNewSettingsDesign()) {
       setTimeout(() => overlay.remove(), 200);
       return;
     }
@@ -1580,7 +1660,7 @@ const showPopup = ({ tone = "lavender", title, content, primary, secondary, onDi
     overlay.getBoundingClientRect();
     overlay.classList.remove("sle-overlay--swap");
   }
-  if (origin && !reducedMotion.matches) {
+  if (origin && newDesign && !reducedMotion.matches) {
     const from = centerOf(dialog.getBoundingClientRect(), dialog.offsetWidth);
     dialog.animate(
       [
@@ -1641,7 +1721,8 @@ const createPill = () => {
 // state: { tone, label, countdown?, busy?, done?, stopLabel?, onOpen?, onStop? }. done turns it into a toast.
 const showPill = (state, { delay = 0 } = {}) => {
   ensurePopupStyles();
-  const animate = !reducedMotion.matches;
+  const newDesign = usesNewSettingsDesign();
+  const animate = !reducedMotion.matches && newDesign;
   const entering = !pill;
   if (entering) {
     pill = createPill();
@@ -1653,6 +1734,7 @@ const showPill = (state, { delay = 0 } = {}) => {
   const fromWidth = view.root.getBoundingClientRect().width;
   view.state = state;
   view.root.className = `sle-pill sle-tone-${state.tone}`;
+  applySettingsDesign(view.root, newDesign);
 
   if (view.label.textContent !== state.label) {
     view.label.textContent = state.label;
@@ -1719,7 +1801,7 @@ const hidePill = () => {
   window.removeEventListener("resize", placePill);
   const rect = view.root.getBoundingClientRect();
   view.root.style.pointerEvents = "none";
-  if (reducedMotion.matches) {
+  if (reducedMotion.matches || !usesNewSettingsDesign()) {
     view.root.remove();
     return rect;
   }

@@ -12,7 +12,7 @@ import { onExperimentChange } from "../../utils/experiments.ts";
 import { $isNowBarOpen, $nowBarSide } from "../../utils/uiState.ts";
 import Global from "../Global/Global.ts";
 import Session from "../Global/Session.ts";
-import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
+import { COVER_PLACEHOLDER_URL, SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import PageView, { PageContainer } from "../Pages/PageView.ts";
 import { Icons } from "../Styling/Icons.ts";
 import Fullscreen, {
@@ -1486,18 +1486,19 @@ function UpdateNowBar(force = false) {
     timeoutMs: number,
   ) =>
     new Promise<void>((resolve) => {
+      const targetWindow = el.ownerDocument.defaultView ?? window;
       let done = false;
       const finish = () => {
         if (done) return;
         done = true;
         el.removeEventListener("transitionend", onEnd);
-        clearTimeout(t);
+        targetWindow.clearTimeout(t);
         resolve();
       };
       const onEnd = (e: TransitionEvent) => {
         if (e.target === el && e.propertyName === propertyName) finish();
       };
-      const t = (el.ownerDocument.defaultView ?? window).setTimeout(finish, timeoutMs);
+      const t = targetWindow.setTimeout(finish, timeoutMs);
       el.addEventListener("transitionend", onEnd);
     });
 
@@ -1516,6 +1517,7 @@ function UpdateNowBar(force = false) {
   if (!$isNowBarOpen.get() && !force) return;
 
   const coverArt = SpotifyPlayer.GetCover("xlarge");
+  const coverTrackUri = SpotifyPlayer.GetUri();
 
   // If we have no container or cover art, bail out early
   if (!MediaImageContainer || !coverArt) {
@@ -1541,6 +1543,12 @@ function UpdateNowBar(force = false) {
 
   // Avoid re-running if the artwork hasn't changed
   if (previousCoverArt === coverArt) {
+    state.generation++;
+    state.pendingCover = null;
+    if (state.transitionTimer !== null) {
+      (MediaImageContainer.ownerDocument.defaultView ?? window).clearTimeout(state.transitionTimer);
+      state.transitionTimer = null;
+    }
     // DOM can temporarily lose its background/classes between rapid updates/remounts.
     // If the cover is logically the same, restore the image without triggering animation.
     const fromImage = MediaImageContainer.querySelector<HTMLDivElement>(".fi_FromImage");
@@ -1582,6 +1590,9 @@ function UpdateNowBar(force = false) {
         if (!MediaImageContainer.isConnected) return;
         if (coverRenderStates.get(MediaImageContainer) !== state || state.generation !== generation) return;
         state.pendingCover = null;
+        const currentUri = SpotifyPlayer.GetUri();
+        if (currentUri && coverTrackUri && currentUri !== coverTrackUri) return;
+        if (coverArt === COVER_PLACEHOLDER_URL && SpotifyPlayer.GetCover("xlarge") !== coverArt) return;
 
         // The first request may have painted this cover while an identical
         // request was in flight. Never crossfade identical artwork.

@@ -118,6 +118,7 @@ let finalVocalEnd = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
 let layoutObserver: MutationObserver | null = null;
 let coverTrackingFrame: number | null = null;
+let coverTrackingWindow: Window | null = null;
 let coverTrackingUntil = 0;
 let stageBounds: Bounds | null = null;
 let footerBounds: RectBounds | null = null;
@@ -491,9 +492,15 @@ function resolveBodyConstraints(body: GravityBody, width: number, height: number
 function trackCoverTransition(): void {
   coverTrackingUntil = Math.max(coverTrackingUntil, performance.now() + 450);
   if (coverTrackingFrame !== null) return;
+  const renderWindow = stage?.ownerDocument.defaultView ?? window;
+  coverTrackingWindow = renderWindow;
   const updateCoverBounds = (): void => {
     updateBounds(false);
-    if (!stageBounds) { coverTrackingFrame = null; return; }
+    if (!stageBounds) {
+      coverTrackingFrame = null;
+      coverTrackingWindow = null;
+      return;
+    }
     for (const body of activeBodies) {
       if (!body.Spawned) continue;
       const x = body.X;
@@ -510,10 +517,13 @@ function trackCoverTransition(): void {
       resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
       if (body.X !== x || body.Y !== y || body.Scale !== scale) renderBody(body);
     }
-    if (performance.now() < coverTrackingUntil) coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
-    else coverTrackingFrame = null;
+    if (performance.now() < coverTrackingUntil) coverTrackingFrame = renderWindow.requestAnimationFrame(updateCoverBounds);
+    else {
+      coverTrackingFrame = null;
+      coverTrackingWindow = null;
+    }
   };
-  coverTrackingFrame = requestAnimationFrame(updateCoverBounds);
+  coverTrackingFrame = renderWindow.requestAnimationFrame(updateCoverBounds);
 }
 
 function splitGraphemes(text: string): string[] {
@@ -1238,10 +1248,11 @@ export function destroySpaceGravity(): void {
   }
   windowPositionDocument = null;
   windowPositionVisibilityListener = null;
-  if (coverTrackingFrame !== null) cancelAnimationFrame(coverTrackingFrame);
+  if (coverTrackingFrame !== null) coverTrackingWindow?.cancelAnimationFrame(coverTrackingFrame);
   for (const [line, timer] of pendingLineRemovals) line.HTMLElement.ownerDocument.defaultView?.clearTimeout(timer);
   pendingLineRemovals = new Map();
   coverTrackingFrame = null;
+  coverTrackingWindow = null;
   coverTrackingUntil = 0;
   stage = null;
   viewport = null;

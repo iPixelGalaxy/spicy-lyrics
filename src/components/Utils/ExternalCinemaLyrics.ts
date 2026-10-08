@@ -8,6 +8,7 @@ import { SpotifyPlayer } from "../Global/SpotifyPlayer.ts";
 import { ScrollToActiveLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import { ScrollSimplebar } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import ApplyDynamicBackground from "../DynamicBG/dynamicBackground.ts";
+import { UpdateNowBar } from "./NowBar.ts";
 
 export let IsExternalCinemaLyrics = false;
 export let IsExternalCinemaOpening = false;
@@ -17,6 +18,7 @@ type CinemaSession = {
   cancelled: boolean;
   playbackPump: number | null;
   lastUri: string | null;
+  lastCover: string | null;
   externalPageHideHandler: (event: Event) => void;
 };
 
@@ -37,13 +39,18 @@ function stopSessionLoops(session: CinemaSession): void {
 
 function startSessionLoops(session: CinemaSession): void {
   session.lastUri = SpotifyPlayer.GetUri() ?? null;
+  session.lastCover = null;
   session.playbackPump = session.window.setInterval(() => {
     if (!isCurrent(session)) return;
     try {
       if (ScrollSimplebar) ScrollToActiveLine(ScrollSimplebar);
       const uri = SpotifyPlayer.GetUri() ?? null;
-      if (uri !== session.lastUri) {
+      if (!uri) return;
+      const cover = SpotifyPlayer.GetCover("xlarge") ?? null;
+      if (uri !== session.lastUri || cover !== session.lastCover) {
         session.lastUri = uri;
+        session.lastCover = cover;
+        UpdateNowBar(true);
         session.window.setTimeout(() => {
           if (!isCurrent(session)) return;
           const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
@@ -153,7 +160,7 @@ async function openExternalCinemaLyrics(): Promise<void> {
   const targetWindow = window.open("", "SpicyLyricsCinema", "popup=yes,width=1280,height=720");
   if (!targetWindow) return;
   const session: CinemaSession = {
-    window: targetWindow, cancelled: false, playbackPump: null, lastUri: null,
+    window: targetWindow, cancelled: false, playbackPump: null, lastUri: null, lastCover: null,
     externalPageHideHandler: () => { void CloseExternalCinemaLyrics(false); },
   };
   currentSession = session;

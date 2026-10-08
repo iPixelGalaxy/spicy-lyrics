@@ -153,9 +153,12 @@ const COVER_PLACEHOLDER = COVER_PLACEHOLDER_URL;
 const COVER_SIZE_PRIORITY: CoverSizes[] = ["xlarge", "large", "standard", "small"];
 
 type CoverImage = { url?: string; label?: string };
+let cachedCoverUri: string | undefined;
+const cachedCovers = new Map<CoverSizes, string>();
 
 function getCoverUrl(size: CoverSizes, source?: CoverImage[]): string | undefined {
-  const covers = source?.filter((cover) => typeof cover?.url === "string" && cover.url.trim());
+  const covers = source?.filter((cover) => typeof cover?.url === "string" &&
+    cover.url.trim() && cover.url.trim() !== COVER_PLACEHOLDER);
   if (!covers?.length) return undefined;
 
   // Some tracks omit the requested size or provide images without labels.
@@ -218,18 +221,27 @@ export const SpotifyPlayer = {
   GetCover: (size: CoverSizes): string | undefined => {
     const item = Spicetify?.Player?.data?.item;
     if (!item) return COVER_PLACEHOLDER;
+    if (item.uri !== cachedCoverUri) {
+      cachedCoverUri = item.uri;
+      cachedCovers.clear();
+    }
     const metadataCovers = COVER_SIZE_PRIORITY.map((label) => ({
       label,
       url: item.metadata?.[label === "standard" ? "image_url" : `image_${label}_url`],
     }));
     const show = (item as typeof item & { show?: { images?: CoverImage[] } }).show;
 
-    return (
+    const cover =
       getCoverUrl(size, [...(item.images ?? []), ...metadataCovers]) ??
       getCoverUrl(size, item.album?.images) ??
-      getCoverUrl(size, show?.images) ??
-      COVER_PLACEHOLDER
-    );
+      getCoverUrl(size, show?.images);
+    if (cover) {
+      if (item.uri) cachedCovers.set(size, cover);
+      return cover;
+    }
+    return (item.uri
+      ? getCoverUrl(size, [...cachedCovers].map(([label, url]) => ({ label, url })))
+      : undefined) ?? COVER_PLACEHOLDER;
   },
   GetCoverFrom: (
     size: CoverSizes,

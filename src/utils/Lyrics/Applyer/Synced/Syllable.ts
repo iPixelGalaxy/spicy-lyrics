@@ -327,8 +327,9 @@ export function UpdateRenderedSpaceGravity(enabled: boolean): boolean {
     // The normal playback tick may not arrive for a while. Let the new
     // virtualizer mount first, then consume the queued correction so its
     // visibility check cannot briefly show an incorrect "go to active" button.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!session.SpaceGravity && ScrollSimplebar) {
+    const renderWindow = session.Container.ownerDocument.defaultView ?? window;
+    renderWindow.requestAnimationFrame(() => renderWindow.requestAnimationFrame(() => {
+      if (syllableRenderSession === session && !session.SpaceGravity && ScrollSimplebar) {
         HoldScrollToActiveButtonUntilVisible();
         ScrollToActiveLine(ScrollSimplebar);
       }
@@ -888,7 +889,8 @@ export function ApplySyllableLyrics(
   else if (!spaceGravityMode) PositionInitialLyrics(ScrollSimplebar);
 
   if (enableSpaceGravityAfterMount) {
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    const renderWindow = LyricsContainer.ownerDocument.defaultView ?? window;
+    renderWindow.requestAnimationFrame(() => renderWindow.requestAnimationFrame(() => {
       if (!$spaceGravityMode.get() || syllableRenderSession?.Container !== LyricsContainer) return;
       UpdateRenderedSpaceGravity(true);
     }));

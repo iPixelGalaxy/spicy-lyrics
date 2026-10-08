@@ -1013,8 +1013,9 @@ $spaceGravityMode.listen((v) => {
     ReapplyCurrentLyrics();
     return;
   }
-  requestAnimationFrame(() => {
-    if (!PageContainer) return;
+  const page = PageContainer;
+  (page.ownerDocument.defaultView ?? window).requestAnimationFrame(() => {
+    if (PageContainer !== page || $spaceGravityMode.get() !== v) return;
     if (!UpdateRenderedSpaceGravity(v)) {
       // Line/static lyrics have no gravity renderer. Keep the preference for
       // their next word-synced track without changing this renderer's layout.

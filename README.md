@@ -62,6 +62,10 @@ This build is designed to **coexist with the official Spicy Lyrics release**. If
 
 ## What's New
 
+## v100.10.50
+
+- **Updated to be inline with 6.3.190**
+
 ## v100.10.49
 
 - **Updated to be inline with 6.3.153**

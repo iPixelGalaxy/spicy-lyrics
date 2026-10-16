@@ -1,4 +1,4 @@
-import { atom } from "nanostores";
+import { atom, computed } from "nanostores";
 import { ProjectVersion } from "../../project/config.ts";
 import { SETTING_IDS } from "../components/ReactComponents/SettingsPanel/hiddenSettings.ts";
 
@@ -30,6 +30,7 @@ function migrateSettingsKeys(blob: Record<string, any>): Record<string, any> {
     "skip-spicy-font": "skipSpicyFont",
     show_npv_dynamic_bg: "showNpvDynamicBg",
     displayLyricsHoverPill: "lineHoverBackground",
+    "experiment:duetLinePadding": "duetLinePadding",
   };
   let changed = false;
   for (const [oldKey, newKey] of Object.entries(renames)) {
@@ -77,10 +78,14 @@ const SHARED_STATIC_BACKGROUND_MODES = new Set([
   "artistHeader",
   "coverArt",
   "color",
+  "none",
 ]);
 
 function readStaticBackgroundMode(): string {
-  const sharedMode = _settings[STATIC_BACKGROUND_MODE_KEY];
+  const styleModes: Record<string, string> = {
+    dynamic: "off", artist: "artistHeader", cover: "coverArt", color: "color", none: "none",
+  };
+  const sharedMode = styleModes[_settings.backgroundStyle] ?? _settings[STATIC_BACKGROUND_MODE_KEY];
   const remembersLegacy = _settings[PIXEL_LEGACY_BACKGROUND_KEY] === true;
   let effectiveMode = "default";
   let compatibleMode = sharedMode;
@@ -128,20 +133,38 @@ export const $staticBackgroundMode = (() => {
         : "off";
     _settings[STATIC_BACKGROUND_MODE_KEY] = sharedMode;
     _settings[PIXEL_LEGACY_BACKGROUND_KEY] = legacy;
+    _settings.backgroundStyle = backgroundStyleForMode(mode) === "legacy" ? "dynamic" : backgroundStyleForMode(mode);
     saveSettingsBlob(_settings);
   });
   return store;
 })();
 // Blur radius (px) applied to image-based static backgrounds — not the "color" mode.
-export const $staticBackgroundBlur = persistAtom<number>("staticBackgroundBlur", 0);
+export const $staticBackgroundBlur = persistAtom<number>("staticBackgroundBlur", _settings.backgroundBlur ?? 0);
+export type BackgroundStyle = "dynamic" | "artist" | "cover" | "color" | "none" | "legacy";
+export const BACKGROUND_STYLES: readonly BackgroundStyle[] = ["dynamic", "artist", "cover", "color", "none", "legacy"];
+function backgroundStyleForMode(mode: string): BackgroundStyle {
+  if (mode === "auto" || mode === "artistHeader") return "artist";
+  if (mode === "coverArt") return "cover";
+  if (mode === "color" || mode === "none" || mode === "legacy") return mode;
+  return "dynamic";
+}
+export const $backgroundStyle = computed($staticBackgroundMode, backgroundStyleForMode);
+export const $backgroundBlur = $staticBackgroundBlur;
+$staticBackgroundBlur.listen((value) => {
+  _settings.backgroundBlur = value;
+  saveSettingsBlob(_settings);
+});
 export const $simpleLyricsMode = persistAtom<boolean>("simpleLyricsMode", false);
-export const $simpleLyricsModeRenderingType = persistAtom<string>(
-  "simpleLyricsModeRenderingType",
-  "calculate"
-);
+export const $simpleLyricsModeRenderingType = persistAtom<string>("simpleLyricsModeRenderingType", "calculate");
 export const $minimalLyricsMode = persistAtom<boolean>("minimalLyricsMode", false);
 // Tinted box drawn behind a lyrics line while the pointer is over it.
 export const $lineHoverBackground = persistAtom<boolean>("lineHoverBackground", true);
+// Wide inset on the side a duet line leans away from, so the two voices read as
+// separate columns. Off gives duet lines the same slight padding as every line.
+export const $duetLinePadding = persistAtom<boolean>("duetLinePadding", true);
+// When a song ends on a duet line sung from the right, the credits under it
+// (writers, provider, community info) move to the right with it.
+export const $creditsFollowLastLine = persistAtom<boolean>("creditsFollowLastLine", false);
 export const $skipSpicyFont = persistAtom<boolean>("skipSpicyFont", false);
 export const $showNpvDynamicBg = persistAtom<boolean>("showNpvDynamicBg", true);
 // Never inject the lyrics card into the Now Playing sidebar at all.
@@ -152,6 +175,10 @@ export const $hideNpvLyricsWhenUnavailable = persistAtom<boolean>(
   "hideNpvLyricsWhenUnavailable",
   true
 );
+// Off: a song that simply has no lyrics (not found, local file, DJ, podcast...) shows
+// only the song info instead of the notice. Errors still show theirs. The NPV card
+// has its own switch above.
+export const $showNoLyricsNotice = persistAtom<boolean>("showNoLyricsNotice", true);
 // Hide Spotify's own lyrics button in the playback bar (ours is left alone).
 export const $removeSpotifyLyricsButton = persistAtom<boolean>("removeSpotifyLyricsButton", false);
 export const $lockedMediaBox = persistAtom<boolean>("lockedMediaBox", false);

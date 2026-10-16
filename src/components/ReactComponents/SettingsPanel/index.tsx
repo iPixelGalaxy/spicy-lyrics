@@ -9,14 +9,15 @@ import LyricsSection from "./LyricsSection.tsx";
 import SourcesSection from "./SourcesSection.tsx";
 import Footer from "./Footer.tsx";
 import { SearchBar, ShowHiddenSettingsInSearchContext } from "./components.tsx";
+import { AdvancedIcon, AppearanceIcon, ExperimentsIcon, InterfaceIcon, LyricsIcon, SourcesIcon } from "./icons.tsx";
 
 const TABS = [
-  ["Appearance", "Appearance", "✦"],
-  ["Lyrics", "Lyrics Display", "♪"],
-  ["Effects", "Effects", "✦"],
-  ["Interface", "Interface", "▣"],
-  ["Sources", "Sources", "≋"],
-  ["Advanced", "Advanced", "⚙"],
+  ["Appearance", "Appearance", AppearanceIcon],
+  ["Lyrics", "Lyrics Display", LyricsIcon],
+  ["Effects", "Effects", ExperimentsIcon],
+  ["Interface", "Interface", InterfaceIcon],
+  ["Sources", "Sources", SourcesIcon],
+  ["Advanced", "Advanced", AdvancedIcon],
 ] as const;
 
 export type SettingsPanelState = { query: string; sectionFilter: string; scrollTop: number };
@@ -51,7 +52,7 @@ export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, 
   return (
     <div className="slm sl-sp-panel sl-sp-panel--settings">
       <div className="sl-sp-settings-header">
-        <div className="sl-sp-tabs" role="tablist" aria-label="Settings categories">
+        <div className="sl-sp-tabs" role="tablist" aria-label="Settings categories" aria-orientation="horizontal">
         {TABS.map(([label, tab, icon], index) => <button
           key={tab}
           ref={(element) => { tabRefs.current[index] = element; }}
@@ -61,7 +62,7 @@ export default function SettingsPanel({ onOpenHiddenSettings, onManageAnimator, 
           aria-selected={sectionFilter === tab && !searching}
           onClick={() => selectTab(tab)}
           onKeyDown={(event) => onTabKeyDown(event, index)}
-        ><span aria-hidden="true">{icon}</span>{label}</button>)}
+        ><span className="sl-sp-tab-icon" aria-hidden="true">{icon}</span>{label}</button>)}
         {allowHidingSettings && <button className={`sl-sp-tab sl-sp-tab--action${hideHidingIcon ? "" : " sl-sp-tab--active"}`} type="button" aria-pressed={!hideHidingIcon} onClick={() => $hideHidingIcon.set(!hideHidingIcon)}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 8s2.3-4 6.5-4 6.5 4 6.5 4-2.3 4-6.5 4-6.5-4-6.5-4Z" stroke="currentColor" strokeWidth="1.4"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" strokeWidth="1.4"/><path d="M2 2l12 12" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>Hide Settings</button>}
         </div>
         <div className="sl-sp-toolbar">

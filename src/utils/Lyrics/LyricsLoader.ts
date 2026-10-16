@@ -3,10 +3,10 @@ import { SpotifyPlayer } from "../../components/Global/SpotifyPlayer.ts";
 import { isCurrentTrack } from "./Sources/Track.ts";
 import { IsLyricsSkeletonEnabled } from "./LyricsSkeleton.ts";
 import { onExperimentChange } from "../experiments.ts";
+import { getRemoteConfig } from "../remoteConfig.ts";
 
 export const LYRICS_QUEUE_MESSAGE = "Waiting for lyrics. Retrying automatically.";
 const DEFAULT_LABEL = "Loading Lyrics";
-const SPINNER_DELAY_MS = 2000;
 let ownerUri: string | null = null;
 let ownerContainer: HTMLElement | null = null;
 let shownAt = 0;
@@ -73,7 +73,7 @@ function showPresentation(immediateSpinner = false): void {
     spinner.classList.add("active");
     spinner.setAttribute("aria-hidden", "false");
   };
-  const delay = immediateSpinner || queuedMessage ? 0 : Math.max(0, SPINNER_DELAY_MS - (performance.now() - shownAt));
+  const delay = immediateSpinner || queuedMessage ? 0 : Math.max(0, getRemoteConfig().lyricsFetch.loaderRevealDelayMs - (performance.now() - shownAt));
   if (delay === 0) reveal();
   else {
     revealWindow = container.ownerDocument.defaultView ?? window;

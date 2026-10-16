@@ -17,8 +17,10 @@ export function MountScrollSimplebar() {
     return;
   }
 
-  // @ts-expect-error abc
-  ScrollSimplebar = new SimpleBar(LyricsContainer, { autoHide: false });
+  // The popup's lyrics can be a few hundred px tall over a very long list, where
+  // the default 25px thumb is a hard target.
+  const scrollbarMinSize = LyricsContainer.closest(".spicy-pip-wrapper") ? 36 : 25;
+  ScrollSimplebar = new SimpleBar(LyricsContainer, { autoHide: false, scrollbarMinSize });
 }
 
 export function ClearScrollSimplebar() {
@@ -28,4 +30,9 @@ export function ClearScrollSimplebar() {
 
 export function RecalculateScrollSimplebar() {
   ScrollSimplebar?.recalculate();
+}
+
+// SimpleBar puts this class on its root for the whole of a thumb drag.
+export function IsScrollbarDragging(): boolean {
+  return ScrollSimplebar?.el?.classList.contains("simplebar-dragging") ?? false;
 }

@@ -32,12 +32,14 @@ import {
   ScrollSimplebar,
 } from "../../utils/Scrolling/Simplebar/ScrollSimplebar.ts";
 import { toCssFontFamily } from "../../utils/cssFontFamily.ts";
-import ApplyDynamicBackground, { KawarpMap } from "../DynamicBG/dynamicBackground.ts";
+import ApplyDynamicBackground, { KawarpMap, PAGE_BACKGROUND_KEY } from "../DynamicBG/dynamicBackground.ts";
 import {
+  $creditsFollowLastLine,
   $currentLyricsData,
   $customFont,
   $customFontEnabled,
   $enableExperimentalWordSync,
+  $duetLinePadding,
   $lineHoverBackground,
   $memeFormat,
   $lyricsContainerExists,
@@ -84,7 +86,11 @@ import { OpenLyricsDBPanel } from "../../utils/openLyricsDBPanel.tsx";
 import { openSettingsPanel } from "../../utils/settings.ts";
 import Logger from "../../utils/Logger.ts";
 import { setStockPlaybarPage } from "../../utils/themeMatcher.ts";
-import { ApplyExperimentClasses, onExperimentChange } from "../../utils/experiments.ts";
+import {
+  ApplyExperimentClasses,
+  onExperimentChange,
+  onExperimentDefinitionChange,
+} from "../../utils/experiments.ts";
 import { triggerRemeasureLV } from "../../utils/Lyrics/LyricsVirtualizer.ts";
 import { $animatorPreset } from "../../utils/Lyrics/Animator/Tuning.ts";
 import {
@@ -369,6 +375,20 @@ async function OpenPage(
     elem.classList.add("NoLineHoverBackground");
   }
 
+  if ($duetLinePadding.get()) {
+    elem.classList.add("DuetLinePadding");
+  }
+
+  if ($creditsFollowLastLine.get()) {
+    elem.classList.add("CreditsFollowLastLine");
+  }
+
+  // Gates the raised .PlaybackControls / tightened .Heart offsets that make room for
+  // the volume band — without it, turning the setting off would leave a gap.
+  if ($showVolumeSlider.get()) {
+    elem.classList.add("ShowVolumeSlider");
+  }
+
   ApplyExperimentClasses(elem);
   applyPinnedFooterMode(elem);
 
@@ -378,7 +398,7 @@ async function OpenPage(
   // Card mode stays transparent — the NPV's own dynamic background shows through.
   if (contentBox && !IsCardMode) {
     try {
-      ApplyDynamicBackground(contentBox, "lpagebg");
+      ApplyDynamicBackground(contentBox, PAGE_BACKGROUND_KEY);
     } catch (err) {
       pageLogger.error("Error applying dynamic background", err);
     }
@@ -511,8 +531,8 @@ async function DestroyPage() {
   // close already playing, so it can't re-insert this page afterwards.
   Fullscreen.CloseImmediately();
 
-  KawarpMap.get("lpagebg")?.dispose();
-  KawarpMap.delete("lpagebg");
+  KawarpMap.get(PAGE_BACKGROUND_KEY)?.dispose();
+  KawarpMap.delete(PAGE_BACKGROUND_KEY);
   ResetLastLine();
   CleanupScrollEvents();
   PageResizeListener?.disconnect(); // Disconnect the observer
@@ -1026,6 +1046,14 @@ $spaceGravityMode.listen((v) => {
   });
 });
 
+$duetLinePadding.listen((v) => {
+  PageContainer?.classList.toggle("DuetLinePadding", v);
+});
+
+$creditsFollowLastLine.listen((v) => {
+  PageContainer?.classList.toggle("CreditsFollowLastLine", v);
+});
+
 $customFontEnabled.listen((v) => {
   if (!PageContainer) return;
   PageContainer.classList.toggle("UseSpicyFont", !v);
@@ -1056,7 +1084,11 @@ function ReapplyCurrentLyrics(): void {
 onExperimentChange((experiment) => {
   if (!PageContainer) return;
   ApplyExperimentClasses(PageContainer);
-  if (experiment.rebuildsLyrics) ReapplyCurrentLyrics();
+  if (experiment.rebuildsLyrics || (experiment.id === "refreshedSimpleLyrics" && $simpleLyricsMode.get())) ReapplyCurrentLyrics();
+});
+
+onExperimentDefinitionChange(() => {
+  if (PageContainer) ApplyExperimentClasses(PageContainer);
 });
 
 $pinnedFooterMode.listen(() => {

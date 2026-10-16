@@ -23,7 +23,7 @@ import {
 import { CreateLyricsContainer, DestroyAllLyricsContainers } from "../CreateLyricsContainer.ts";
 import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../../LyricsVirtualizer.ts";
 import { ApplyIsByCommunity } from "../Credits/ApplyIsByCommunity.tsx";
-import { ApplyLyricsCredits } from "../Credits/ApplyLyricsCredits.ts";
+import { ApplyLyricsCredits, MarkLastLineSide } from "../Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "../Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "../OnApply.ts";
 import { ApplyLyricsProvider } from "../Credits/ApplyProvider.ts";
@@ -101,6 +101,8 @@ export function ApplyLineLyrics(
   LyricsContainer.classList.toggle("HasDuetLines", hasOppositeAligned);
   const hasRtlLines = data.Content.some(line => isRtl(line.Text));
   LyricsContainer.classList.toggle("HasRtlLines", hasRtlLines);
+  const lastLine = data.Content[data.Content.length - 1];
+  MarkLastLineSide(LyricsContainer, !!lastLine?.OppositeAligned, !!lastLine && isRtl(lastLine.Text));
 
   LyricsContainer.setAttribute("data-lyrics-type", "Line");
 

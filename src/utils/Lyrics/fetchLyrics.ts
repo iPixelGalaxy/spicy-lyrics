@@ -16,6 +16,8 @@ import {
 import { isCurrentTrack } from "./Sources/Track.ts";
 import { LyricsQueueRetry } from "./LyricsQueueRetry.ts";
 import { HideLoaderContainer, ShowLoaderContainer } from "./LyricsLoader.ts";
+import { getRemoteConfig } from "../remoteConfig.ts";
+import { SetShownNotice, SyncNoLyricsLayout } from "./LyricsNotice.ts";
 
 export { LYRICS_QUEUE_MESSAGE, ShowQueueLoader } from "./LyricsLoader.ts";
 
@@ -24,12 +26,34 @@ const lyricsCacheLogger = new Logger("Lyrics Cache");
 
 export const LyricsStore = GetExpireStore<any>("SpicyLyrics_LyricsStore_g1", 6, {
   Unit: "Days",
-  Duration: 3,
+  get Duration() { return getRemoteConfig().cache.lyricsTtlDays; },
 }, isDev as true);
 
 export const SessionTTMLStore = new Map<string, any>();
 const LYRICS_SOURCE_CACHE_VERSION = 4;
 const inFlightLyricsFetches = new Map<string, Promise<[object | string, number] | null>>();
+export type FetchLyricsResult = [object | string, number] | null;
+export type LyricsFetchFailure = { uri: string; source: string; detail?: string };
+let lastFailure: LyricsFetchFailure | null = null;
+function noteFailure(uri: string, source: string, detail?: unknown): void {
+  lastFailure = { uri, source, detail: detail instanceof Error ? `${detail.name}: ${detail.message}` : detail === undefined ? undefined : String(detail) };
+}
+export function GetLastLyricsFailure(uri: string | undefined): LyricsFetchFailure | null {
+  return uri && lastFailure?.uri === uri ? lastFailure : null;
+}
+let lastNetworkStageAt = -Infinity;
+let cancelPendingBackoff: (() => void) | null = null;
+function backOffIfSwitchingFast(): Promise<boolean> {
+  const { rapidSwitchWindowMs, rapidSwitchBackoffMs } = getRemoteConfig().lyricsFetch;
+  const now = performance.now();
+  const switchingFast = now - lastNetworkStageAt < rapidSwitchWindowMs;
+  lastNetworkStageAt = now;
+  if (!switchingFast) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { cancelPendingBackoff = null; resolve(true); }, rapidSwitchBackoffMs);
+    cancelPendingBackoff = () => { clearTimeout(timer); cancelPendingBackoff = null; resolve(false); };
+  });
+}
 
 function finishFetching(uri: string): void {
   if (isCurrentTrack(uri)) $currentlyFetching.set(false);
@@ -100,8 +124,8 @@ async function presentLyrics(uri: string, lyricsData: any): Promise<void> {
   LyricsQueueRetry.NotifyResolved(uri);
   setRomanizationClass(lyricsData?.HasTransliterations);
   $currentLyricsType.set(lyricsData.Type);
-  PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.remove("LyricsHidden");
-  PageContainer?.querySelector(".ContentBox .LyricsContainer")?.classList.remove("Hidden");
+  SetShownNotice(null);
+  SyncNoLyricsLayout();
   PageView.AppendViewControls(true);
   finishFetching(uri);
 }
@@ -149,6 +173,8 @@ async function fetchLyricsInternal(
   options: FetchLyricsOptions
 ): Promise<[object | string, number] | null> {
   lyricsLogger.debug("Fetch requested", uri);
+  cancelPendingBackoff?.();
+  if (lastFailure?.uri === uri) lastFailure = null;
   const LyricsContent =
     PageContainer?.querySelector(".LyricsContainer .LyricsContent") ?? undefined;
   if (LyricsContent?.classList.contains("offline")) {
@@ -203,6 +229,7 @@ async function fetchLyricsInternal(
         if ((savedUri === uri || getSongKey(savedUri) === trackId) && getActiveLyricsSourceOrder().length <= 1) {
           finishFetching(uri);
           HideLoaderContainer(uri);
+          noteFailure(uri, "saved state");
           return ["lyrics-not-found", 404];
         }
       } else {
@@ -248,6 +275,7 @@ async function fetchLyricsInternal(
         if (lyricsFromCache.Value === "NO_LYRICS") {
           finishFetching(uri);
           HideLoaderContainer(uri);
+          noteFailure(uri, "lyrics cache");
           return ["lyrics-not-found", 404];
         }
         if (isLyricsCacheCompatible(lyricsFromCache)) {
@@ -257,6 +285,8 @@ async function fetchLyricsInternal(
       }
     } catch (error) {
       lyricsCacheLogger.error("Error parsing cache entry", error);
+      await LyricsStore.RemoveItem(trackId).catch(() => {});
+      noteFailure(uri, "lyrics cache", error);
       finishFetching(uri);
       HideLoaderContainer(uri);
       return ["unknown-error", 0];
@@ -271,6 +301,7 @@ async function fetchLyricsInternal(
   }
 
   try {
+    if (!isCurrentTrack(uri) || !(await backOffIfSwitchingFast()) || !isCurrentTrack(uri)) return null;
     const providerResult = await fetchLyricsFromProviders(
       uri,
       getActiveLyricsSourceOrder(),
@@ -284,6 +315,7 @@ async function fetchLyricsInternal(
     const lyrics = providerResult?.lyrics;
 
     if (lyrics === null || lyrics === undefined || lyrics === "") {
+      noteFailure(uri, "API", "no provider returned lyrics");
       HideLoaderContainer(uri);
       finishFetching(uri);
       return ["lyrics-not-found", 404];
@@ -293,6 +325,7 @@ async function fetchLyricsInternal(
 
     if (IsEmptyLyrics(lyrics)) {
       lyricsLogger.warn("Lyrics payload had no renderable lines after pruning");
+      noteFailure(uri, "API", "no renderable lines after pruning");
       HideLoaderContainer(uri);
       finishFetching(uri);
       return ["lyrics-not-found", 404];
@@ -313,6 +346,7 @@ async function fetchLyricsInternal(
     return [{ ...lyricsWithId, fromCache: false }, 200];
   } catch (error) {
     lyricsLogger.error("Error fetching lyrics", error);
+    noteFailure(uri, "API", error);
     finishFetching(uri);
     HideLoaderContainer(uri);
     return ["unknown-error", 0];

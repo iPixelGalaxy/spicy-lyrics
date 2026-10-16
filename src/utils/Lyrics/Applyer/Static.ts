@@ -19,7 +19,7 @@ import { CreateLyricsContainer, DestroyAllLyricsContainers } from "./CreateLyric
 import { initLyricsVirtualizer, type LyricsViewportAnchor } from "../LyricsVirtualizer.ts";
 import { StripZeroWidth } from "./Utils/StripZeroWidth.ts";
 import { ApplyIsByCommunity } from "./Credits/ApplyIsByCommunity.tsx";
-import { ApplyLyricsCredits } from "./Credits/ApplyLyricsCredits.ts";
+import { ApplyLyricsCredits, MarkLastLineSide } from "./Credits/ApplyLyricsCredits.ts";
 import { ApplyExperimentalWordSyncNotice } from "./Credits/ApplyExperimentalWordSyncNotice.ts";
 import { EmitApply, EmitNotApplyed } from "./OnApply.ts";
 import { ApplyLyricsProvider } from "./Credits/ApplyProvider.ts";
@@ -96,6 +96,7 @@ export function ApplyStaticLyrics(
   }
 
   LyricsContainer.classList.remove("HasDuetLines");
+  MarkLastLineSide(LyricsContainer, false, false);
   const hasRtlLines = data.Lines.some(line => isRtl(line.Text));
   LyricsContainer.classList.toggle("HasRtlLines", hasRtlLines);
 

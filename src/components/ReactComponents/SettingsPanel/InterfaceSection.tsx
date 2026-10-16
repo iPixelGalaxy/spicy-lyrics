@@ -14,6 +14,7 @@ import {
   $showVolumeSliderFullscreen,
   $removeSpotifyLyricsButton,
   $viewControlsPosition,
+  $showNoLyricsNotice,
 } from "../../../utils/stores.ts";
 import { $isGlobalNav } from "../../../utils/uiState.ts";
 import { matches, Row, Select, SectionTitle, Toggle } from "./components.tsx";
@@ -41,6 +42,7 @@ export default function InterfaceSection({ query, sectionFilter, showHidden = fa
   const hideNpvLyricsWhenUnavailable = useStore($hideNpvLyricsWhenUnavailable);
   const disableNpvLyrics = useStore($disableNpvLyrics);
   const removeSpotifyLyricsButton = useStore($removeSpotifyLyricsButton);
+  const showNoLyricsNotice = useStore($showNoLyricsNotice);
   const isGlobalNav = useStore($isGlobalNav);
   const hiddenSettingIds = useStore($hiddenSettingIds);
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
@@ -50,11 +52,13 @@ export default function InterfaceSection({ query, sectionFilter, showHidden = fa
     matches(query, "Lock Media Box Size in Compact Mode", "Prevent the media box from resizing when Forced Compact Mode is active."), matches(query, "Disable Popup Lyrics Window", "Show or hide the Popup Lyrics button in the playback bar."), matches(query, "Lyrics Controls Position", "Where the lyrics view controls (play, scroll, etc.) appear."), matches(query, "Always Show In Fullscreen", "Keep fullscreen time or controls visible."), matches(query, "Fullscreen Volume Slider", "Show a volume slider in fullscreen."), matches(query, "Release Year Position", "Show release year near track metadata."), matches(query, "Animate closing fullscreen", "Slide the lyrics page away when closing fullscreen."), matches(query, "Escape Key Function", "Choose how Escape behaves in lyrics fullscreen."), matches(query, "Disable NPV Lyrics", "Never show the lyrics card in the Now Playing sidebar."), matches(query, "Hide NPV Lyrics When No Lyrics Are Available", "Remove the lyrics card from the Now Playing sidebar while the current song has no lyrics, instead of showing a notice. It comes back on the next song that has them."), matches(query, "Open Profiles in Browser", "Open contributor profiles in your browser instead of inside Spotify."),
     matches(query, "Remove Spotify's Lyrics Button", "Hide Spotify's built-in lyrics button from the playback bar."),
   ].map((matched, index) => matched && (showHidden ? hiddenSettingIds.includes(ids[index]) : !allowHidingSettings || !hiddenSettingIds.includes(ids[index]) || Boolean(query.trim())));
-  if (!rows.some(Boolean)) return null;
+  const notice = matches(query, "No Lyrics Notice", "Explain why a song has no lyrics. Errors always show their notice.") && (showHidden ? hiddenSettingIds.includes("interface-no-lyrics-notice") : !allowHidingSettings || !hiddenSettingIds.includes("interface-no-lyrics-notice") || Boolean(query.trim()));
+  if (!rows.some(Boolean) && !notice) return null;
   const normalizedAlwaysShow = alwaysShowInFullscreen === "All" ? "Both" : alwaysShowInFullscreen;
 
   return <>
     <SectionTitle>Interface</SectionTitle>
+    {notice && <Row settingId="interface-no-lyrics-notice" label="No Lyrics Notice" description="Explain why a song has no lyrics. Errors always show their notice."><Toggle checked={showNoLyricsNotice} onChange={(v) => $showNoLyricsNotice.set(v)} /></Row>}
     {rows[0] && <Row settingId="interface-lock-media-box" label="Lock Media Box Size in Compact Mode" description="Prevent the media box from resizing when Forced Compact Mode is active."><Toggle checked={lockedMediaBox} onChange={(v) => $lockedMediaBox.set(v)} /></Row>}
     {rows[1] && <Row settingId="interface-disable-popup" label="Disable Popup Lyrics Window" description="Show or hide the Popup Lyrics button in the playback bar."><Toggle checked={!popupLyricsAllowed} onChange={(v) => $popupLyricsAllowed.set(!v)} /></Row>}
     {rows[2] && <Row settingId="interface-view-controls" label="View Controls Position" description="Where the view controls (play, scroll, etc.) appear." disabled={!isGlobalNav} disabledReason="Only available in Spotify's new navigation layout"><Select value={viewControlsPosition} options={vcPositionOptions} onChange={(v) => $viewControlsPosition.set(v)} /></Row>}

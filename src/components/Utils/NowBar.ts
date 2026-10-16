@@ -301,8 +301,10 @@ function OpenNowBar(skipSaving: boolean = false) {
   NowBar.classList.add("Active");
 
   if (spicyLyricsPage) {
+    const wasOpen = spicyLyricsPage.classList.contains("NowBarStatus__Open");
     spicyLyricsPage.classList.remove("NowBarStatus__Closed");
     spicyLyricsPage.classList.add("NowBarStatus__Open");
+    if (!wasOpen) Global.Event.evoke("nowbar:open", null);
   }
 
   if (!skipSaving) $isNowBarOpen.set(true);
@@ -944,13 +946,19 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
           return (event as MouseEvent).clientY;
         };
-
         const percentageFromEvent = (event: MouseEvent | TouchEvent) => {
-          const clientY = clientYFromEvent(event);
-          if (!Number.isFinite(clientY)) return currentLevel;
+          const point = "touches" in event
+            ? event.touches[0] ?? event.changedTouches[0]
+            : event;
+          if (!point || !Number.isFinite(point.clientY)) return currentLevel;
           const rect = VolumeElement.getBoundingClientRect();
+          // The Canvas Stage dock lays the capsule flat; its shape says which axis to read.
+          if (rect.width > rect.height) {
+            if (rect.width === 0) return currentLevel;
+            return clamp((point.clientX - rect.left) / rect.width);
+          }
           if (rect.height === 0) return currentLevel;
-          return clamp(1 - (clientY - rect.top) / rect.height);
+          return clamp(1 - (point.clientY - rect.top) / rect.height);
         };
 
         // Volume has no seek cost, so we commit live on every move instead of only
@@ -1327,8 +1335,10 @@ function CloseNowBar() {
 
   const spicyLyricsPage = PageContainer;
   if (spicyLyricsPage) {
+    const wasOpen = spicyLyricsPage.classList.contains("NowBarStatus__Open");
     spicyLyricsPage.classList.remove("NowBarStatus__Open");
     spicyLyricsPage.classList.add("NowBarStatus__Closed");
+    if (wasOpen) Global.Event.evoke("nowbar:close", null);
   }
 
   setTimeout(() => {
@@ -1471,6 +1481,20 @@ async function getAVCStreamUrl(manifestUrl: string) {
         ArtistsSpan.textContent = processedArtists ?? "";
     }
 } */
+
+/**
+ * The fullscreen song/artist links. In PiP the page lives in the popup window
+ * and `Fullscreen.IsOpen` is true too, but the main-window Close would drag the
+ * page out of the popup — so there we only navigate the main window, and bring
+ * it forward so the navigation is visible. A click during the exit animation is
+ * dropped rather than navigating twice.
+ */
+async function navigateFromFullscreen(pathname: string) {
+  if (IsFullscreenClosing()) return;
+  if (!IsPIP && Fullscreen.IsOpen && !(await Fullscreen.Close())) return;
+  Session.Navigate({ pathname });
+  if (IsPIP) globalThis.focus();
+}
 
 // Each UpdateNowBar takes a token for its delayed metadata swap; a later update
 // (fast skipping) makes the earlier one's pending timers no-ops.
@@ -1877,40 +1901,33 @@ function UpdateNowBar(force = false) {
 }
 
 
+// A layout can animate the swap: it gets the swap to run at the right moment and returns true,
+// or returns false to let it happen straight away. Set by CanvasImmersive.ts.
+type SideSwapTransition = (applySwap: () => void, to: "left" | "right") => boolean;
+let sideSwapTransition: SideSwapTransition | null = null;
+
+function SetSideSwapTransition(transition: SideSwapTransition | null) {
+  sideSwapTransition = transition;
+}
+
 function NowBar_SwapSides() {
-  const NowBar = PageContainer?.querySelector(".ContentBox .NowBar");
-  if (!NowBar) return;
+  const to = $nowBarSide.get() === "right" ? "left" : "right";
+  if (sideSwapTransition?.(ApplySideSwap, to)) return;
+  ApplySideSwap();
+}
 
-  const spicyLyricsPage = PageContainer;
-  if (!spicyLyricsPage) return;
+function ApplySideSwap() {
+  $nowBarSide.set($nowBarSide.get() === "right" ? "left" : "right");
+  Session_NowBar_SetSide();
+}
 
-  const CurrentSide = $nowBarSide.get();
-  if (CurrentSide === "left") {
-    $nowBarSide.set("right");
-    NowBar.classList.remove("LeftSide");
-    NowBar.classList.add("RightSide");
-    spicyLyricsPage.classList.remove("NowBarSide__Left");
-    spicyLyricsPage.classList.add("NowBarSide__Right");
-  } else if (CurrentSide === "right") {
-    $nowBarSide.set("left");
-    NowBar.classList.remove("RightSide");
-    NowBar.classList.add("LeftSide");
-    spicyLyricsPage.classList.remove("NowBarSide__Right");
-    spicyLyricsPage.classList.add("NowBarSide__Left");
-  } else {
-    $nowBarSide.set("right");
-    NowBar.classList.remove("LeftSide");
-    NowBar.classList.add("RightSide");
-    spicyLyricsPage.classList.remove("NowBarSide__Left");
-    spicyLyricsPage.classList.add("NowBarSide__Right");
-  }
-
-  setTimeout(() => {
-    // console.log("Resizing Lyrics Container");
-    GetCurrentLyricsContainerInstance()?.Resize();
-    // console.log("Forcing Scroll");
-    QueueForceScroll();
-  }, 10);
+// The side the page shows: the stored one, except that compact mode and the centred
+// no-lyrics layout always lay out on the left. The stored side is left alone, so it
+// comes back once they end.
+function ResolveNowBarSide(page: HTMLElement): "left" | "right" {
+  if (page.classList.contains("CompactMode")) return "left";
+  if (page.querySelector(".ContentBox")?.classList.contains("LyricsHidden")) return "left";
+  return $nowBarSide.get() === "right" ? "right" : "left";
 }
 
 function Session_NowBar_SetSide() {
@@ -1921,29 +1938,28 @@ function Session_NowBar_SetSide() {
   if (!spicyLyricsPage) return;
 
   const CurrentSide = $nowBarSide.get();
-  if (CurrentSide === "left") {
-    NowBar.classList.remove("RightSide");
-    NowBar.classList.add("LeftSide");
-    spicyLyricsPage.classList.remove("NowBarSide__Right");
-    spicyLyricsPage.classList.add("NowBarSide__Left");
-  } else if (CurrentSide === "right") {
-    NowBar.classList.remove("LeftSide");
-    NowBar.classList.add("RightSide");
-    spicyLyricsPage.classList.remove("NowBarSide__Left");
-    spicyLyricsPage.classList.add("NowBarSide__Right");
-  } else {
-    $nowBarSide.set("left");
-    NowBar.classList.remove("RightSide");
-    NowBar.classList.add("LeftSide");
-    spicyLyricsPage.classList.remove("NowBarSide__Right");
-    spicyLyricsPage.classList.add("NowBarSide__Left");
-  }
+  if (CurrentSide !== "left" && CurrentSide !== "right") $nowBarSide.set("left");
+
+  const right = ResolveNowBarSide(spicyLyricsPage) === "right";
+  NowBar.classList.toggle("RightSide", right);
+  NowBar.classList.toggle("LeftSide", !right);
+  spicyLyricsPage.classList.toggle("NowBarSide__Right", right);
+  spicyLyricsPage.classList.toggle("NowBarSide__Left", !right);
   setTimeout(() => {
     // console.log("Resizing Lyrics Container");
     GetCurrentLyricsContainerInstance()?.Resize();
     // console.log("Forcing Scroll");
     QueueForceScroll();
   }, 10);
+}
+
+// For callers that flip .LyricsHidden: re-lays the side out only if that changed it.
+function SyncNowBarSide() {
+  const page = PageContainer;
+  if (!page) return;
+  const right = ResolveNowBarSide(page) === "right";
+  if (page.classList.contains(right ? "NowBarSide__Right" : "NowBarSide__Left")) return;
+  Session_NowBar_SetSide();
 }
 
 function DeregisterNowBarBtn() {
@@ -1969,21 +1985,26 @@ Global.Event.listen("playback:playpause", (e: { data: { isPaused: boolean } }) =
         PlayPauseButton.classList.remove("Playing");
         PlayPauseButton.classList.add("Paused");
         const SVG = PlayPauseButton.querySelector("svg");
-        if (SVG) {
-          SVG.innerHTML = Icons.Play;
-        }
+        if (SVG) ReplaceIcon(SVG, Icons.Play);
       } else {
         // console.log("Playing");
         PlayPauseButton.classList.remove("Paused");
         PlayPauseButton.classList.add("Playing");
         const SVG = PlayPauseButton.querySelector("svg");
-        if (SVG) {
-          SVG.innerHTML = Icons.Pause;
-        }
+        if (SVG) ReplaceIcon(SVG, Icons.Pause);
       }
     }
   }
 });
+
+// The icons are whole <svg> elements. Writing one into the current svg's innerHTML nested it, so
+// the button's svg rules (size, the shuffle/repeat glow) applied twice.
+function ReplaceIcon(svg: Element, markup: string) {
+  const template = document.createElement("template");
+  template.innerHTML = markup.trim();
+  const icon = template.content.firstElementChild;
+  if (icon) svg.replaceWith(icon);
+}
 
 Global.Event.listen("playback:loop", (e: string) => {
   if (Fullscreen.IsOpen) {
@@ -1995,11 +2016,7 @@ Global.Event.listen("playback:loop", (e: string) => {
       const SVG = LoopButton.querySelector("svg");
       if (!SVG) return;
 
-      if (e === "track") {
-        SVG.innerHTML = Icons.LoopTrack;
-      } else {
-        SVG.innerHTML = Icons.Loop;
-      }
+      ReplaceIcon(SVG, e === "track" ? Icons.LoopTrack : Icons.Loop);
 
       if (e !== "none") {
         LoopButton.classList.add("Enabled");
@@ -2093,7 +2110,9 @@ export {
   UpdateNowBar,
   Session_OpenNowBar,
   NowBar_SwapSides,
+  SetSideSwapTransition,
   Session_NowBar_SetSide,
+  SyncNowBarSide,
   DeregisterNowBarBtn,
   CleanUpActiveComponents as CleanUpNowBarComponents,
 };

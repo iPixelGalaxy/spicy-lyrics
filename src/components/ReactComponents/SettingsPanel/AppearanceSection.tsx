@@ -18,8 +18,8 @@ import { ExperimentSettings } from "./ExperimentsPanel.tsx";
 const SECTION_NAME = "Appearance";
 const FPS_CAP_DESCRIPTION = "Limit how often lyrics, animated backgrounds, and smooth scrolling redraw. Turn off to redraw on every display refresh.";
 const FPS_SLIDER_DESCRIPTION = "Frames per second while the cap is on.";
-const bgModeOptions = ["default", "legacy", "auto", "artistHeader", "coverArt", "color"];
-const bgModeLabels = ["Default", "Legacy", "Auto", "Artist Header", "Cover Art", "Color"];
+const bgModeOptions = ["default", "legacy", "auto", "artistHeader", "coverArt", "color", "none"];
+const bgModeLabels = ["Default", "Legacy", "Auto", "Artist Header", "Cover Art", "Color", "None (Transparent)"];
 
 interface Props {
   query: string;
@@ -76,7 +76,7 @@ export default function AppearanceSection({ query, sectionFilter, showHidden = f
           <Slider
             value={staticBackgroundBlur}
             min={0}
-            max={67}
+            max={48}
             step={1}
             defaultValue={0}
             unit="px"

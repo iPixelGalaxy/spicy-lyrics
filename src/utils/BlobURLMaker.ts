@@ -1,4 +1,5 @@
-const BlobURLCache = new Map<string, { blobUrl: string; expiresAt: number }>();
+const BlobURLCache = new Map<string, string>();
+const MAX_ENTRIES = 32;
 const pendingBlobURLs = new Map<string, Promise<string | null>>();
 
 export default async function BlobURLMaker(url: string): Promise<string | null> {
@@ -13,9 +14,9 @@ export default async function BlobURLMaker(url: string): Promise<string | null> 
 
   const existingBlobURL = BlobURLCache.get(normalizedUrl);
   if (existingBlobURL) {
-    if (existingBlobURL.expiresAt > Date.now()) return existingBlobURL.blobUrl;
-    // Existing artwork may still reference this URL; only expire the lookup.
     BlobURLCache.delete(normalizedUrl);
+    BlobURLCache.set(normalizedUrl, existingBlobURL);
+    return existingBlobURL;
   }
 
   const pending = pendingBlobURLs.get(normalizedUrl);
@@ -38,11 +39,12 @@ async function fetchBlobURL(normalizedUrl: string): Promise<string | null> {
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
 
-    const expiresAt = Date.now() + 1000 * 60 * 60;
-    BlobURLCache.set(normalizedUrl, {
-      blobUrl,
-      expiresAt,
-    });
+    BlobURLCache.set(normalizedUrl, blobUrl);
+    if (BlobURLCache.size > MAX_ENTRIES) {
+      const [oldestUrl, oldestBlobUrl] = BlobURLCache.entries().next().value!;
+      BlobURLCache.delete(oldestUrl);
+      URL.revokeObjectURL(oldestBlobUrl);
+    }
     return blobUrl;
   } catch (error) {
     console.error("Error fetching and converting to blob URL:", error);

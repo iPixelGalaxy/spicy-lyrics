@@ -2,6 +2,8 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import {
   $lineHoverBackground,
+  $duetLinePadding,
+  $creditsFollowLastLine,
   $allowHidingSettings,
   $hiddenSettingIds,
   $minimalLyricsMode,
@@ -32,6 +34,8 @@ export default function LyricsSection({ query, sectionFilter, showHidden = false
   const scrollLeadMs = useStore($scrollLeadMs);
   const smoothScrolling = useStore($smoothScrolling);
   const lineHoverBackground = useStore($lineHoverBackground);
+  const duetLinePadding = useStore($duetLinePadding);
+  const creditsFollowLastLine = useStore($creditsFollowLastLine);
   const allowHidingSettings = useStore($allowHidingSettings);
   const hiddenSettingIds = useStore($hiddenSettingIds);
   if (sectionFilter !== "All" && sectionFilter !== SECTION_NAME) return null;
@@ -48,7 +52,8 @@ export default function LyricsSection({ query, sectionFilter, showHidden = false
   const lead = visible("lyrics-early-scroll-time") && matches(query, "Early Scroll Time", "How early the next line is scrolled to, in milliseconds.");
   const smooth = visible("lyrics-smooth-scrolling") && matches(query, "Smooth Scrolling", "Use spring motion for scrolling and interlude transitions.");
   const skeleton = visible("lyrics-loading-skeleton") && matches(query, "Lyrics Loading Skeleton", "Show placeholder lines while lyrics load; disable to restore the spinner.");
-  if (![r3, r4, r5, r8, r9, r10, seek, early, lead, smooth, skeleton].some(Boolean)) return null;
+  const credits = visible("lyrics-credits-follow-singer") && matches(query, "Credits Follow the Last Singer", "Align credits with the last duet line.");
+  if (![r3, r4, r5, r8, r9, r10, seek, early, lead, smooth, skeleton, credits].some(Boolean)) return null;
 
   return <>
     <SectionTitle>Lyrics Display</SectionTitle>
@@ -63,6 +68,7 @@ export default function LyricsSection({ query, sectionFilter, showHidden = false
     {smooth && <Row settingId="lyrics-smooth-scrolling" label="Smooth Scrolling" description="Use spring motion for scrolling and interlude transitions."><Toggle checked={smoothScrolling} onChange={(v) => $smoothScrolling.set(v)} /></Row>}
     {skeleton && <ExperimentSettings experimentIds={["lyricsSkeleton"]} showBuiltIn={false} />}
     {r9 && <Row settingId="lyrics-line-hover" label="Line Hover Background" description="Shows a highlight box behind a lyrics line when you hover over it"><Toggle checked={lineHoverBackground} onChange={(v) => $lineHoverBackground.set(v)} /></Row>}
-    {r10 && <ExperimentSettings experimentIds={["duetLinePadding"]} showBuiltIn={false} />}
+    {r10 && <Row settingId="lyrics-wide-duet-padding" label="Wide duet line padding" description="Separate duet voices into wider columns. Disable for compact padding."><Toggle checked={duetLinePadding} onChange={(v) => $duetLinePadding.set(v)} /></Row>}
+    {credits && <Row settingId="lyrics-credits-follow-singer" label="Credits Follow the Last Singer" description="Align credits with the last duet line."><Toggle checked={creditsFollowLastLine} onChange={(v) => $creditsFollowLastLine.set(v)} /></Row>}
   </>;
 }

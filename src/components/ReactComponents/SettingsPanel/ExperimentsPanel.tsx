@@ -1,12 +1,12 @@
 import { useStore } from "@nanostores/react";
-import { $experiment, EXPERIMENTS, type ExperimentId, type RegisteredExperiment } from "../../../utils/experiments.ts";
+import { $experiment, $experimentOverrides, $experimentsSyncing, forcedExperimentState, getVisibleExperiments, RefreshExperimentOverrides, setExperiment, type ExperimentId, type ResolvedExperiment } from "../../../utils/experiments.ts";
+import { useEffect } from "react";
 import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../../../utils/stores.ts";
 import { Row, SectionTitle, Toggle } from "./components.tsx";
 
 const experimentSettingIds: Partial<Record<ExperimentId, string>> = {
   newSettingsDesign: "appearance-settings-design",
   newProgressBarStyling: "appearance-sliderbar-styling",
-  duetLinePadding: "lyrics-wide-duet-padding",
   lyricsSkeleton: "lyrics-loading-skeleton",
 };
 
@@ -23,13 +23,15 @@ export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
 }
 
 export function ExperimentSettings({ title = false, experimentIds, showBuiltIn = true }: { title?: boolean; experimentIds?: readonly ExperimentId[]; showBuiltIn?: boolean }) {
+  useStore($experimentOverrides);
+  useEffect(() => { void RefreshExperimentOverrides(); }, []);
   const experimentalWordSync = useStore($enableExperimentalWordSync);
   const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
 
   return (
     <>
       {title && <SectionTitle>Experiments</SectionTitle>}
-      {EXPERIMENTS.filter((exp) => !experimentIds || experimentIds.includes(exp.id)).map((exp) => (
+      {getVisibleExperiments().filter((exp) => !experimentIds || experimentIds.includes(exp.id)).map((exp) => (
         <ExperimentRow key={exp.id} experiment={exp} />
       ))}
       {showBuiltIn && <><Row
@@ -56,13 +58,15 @@ export function ExperimentSettings({ title = false, experimentIds, showBuiltIn =
   );
 }
 
-function ExperimentRow({ experiment }: { experiment: RegisteredExperiment }) {
+function ExperimentRow({ experiment }: { experiment: ResolvedExperiment }) {
   const store = $experiment(experiment.id);
   const enabled = useStore(store);
+  const forced = forcedExperimentState(experiment.id);
+  const syncing = useStore($experimentsSyncing);
 
   return (
-    <Row settingId={experimentSettingIds[experiment.id]} label={experiment.label} description={experiment.description}>
-      <Toggle checked={enabled} onChange={(v) => store.set(v)} />
+    <Row settingId={experimentSettingIds[experiment.id]} label={experiment.label} description={experiment.description} disabled={syncing || forced !== undefined} disabledReason={syncing ? "Refreshing experiments" : forced ? "Forced on" : "Forced off"}>
+      <Toggle checked={enabled} onChange={(v) => setExperiment(experiment.id, v)} />
     </Row>
   );
 }

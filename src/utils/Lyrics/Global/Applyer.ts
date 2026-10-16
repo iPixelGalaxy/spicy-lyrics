@@ -14,13 +14,12 @@ import {
   SplitAppleMusicSyllableWords,
 } from "../ExperimentalWordSync.ts";
 import { getDynamicAudioAnalysis } from "../../audioAnalysis.ts";
-import { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
+import fetchLyrics, { ClearLyricsPageContainer, getSongKey } from "../fetchLyrics.ts";
+import { BuildLyricsNotice, HasNotice, SetShownNotice, SyncNoLyricsLayout } from "../LyricsNotice.ts";
 import { ClearLyricsContentArrays, isRomanized, LyricsObject, setRomanizedStatus } from "../lyrics.ts";
 import { HideLoaderContainer, PaintLyricsLoader, ShowQueueLoader } from "../LyricsLoader.ts";
 import { PageContainer } from "../../../components/Pages/PageView.ts";
 import { CleanUpIsByCommunity } from "../Applyer/Credits/ApplyIsByCommunity.tsx";
-import { IsCompactMode } from "../../../components/Utils/CompactMode.ts";
-import Fullscreen from "../../../components/Utils/Fullscreen.ts";
 import { SpotifyPlayer } from "../../../components/Global/SpotifyPlayer.ts";
 import { ApplyMemeFormat, NormalizeLyricsCommaSpacing } from "../ProcessLyrics.ts";
 import Defaults from "../../../components/Global/Defaults.ts";
@@ -201,6 +200,8 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   const [descriptor, _status] = lyricsContent;
   if (descriptor === "lyrics-queued") {
     ShowQueueLoader();
+    SetShownNotice(null);
+    SyncNoLyricsLayout();
     return;
   }
   const incomingLyricsIdentity = getLyricsIdentity(descriptor);
@@ -209,66 +210,11 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
       ? captureLyricsViewportAnchor()
       : null;
 
-  let noticeContent: string | null = null;
-
-  switch (descriptor) {
-    case "lyrics-not-found": {
-      noticeContent = `We don't have any lyrics for this song`
-      break;
-    }
-    case "dj": {
-      noticeContent = `Viewing lyrics, while using the DJ, is not supported`
-      break;
-    }
-    case "unknown-track": {
-      noticeContent = `We could not access the info for this song`
-      break;
-    }
-    case "unknown-error": {
-      noticeContent = `An unknown error happened`
-      break;
-    }
-    case "offline": {
-      noticeContent = `Please go online to enjoy your lyrics experience!`
-      break;
-    }
-    case "service-unavailable": {
-      // The circuit breaker is holding requests back. Nothing is broken and the
-      // user needn't do anything — it retries on its own.
-      noticeContent = `Lyrics are temporarily unavailable — we'll keep trying`
-      break;
-    }
-    case "rate-limited": {
-      noticeContent = `You're going a little fast for us — give it a moment and try again`
-      break;
-    }
-    case "status-not-200": {
-      noticeContent = `A server error occurred`
-      break;
-    }
-    case "video-track": {
-      noticeContent = `We currently don't have support for video lyrics`
-      break;
-    }
-    case "episode-track": {
-      noticeContent = `We currently don't have support for podcast episode lyrics`
-      break;
-    }
-    case "mixed-track": {
-      noticeContent = `We currently don't have support for video podcast episode lyrics`
-      break;
-    }
-    case "local-track": {
-      noticeContent = `Lyrics aren't available for local files`
-      break;
-    }
-    default:
-      break;
-  }
+  const isNotice = typeof descriptor === "string" && HasNotice(descriptor);
 
   let lyrics: LyricsData | null = null;
 
-  if (!noticeContent) {
+  if (!isNotice) {
     lyrics = descriptor as LyricsData;
     NormalizeLyricsCommaSpacing(lyrics);
     const sourceNeedsWordSync = lyrics.Type === "Line" || lyrics.Type === "Static";
@@ -345,12 +291,12 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   ClearLyricsPageContainer();
   CleanUpIsByCommunity();
 
-  if (noticeContent) {
+  if (isNotice) {
     $currentLyricsType.set("None");
 
     if (descriptor === "lyrics-not-found") {
       const trackId = SpotifyPlayer.GetId() ?? "";
-      $currentLyricsData.set(`NO_LYRICS:${trackId}`);
+      $currentLyricsData.set(`NO_LYRICS:${uri ?? trackId}`);
     } else {
       $currentLyricsData.set("");
     }
@@ -365,27 +311,18 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
       currentAbortController = new AbortController();
     }
 
-    const currentNoticeElement = document.createElement("div");
-    currentNoticeElement.classList.add("LyricsNotice");
-    lyricsContainer.appendChild(currentNoticeElement);
+    const noticeUri = uri;
+    lyricsContainer.appendChild(
+      BuildLyricsNotice(descriptor as string, _status, noticeUri, currentAbortController.signal, () => {
+        // Retry the track that's playing now; a notice left over from a
+        // skipped track is replaced by that track's own apply anyway.
+        const uri = SpotifyPlayer.GetUri();
+        if (uri) fetchLyrics(uri).then(ApplyLyrics);
+      })
+    );
 
-    if (!IsCompactMode() && (Fullscreen.IsOpen || Fullscreen.CinemaViewOpen) && (descriptor === "lyrics-not-found" || descriptor === "local-track")) {
-      PageContainer?.querySelector<HTMLElement>(".ContentBox .LyricsContainer")?.classList.add("Hidden");
-      PageContainer?.querySelector<HTMLElement>(".ContentBox")?.classList.add("LyricsHidden");
-    }
-
-    currentNoticeElement.innerHTML = `
-      <p class="notice-descriptor">${noticeContent.trim()}</p>
-      <p class="notice-footer">Need more help? Join our <a>Discord</a>.</p>
-    `;
-
-    // Add click handler to log when the Discord link is clicked
-    const discordLink = currentNoticeElement.querySelector("a");
-    if (discordLink) {
-      discordLink.addEventListener("click", () => {
-        window.open("https://discord.com/invite/uqgXU5wh8j", "_blank");
-      }, { signal: currentAbortController.signal });
-    }
+    SetShownNotice(descriptor);
+    SyncNoLyricsLayout();
 
     EmitApply("None", null)
     appliedLyricsIdentity = null;
@@ -404,6 +341,11 @@ export default async function ApplyLyrics(lyricsContent: [object | string, numbe
   // The first renderer pass must establish its real container before Gravity
   // takes ownership. Gravity then switches in through the mounted-session path.
   PageContainer?.classList.remove("SpaceGravityMode");
+
+  // Lyrics replace any notice, whichever path applied them (a TTML upload re-applies
+  // without going through fetchLyrics), so a later layout sync can't hide them.
+  SetShownNotice(null);
+  SyncNoLyricsLayout();
 
   const romanize = isRomanized;
 

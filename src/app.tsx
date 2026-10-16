@@ -13,9 +13,14 @@ import "./css/Loaders/LyricsSkeleton.css";
 import "./css/font-pack/font-pack.css";
 
 import ApplyDynamicBackground, {
-  GetStaticBackground,
+  getBackgroundStyle,
   KawarpMap,
+  PAGE_BACKGROUND_KEY,
+  PrefetchArtistImage,
 } from "./components/DynamicBG/dynamicBackground.ts";
+import { isExperimentEnabled } from "./utils/experiments.ts";
+import "./components/DynamicBG/CanvasImmersive.ts";
+import "./components/DynamicBG/NpvCanvasBackground.ts";
 import {
   $alwaysShowInFullscreen,
   $animateFullscreenClose,
@@ -79,6 +84,7 @@ import "./css/polyfills/generic-modal-polyfill.css";
 import "./css/NoticeDialog.css";
 import "./css/polyfills/sonner-polyfill.css";
 import "./css/NPVLyrics.css";
+import "./css/PopupDock.css";
 import { showUpdatedDialog } from "./components/ReactComponents/UpdateDialog.tsx";
 import { IsPIP, OpenPopupLyrics, ClosePopupLyrics } from "./components/Utils/PopupLyrics.ts";
 import {
@@ -102,6 +108,9 @@ import App from "./utils/app.ts";
 import { toCssFontFamily } from "./utils/cssFontFamily.ts";
 import { initSession } from "./utils/SessionManager/index.ts";
 import { CheckForUpdates } from "./utils/version/CheckForUpdates.tsx";
+import { jitter } from "./utils/jitter.ts";
+import { StartExperimentOverridesSync } from "./utils/experiments.ts";
+import { getRemoteConfig, StartRemoteConfigSync } from "./utils/remoteConfig.ts";
 
 function bindDefault<T>(store: { get: () => T; listen: (listener: (value: T) => void) => () => void }, assign: (value: T) => void) {
   assign(store.get());
@@ -216,6 +225,10 @@ async function main() {
   const dynamicBgLogger = new Logger("Dynamic Background");
   const playbackLogger = new Logger("Playback");
 
+  // First thing: it needs nothing from Spotify, and the sooner it lands the
+  // fewer boot-time requests run on last session's values.
+  StartRemoteConfigSync();
+
   if (App.isDev() || $developerMode.get()) {
     appLogger.debug("Boot sequence");
     exposeToWindow();
@@ -264,6 +277,7 @@ async function main() {
 
   $fromVersion.set(spicyLyricsVersion);
   void initSession();
+  StartExperimentOverridesSync();
 
   LoadFonts();
   ApplyFontPixel();
@@ -369,21 +383,13 @@ async function main() {
         }
 
         @keyframes SLM_Animation {
-          0% {
-            --SLM_GradientPosition: -27.5%;
-          }
-          100% {
-            --SLM_GradientPosition: 100%;
-          }
+          0% { --SLM_GradientPosition: -27.5%; }
+          100% { --SLM_GradientPosition: 100%; }
         }
 
         @keyframes Pre_SLM_GradientAnimation {
-          0% {
-            --SLM_GradientPosition: -50%;
-          }
-          100% {
-            --SLM_GradientPosition: -27.5%;
-          }
+          0% { --SLM_GradientPosition: -50%; }
+          100% { --SLM_GradientPosition: -27.5%; }
         }
 
         @keyframes SL_SkeletonSweep {
@@ -871,7 +877,9 @@ async function main() {
       // `.Root__top-container` is expected to be the parent of `.Root__right-sidebar`.
       const parent = rightSidebar?.parentElement;
       if (parent?.classList.contains("Root__top-container")) return parent;
-      return document.querySelector<HTMLElement>(".Root__top-container");
+      // 1.3.5 no longer maps it (.LiEjwLua6RNBCvlysAT2 there); it is #main-view's parent on every build.
+      return document.querySelector<HTMLElement>(".Root__top-container, .LiEjwLua6RNBCvlysAT2") ??
+        document.getElementById("main-view")?.parentElement ?? null;
     };
 
     const checkCinemaViewAndMaybeCleanup = (topContainer: HTMLElement) => {
@@ -991,7 +999,9 @@ async function main() {
       scheduleNowPlayingBarDynamicBackgroundApply()
     });
 
+    let songChangeSeen = false;
     async function onSongChange(event: any) {
+      songChangeSeen = true;
       playbackLogger.debug("Song change pipeline");
       const contentType = SpotifyPlayer.GetContentType();
       playbackLogger.debug("Detected content type", contentType);
@@ -1021,21 +1031,7 @@ async function main() {
         }
       }
 
-      const _staticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
-      if (
-        _staticBgMode !== "default" &&
-        !SpotifyPlayer.IsDJ() &&
-        (_staticBgMode === "auto" || _staticBgMode === "artistHeader")
-      ) {
-        const Artists = SpotifyPlayer.GetArtists();
-        const Artist =
-          Artists?.map((artist) => artist.uri?.replace("spotify:artist:", ""))[0] ?? undefined;
-        try {
-          void GetStaticBackground(Artist, SpotifyPlayer.GetId());
-        } catch {
-          dynamicBgLogger.error("Unable to prefetch static background");
-        }
-      }
+      void PrefetchArtistImage();
 
       try {
         void scheduleNowPlayingBarDynamicBackgroundApply();
@@ -1044,36 +1040,35 @@ async function main() {
       }
 
       const contentBox = PageContainer?.querySelector<HTMLElement>(".ContentBox");
-      if (!contentBox || $staticBackgroundMode.get() === "color") return;
+      if (!contentBox) return;
+      // The original Cover Colors look repaints a second after the change (dynamicBackground.ts).
+      if (getBackgroundStyle() === "color" && !isExperimentEnabled("refinedBackground")) return;
       try {
-        void ApplyDynamicBackground(contentBox, "lpagebg");
+        void ApplyDynamicBackground(contentBox, PAGE_BACKGROUND_KEY);
       } catch (err) {
         dynamicBgLogger.error("Failed applying dynamic background to page", err);
       }
     }
     Global.Event.listen("playback:songchange", onSongChange);
 
-    const initUri = SpotifyPlayer.GetUri();
-    if (initUri) {
-      $lastFetchedUri.set(initUri);
-      fetchLyrics(initUri).then(ApplyLyrics);
+    // Spotify can restore the track before the songchange relay is attached and never send one for
+    // it, which leaves a page opened at boot on the placeholder cover with no lyrics.
+    if (Spicetify.Player.data?.item?.uri) {
+      void onSongChange({ data: Spicetify.Player.data });
+    } else {
+      Whentil.When(
+        () => songChangeSeen || Spicetify.Player.data?.item?.uri,
+        () => {
+          if (songChangeSeen) return;
+          playbackLogger.debug("Song change pipeline (boot catch-up)");
+          Global.Event.evoke("playback:songchange", { data: Spicetify.Player.data });
+        },
+        1,
+        30_000
+      );
     }
 
-    const _initStaticBgMode = $staticBackgroundMode.get() === "off" ? "default" : $staticBackgroundMode.get();
-    if (
-      _initStaticBgMode !== "default" &&
-      !SpotifyPlayer.IsDJ() &&
-      (_initStaticBgMode === "auto" || _initStaticBgMode === "artistHeader")
-    ) {
-      const Artists = SpotifyPlayer.GetArtists();
-      const Artist =
-        Artists?.map((artist) => artist.uri?.replace("spotify:artist:", ""))[0] ?? undefined;
-      try {
-        await GetStaticBackground(Artist, SpotifyPlayer.GetId());
-      } catch {
-        dynamicBgLogger.error("Unable to prefetch static background");
-      }
-    }
+    await PrefetchArtistImage();
 
     window.addEventListener("online", () => {
       $lastFetchedUri.set(null);
@@ -1344,17 +1339,24 @@ async function main() {
         }
       });
 
-      // Check the selected channel's version file every five minutes.
+      // Cadence comes from the remote config's `updates` group, read per tick.
+      // The `finally` matters: CheckForUpdates reaches the network, and a single
+      // throw used to skip the reschedule entirely, which silently stopped update
+      // checks for the rest of the session.
       const CheckForUpdates_Intervaled = async () => {
         try {
           await CheckForUpdates();
         } catch (error) {
           console.warn("Update check failed", error);
         } finally {
-          setTimeout(CheckForUpdates_Intervaled, 300_000);
+          const { checkIntervalMs, checkJitterRatio } = getRemoteConfig().updates;
+          setTimeout(CheckForUpdates_Intervaled, jitter(checkIntervalMs, checkJitterRatio));
         }
       };
-      setTimeout(CheckForUpdates_Intervaled, updatedFromPreviousVersion ? 300_000 : 1000);
+      setTimeout(
+        async () => await CheckForUpdates_Intervaled(),
+        updatedFromPreviousVersion ? getRemoteConfig().updates.checkIntervalMs : getRemoteConfig().updates.firstCheckDelayMs
+      );
     }
   };
 

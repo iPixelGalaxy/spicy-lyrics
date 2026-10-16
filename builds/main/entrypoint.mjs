@@ -493,6 +493,7 @@ window._spicy_lyrics_channels = {
 // row without importing or patching the upstream bundle.
 
 const CHANNEL_SETTING_ROW_ID = "spicy-lyrics-entry-channel-row";
+const CHANNEL_SETTING_GROUP_ID = "spicy-lyrics-entry-channel-group";
 let channelSettingsObserver = null;
 let channelSettingsRenderQueued = false;
 
@@ -502,15 +503,22 @@ const renderChannelSettings = () => {
   );
   if (!modal || document.getElementById(CHANNEL_SETTING_ROW_ID)) return;
 
+  // Pixel builds already render their own channel control.
+  if (Array.from(modal.querySelectorAll(".sl-sp-label"))
+    .some((element) => element.textContent?.trim() === "Build Channel")) return;
+
+  const advancedPane = modal.querySelector(
+    '#sl-sp-panel[aria-labelledby="sl-sp-tab-advanced"] .sl-sp-pane-body'
+  );
   const developerTitle = Array.from(modal.querySelectorAll(".sl-sp-section-title"))
     .find((element) => element.textContent?.trim() === "Developer");
-  if (!developerTitle) return;
+  if (!advancedPane && !developerTitle) return;
 
   const channels = getFullChannelMap();
   const current = channels[getCurrentChannel()] ? getCurrentChannel() : "Stable";
   const row = document.createElement("div");
   row.id = CHANNEL_SETTING_ROW_ID;
-  row.className = "sl-sp-row sl-list-row";
+  row.className = advancedPane ? "sl-sp-row sl-sp-row--stacked" : "sl-sp-row sl-list-row";
 
   const labelWrap = document.createElement("div");
   labelWrap.className = "sl-sp-label-wrap";
@@ -527,6 +535,7 @@ const renderChannelSettings = () => {
   control.style.display = "flex";
   control.style.alignItems = "center";
   control.style.gap = "8px";
+  control.style.minWidth = "0";
   const manage = document.createElement("button");
   manage.type = "button";
   manage.className = "sl-sp-btn";
@@ -534,6 +543,8 @@ const renderChannelSettings = () => {
   manage.addEventListener("click", showChannelManager);
   const select = document.createElement("select");
   select.className = "sl-sp-select";
+  select.style.minWidth = "0";
+  select.style.maxWidth = "100%";
   select.setAttribute("aria-label", "Build Channel");
   for (const name of Object.keys(channels)) {
     const option = document.createElement("option");
@@ -548,7 +559,18 @@ const renderChannelSettings = () => {
   });
   control.append(select, manage);
   row.append(labelWrap, control);
-  developerTitle.after(row);
+  if (advancedPane) {
+    const group = document.createElement("div");
+    group.id = CHANNEL_SETTING_GROUP_ID;
+    group.className = "sl-sp-group";
+    const card = document.createElement("div");
+    card.className = "sl-sp-card";
+    card.appendChild(row);
+    group.appendChild(card);
+    advancedPane.prepend(group);
+  } else {
+    developerTitle.after(row);
+  }
 };
 
 const registerChannelSettings = () => {
@@ -564,7 +586,9 @@ const registerChannelSettings = () => {
   channelSettingsObserver = new MutationObserver(scheduleRender);
   channelSettingsObserver.observe(document.body, { childList: true, subtree: true });
   window.addEventListener(CHANNELS_CHANGED_EVENT, () => {
-    document.getElementById(CHANNEL_SETTING_ROW_ID)?.remove();
+    const injected = document.getElementById(CHANNEL_SETTING_GROUP_ID) ??
+      document.getElementById(CHANNEL_SETTING_ROW_ID);
+    injected?.remove();
     scheduleRender();
   });
   scheduleRender();

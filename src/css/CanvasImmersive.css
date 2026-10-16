@@ -283,9 +283,17 @@
   align-items: flex-end;
 }
 
-#SpicyLyricsPage.NowBarSide__Right.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.SongName, .Artists),
+#SpicyLyricsPage.NowBarSide__Right.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.SongName, .ArtistsRow, .Artists),
 #SpicyLyricsPage.NowBarSide__Right.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.SongName, .Artists) > span {
   text-align: right;
+}
+
+#SpicyLyricsPage.NowBarSide__Right.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata .ArtistsRow {
+  justify-content: flex-end;
+}
+
+#SpicyLyricsPage.NowBarSide__Right.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata .ArtistYear.after {
+  padding-right: 3cqw;
 }
 
 /* Over a video the title is a caption, not a headline: smaller, tighter, one block with the artist.

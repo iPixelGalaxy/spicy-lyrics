@@ -48,6 +48,7 @@ import {
   $pinnedFooterMode,
   $rightAlignLyrics,
   $showScrollToActiveButton,
+  $showVolumeSlider,
   $simpleLyricsMode,
   $lyricsCacheAction,
   $showLyricsCacheActionButton,

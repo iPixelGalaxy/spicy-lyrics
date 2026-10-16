@@ -117,6 +117,9 @@ let lastDotSignature = "";
 let finalVocalEnd = Number.NEGATIVE_INFINITY;
 let resizeObserver: ResizeObserver | null = null;
 let layoutObserver: MutationObserver | null = null;
+let uiStyleObserver: MutationObserver | null = null;
+let uiMotionRoot: HTMLElement | null = null;
+let obstacleBoundsDirty = false;
 let coverTrackingFrame: number | null = null;
 let coverTrackingWindow: Window | null = null;
 let coverTrackingUntil = 0;
@@ -265,10 +268,15 @@ function updateBounds(refreshBodies = true): void {
   const resized = previousBounds !== null && (previousBounds.Width !== width || previousBounds.Height !== height);
   const scaleX = previousBounds ? width / previousBounds.Width : 1;
   const scaleY = previousBounds ? height / previousBounds.Height : 1;
-  layoutDirty = true;
-  staticLayoutDirty = true;
-  updateObstacleBounds();
-  if (previousBounds === null || resized) visibleLeadWordCount = calculateVisibleLeadWordCount(width, height);
+  const obstaclesChanged = updateObstacleBounds();
+  obstacleBoundsDirty = false;
+  if (refreshBodies || previousBounds === null || resized) layoutDirty = true;
+  if (refreshBodies || resized || obstaclesChanged) staticLayoutDirty = true;
+  if (previousBounds === null || resized || obstaclesChanged) {
+    const nextCount = calculateVisibleLeadWordCount(width, height);
+    if (visibleLeadWordCount !== nextCount) layoutDirty = true;
+    visibleLeadWordCount = nextCount;
+  }
   if (resized) resetWindowMotion();
   if (!refreshBodies) return;
   for (const body of activeBodies) {
@@ -341,14 +349,38 @@ function updateUiElements(): void {
   }
 }
 
+function getCanvasDockBounds(stageRect: DOMRect): RectBounds | null {
+  let bounds: RectBounds | null = null;
+  const dockElements = nowBarHeader?.querySelectorAll<HTMLElement>(
+    ":scope > .Metadata, :scope > .Timeline, :scope > .MediaBox .MediaContent :is(.Timeline, .PlaybackControls, .Heart, .VolumeControl)"
+  );
+  for (const element of dockElements ?? []) {
+    const rect = getRelativeBounds(element.getBoundingClientRect(), stageRect);
+    if (!rect) continue;
+    bounds = bounds ? {
+      Left: Math.min(bounds.Left, rect.Left),
+      Top: Math.min(bounds.Top, rect.Top),
+      Right: Math.max(bounds.Right, rect.Right),
+      Bottom: Math.max(bounds.Bottom, rect.Bottom),
+    } : rect;
+  }
+  return bounds;
+}
+
 function updateObstacleBounds(): boolean {
   if (!stage) return false;
   updateCoverElement();
   updateUiElements();
   const stageRect = stage.getBoundingClientRect();
+  const canvasHidesCover = stage.closest("#SpicyLyricsPage")
+    ?.matches(".CanvasImmersive:not(.CompactMode, .ForcedCompactMode)") ?? false;
   const nextFooterBounds = getRelativeBounds(footer?.getBoundingClientRect(), stageRect);
-  const nextCoverBounds = getRelativeBounds(cover?.getBoundingClientRect(), stageRect);
-  const nextNowBarHeaderBounds = getRelativeBounds(nowBarHeader?.getBoundingClientRect(), stageRect);
+  const nextCoverBounds = canvasHidesCover ? null : getRelativeBounds(cover?.getBoundingClientRect(), stageRect);
+  // Canvas keeps the invisible artwork square and a full-height header for layout.
+  // Only the dock content blocks floating words in that mode.
+  const nextNowBarHeaderBounds = canvasHidesCover
+    ? getCanvasDockBounds(stageRect)
+    : getRelativeBounds(nowBarHeader?.getBoundingClientRect(), stageRect);
   const rawViewControlsBounds = getRelativeBounds(viewControls?.getBoundingClientRect(), stageRect);
   const nextViewControlsBounds = boundsContain(nextNowBarHeaderBounds, rawViewControlsBounds)
     ? null
@@ -366,7 +398,12 @@ function updateObstacleBounds(): boolean {
 }
 
 function syncObstacleBounds(): void {
+  obstacleBoundsDirty = false;
   if (!stageBounds || !updateObstacleBounds()) return;
+  const nextCount = calculateVisibleLeadWordCount(stageBounds.Width, stageBounds.Height);
+  if (visibleLeadWordCount !== nextCount) layoutDirty = true;
+  visibleLeadWordCount = nextCount;
+  staticLayoutDirty = true;
   const bodies = new Set([...activeBodies, ...exitingBodies]);
   for (const body of bodies) {
     if (!body.Spawned) continue;
@@ -490,7 +527,7 @@ function resolveBodyConstraints(body: GravityBody, width: number, height: number
 }
 
 function trackCoverTransition(): void {
-  coverTrackingUntil = Math.max(coverTrackingUntil, performance.now() + 450);
+  coverTrackingUntil = Math.max(coverTrackingUntil, performance.now() + 700);
   if (coverTrackingFrame !== null) return;
   const renderWindow = stage?.ownerDocument.defaultView ?? window;
   coverTrackingWindow = renderWindow;
@@ -524,6 +561,10 @@ function trackCoverTransition(): void {
     }
   };
   coverTrackingFrame = renderWindow.requestAnimationFrame(updateCoverBounds);
+}
+
+function trackUiMotion(event: Event): void {
+  if ((event.target as Element).closest?.(".NowBar, .ViewControls")) trackCoverTransition();
 }
 
 function splitGraphemes(text: string): string[] {
@@ -1139,13 +1180,26 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
       }
     });
     layoutObserver.observe(layoutRoot, { attributes: true, attributeFilter: ["class"], subtree: true });
+    uiStyleObserver = new MutationObserver((records) => {
+      if (coverTrackingFrame !== null) return;
+      if (records.some(({ target }) => target === layoutRoot ||
+        (target as Element).matches(".NowBar, .Header, .MediaBox, .MediaImageContainer"))) {
+        obstacleBoundsDirty = true;
+      }
+    });
+    uiStyleObserver.observe(layoutRoot, { attributes: true, attributeFilter: ["style"] });
+    const nowBar = layoutRoot.querySelector(".NowBar");
+    if (nowBar) uiStyleObserver.observe(nowBar, { attributes: true, attributeFilter: ["style"], subtree: true });
+    uiMotionRoot = layoutRoot;
+    for (const event of ["pointerover", "pointerout", "transitionrun"]) {
+      uiMotionRoot.addEventListener(event, trackUiMotion);
+    }
   }
 }
 
 export function tickSpaceGravity(position: number): void {
   if (!stage || !viewport || !stageBounds) return;
-  if (stage.clientWidth !== stageBounds.Width || viewport.clientHeight !== stageBounds.Height) updateBounds();
-  else syncObstacleBounds();
+  if (obstacleBoundsDirty) syncObstacleBounds();
   renderFrame += 1;
   updateVisibleBodies(position);
   updateBodyRoles(position);
@@ -1243,6 +1297,15 @@ export function destroySpaceGravity(): void {
   resizeObserver = null;
   layoutObserver?.disconnect();
   layoutObserver = null;
+  uiStyleObserver?.disconnect();
+  uiStyleObserver = null;
+  if (uiMotionRoot) {
+    for (const event of ["pointerover", "pointerout", "transitionrun"]) {
+      uiMotionRoot.removeEventListener(event, trackUiMotion);
+    }
+  }
+  uiMotionRoot = null;
+  obstacleBoundsDirty = false;
   if (windowPositionDocument && windowPositionVisibilityListener) {
     windowPositionDocument.removeEventListener("visibilitychange", windowPositionVisibilityListener);
   }

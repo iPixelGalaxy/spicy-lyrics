@@ -240,6 +240,16 @@
   flex-shrink: 0;
 }
 
+/* Floating words can cross the empty cover region; the dock keeps its targets. */
+#SpicyLyricsPage.CanvasImmersive.SpaceGravityMode:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar,
+#SpicyLyricsPage.CanvasImmersive.SpaceGravityMode:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar :is(.CenteredView, .Header, .MediaBox, .MediaContent) {
+  pointer-events: none;
+}
+
+#SpicyLyricsPage.CanvasImmersive.SpaceGravityMode:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar :is(.Metadata, .Timeline, .PlaybackControls, .Heart, .VolumeControl, .ViewControls) {
+  pointer-events: auto;
+}
+
 #SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata {
   position: relative;
   z-index: 100;
@@ -254,13 +264,17 @@
   gap: 0;
 }
 
-#SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.SongName, .Artists) {
+#SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.SongName, .ArtistsRow, .Artists) {
   text-align: left;
   max-width: calc(100% - var(--DockGutter) * 2);
 }
 
 #SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.SongName, .Artists) > span {
   text-align: left;
+}
+
+#SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata .ArtistsRow {
+  justify-content: flex-start;
 }
 
 /* The right side mirrors the left: the text hugs the outer edge. Spans carry 3cqw of end padding. */
@@ -282,7 +296,7 @@
   letter-spacing: -0.01em;
 }
 
-#SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata .Artists {
+#SpicyLyricsPage.CanvasImmersive:not(.CompactMode, .ForcedCompactMode) .ContentBox .NowBar .Header > .Metadata :is(.Artists, .ArtistYear) {
   font-size: calc(var(--default-font-size) * 1.05) !important;
   line-height: 1.35 !important;
 }

@@ -296,24 +296,21 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent {
   --space-gravity-role-opacity: 1;
-  pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityNext {
   --space-gravity-role-opacity: 0.34;
-  pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityNearby {
   --space-gravity-role-opacity: 0.22;
-  pointer-events: auto;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord {
   --space-gravity-role-opacity: 1;
   --space-gravity-presence-opacity: 1;
   opacity: calc(var(--space-gravity-role-opacity) * var(--space-gravity-presence-opacity)) !important;
-  pointer-events: auto;
+  pointer-events: none;
   transition: opacity 180ms ease;
 }
 
@@ -322,11 +319,11 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityCurrent:not(.SpaceGravityDot):hover {
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
+  --space-gravity-hover-filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.85));
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord.SpaceGravityCurrent:not(.SpaceGravityDot):hover {
-  filter: drop-shadow(0 0 10px rgba(255, 140, 168, 0.85));
+  --space-gravity-hover-filter: drop-shadow(0 0 10px rgba(255, 140, 168, 0.85));
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine::before {
@@ -353,18 +350,19 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
   position: absolute;
   display: inline-block;
   transform-origin: center;
-  will-change: transform;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityUnspawned {
   visibility: hidden;
   --space-gravity-presence-opacity: 0;
+  --space-gravity-pointer-events: none;
   pointer-events: none;
   transition: none;
 }
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord.SpaceGravityExiting {
   --space-gravity-presence-opacity: 0;
+  --space-gravity-pointer-events: none;
   pointer-events: none;
 }
 

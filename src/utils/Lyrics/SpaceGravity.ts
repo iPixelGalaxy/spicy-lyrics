@@ -26,6 +26,7 @@ type GravityLine = {
 
 type GravityBody = {
   Element: HTMLElement;
+  MotionElement: HTMLElement;
   Line: GravityLine;
   StartTime: number;
   EndTime: number;
@@ -431,7 +432,7 @@ function constrainToStage(body: GravityBody, width: number, height: number, boun
 }
 
 function renderBody(body: GravityBody): void {
-  body.Element.style.transform = `translate3d(${body.X - body.Width / 2}px, ${body.Y - body.Height / 2}px, 0) rotate(${body.Angle}deg) scale(${body.Scale})`;
+  body.MotionElement.style.transform = `translate3d(${body.X - body.Width / 2}px, ${body.Y - body.Height / 2}px, 0) rotate(${body.Angle}deg) scale(${body.Scale})`;
 }
 
 function expandBounds(bounds: RectBounds | null, amount: number): RectBounds | null {
@@ -792,7 +793,7 @@ function prepareLines(nextLines: GravityLine[]): void {
     }
   }
 
-  const wrappers: Array<{ Record: typeof records[number]; Element: HTMLElement }> = [];
+  const wrappers: Array<{ Record: typeof records[number]; Element: HTMLElement; MotionElement: HTMLElement }> = [];
   for (const record of records) {
     const bodyElement = document.createElement("span");
     bodyElement.classList.add("SpaceGravityWord", "SpaceGravityUnspawned");
@@ -801,7 +802,13 @@ function prepareLines(nextLines: GravityLine[]): void {
     if (!record.Line.DotLine) bodyElement.dataset.spaceGravitySeekTime = `${record.Line.StartTime}`;
     record.Line.HTMLElement.replaceChild(bodyElement, record.Child);
     bodyElement.appendChild(record.Child);
-    wrappers.push({ Record: record, Element: bodyElement });
+    // Keep lyric nodes in light DOM for their styles, timing and seek handlers.
+    // A slotted motion layer avoids matching the page's CSS on every transform.
+    const motionElement = bodyElement.ownerDocument.createElement("span");
+    motionElement.style.cssText = "display:inline-block;vertical-align:top;transform-origin:center;will-change:transform;pointer-events:var(--space-gravity-pointer-events,auto);filter:var(--space-gravity-hover-filter,none)";
+    motionElement.appendChild(bodyElement.ownerDocument.createElement("slot"));
+    bodyElement.attachShadow({ mode: "open" }).appendChild(motionElement);
+    wrappers.push({ Record: record, Element: bodyElement, MotionElement: motionElement });
   }
 
   const lineSpeedMultipliers = new Map<GravityLine, number>();
@@ -810,7 +817,7 @@ function prepareLines(nextLines: GravityLine[]): void {
   }
 
   let order = 0;
-  for (const { Record: record, Element: bodyElement } of wrappers) {
+  for (const { Record: record, Element: bodyElement, MotionElement: motionElement } of wrappers) {
     const splitStartTime = Number(record.Child.dataset.spaceGravityStartTime);
     const splitEndTime = Number(record.Child.dataset.spaceGravityEndTime);
     const timing = getElementTiming(record.Line, record.Child);
@@ -821,7 +828,7 @@ function prepareLines(nextLines: GravityLine[]): void {
     const speedMultiplier = lineSpeedMultipliers.get(record.Line) ?? 1;
     const speed = (4.4 + random(seed + 3) * 5.6) * speedMultiplier;
     const direction = random(seed + 4) * Math.PI * 2;
-    const body: GravityBody = { Element: bodyElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, SpeedMultiplier: speedMultiplier, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
+    const body: GravityBody = { Element: bodyElement, MotionElement: motionElement, Line: record.Line, StartTime: startTime, EndTime: endTime, Order: order++, WordIndex: (leadWordStarts.get(record.Line) ?? 0) + record.Index, X: 0, Y: 0, VX: Math.cos(direction) * speed, VY: Math.sin(direction) * speed, SpeedMultiplier: speedMultiplier, Angle: 0, AngularVelocity: (random(seed + 2) * 2 - 1) * 19, BounceCount: 0, Radius: 24, BaseRadius: 24, Scale: 1, Width: 48, Height: 48, StartX: record.X, StartY: record.Y, NaturalX: 0, NaturalY: 0, SelectionEpoch: 0, Spawned: false, Visible: false };
     measureBody(body);
     const lineBodies = bodiesByLine.get(record.Line) ?? [];
     lineBodies.push(body);

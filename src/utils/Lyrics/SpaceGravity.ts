@@ -87,6 +87,8 @@ const VISIBLE_WORD_AREA = 33_334;
 const LINE_GAP_CQW = 1;
 const LINE_EXIT_DELAY_MS = 200;
 const WORD_PRESENCE_FADE_MS = 180;
+const SPAWN_ATTEMPTS = 48;
+const SPAWN_CLEARANCE = 4;
 
 let stage: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
@@ -1063,12 +1065,58 @@ function updateBodyRoles(position: number): void {
   for (const body of activeBodies) applyBodyRole(body, getRole(body, position));
 }
 
+function getSpawnOverlap(body: GravityBody, other: GravityBody): number {
+  const bodyAngle = body.Angle * Math.PI / 180;
+  const otherAngle = other.Angle * Math.PI / 180;
+  const bodyCos = Math.cos(bodyAngle);
+  const bodySin = Math.sin(bodyAngle);
+  const otherCos = Math.cos(otherAngle);
+  const otherSin = Math.sin(otherAngle);
+  const halfWidth = body.Width * body.Scale / 2 + SPAWN_CLEARANCE / 2;
+  const halfHeight = body.Height * body.Scale / 2 + SPAWN_CLEARANCE / 2;
+  const otherHalfWidth = other.Width * other.Scale / 2 + SPAWN_CLEARANCE / 2;
+  const otherHalfHeight = other.Height * other.Scale / 2 + SPAWN_CLEARANCE / 2;
+  const dx = body.X - other.X;
+  const dy = body.Y - other.Y;
+  let minimumOverlap = Number.POSITIVE_INFINITY;
+  for (const [axisX, axisY] of [
+    [bodyCos, bodySin], [-bodySin, bodyCos],
+    [otherCos, otherSin], [-otherSin, otherCos],
+  ]) {
+    const bodyProjection = halfWidth * Math.abs(bodyCos * axisX + bodySin * axisY) +
+      halfHeight * Math.abs(-bodySin * axisX + bodyCos * axisY);
+    const otherProjection = otherHalfWidth * Math.abs(otherCos * axisX + otherSin * axisY) +
+      otherHalfHeight * Math.abs(-otherSin * axisX + otherCos * axisY);
+    const overlap = bodyProjection + otherProjection - Math.abs(dx * axisX + dy * axisY);
+    if (overlap <= 0) return 0;
+    minimumOverlap = Math.min(minimumOverlap, overlap);
+  }
+  return minimumOverlap;
+}
+
 function spawnBody(body: GravityBody, width: number, height: number): void {
   if (body.Spawned) return;
-  body.X = body.NaturalX + (Math.random() * 2 - 1) * body.Width * 1.35;
-  body.Y = body.NaturalY + (Math.random() * 2 - 1) * body.Height * 1.35;
-  body.Angle = 0;
-  resolveBodyConstraints(body, width, height);
+  const startX = body.NaturalX + (Math.random() * 2 - 1) * body.Width * 1.35;
+  const startY = body.NaturalY + (Math.random() * 2 - 1) * body.Height * 1.35;
+  const occupied = [...activeBodies, ...exitingBodies].filter((other) => other !== body && other.Spawned);
+  const phase = Math.random() * Math.PI * 2;
+  let best: GravityBody = body;
+  let bestOverlap = Number.POSITIVE_INFINITY;
+  // Obstacle projection can collapse different spawn points onto the same spot.
+  // Search outward without moving words that are already on screen.
+  for (let attempt = 0; attempt < (reducedMotion ? 1 : SPAWN_ATTEMPTS); attempt += 1) {
+    const distance = Math.hypot(width, height) * attempt / (SPAWN_ATTEMPTS - 1);
+    const angle = phase + attempt * Math.PI * (3 - Math.sqrt(5));
+    const candidate = { ...body, X: startX + Math.cos(angle) * distance, Y: startY + Math.sin(angle) * distance, Angle: 0 };
+    resolveBodyConstraints(candidate, width, height);
+    const overlap = occupied.reduce((sum, other) => sum + getSpawnOverlap(candidate, other) ** 2, 0);
+    if (overlap < bestOverlap) {
+      best = candidate;
+      bestOverlap = overlap;
+    }
+    if (overlap === 0) break;
+  }
+  Object.assign(body, best);
   body.Spawned = true;
   renderBody(body);
   if (reducedMotion) {
@@ -1122,9 +1170,15 @@ function applySoftAvoidance(delta: number): void {
   for (let index = 0; index < activeBodies.length; index += 1) for (let otherIndex = 0; otherIndex < index; otherIndex += 1) {
     const body = activeBodies[index];
     const other = activeBodies[otherIndex];
-    const dx = body.X - other.X;
-    const dy = body.Y - other.Y;
-    const distance = Math.hypot(dx, dy) || 0.001;
+    let dx = body.X - other.X;
+    let dy = body.Y - other.Y;
+    let distance = Math.hypot(dx, dy);
+    if (distance < 0.001) {
+      const angle = random(hash(`${body.Line.StartTime}:${body.WordIndex}:${other.Line.StartTime}:${other.WordIndex}:avoidance`)) * Math.PI * 2;
+      dx = Math.cos(angle) * 0.001;
+      dy = Math.sin(angle) * 0.001;
+      distance = 0.001;
+    }
     const influence = body.Radius + other.Radius + SOFT_SEPARATION_GAP;
     if (distance >= influence) continue;
     const nudge = ((influence - distance) / influence) * SOFT_SEPARATION_ACCELERATION * delta;

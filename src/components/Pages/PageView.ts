@@ -39,6 +39,7 @@ import {
   $customFont,
   $customFontEnabled,
   $enableExperimentalWordSync,
+  $joinSplitWords,
   $duetLinePadding,
   $lineHoverBackground,
   $memeFormat,
@@ -1004,6 +1005,13 @@ $minimalLyricsMode.listen((v) => {
 });
 
 $enableExperimentalWordSync.listen(() => {
+  if (!PageContainer) return;
+  const uri = SpotifyPlayer.GetUri();
+  $currentLyricsData.set("");
+  if (uri) fetchLyrics(uri).then(ApplyLyrics);
+});
+
+$joinSplitWords.listen(() => {
   if (!PageContainer) return;
   const uri = SpotifyPlayer.GetUri();
   $currentLyricsData.set("");

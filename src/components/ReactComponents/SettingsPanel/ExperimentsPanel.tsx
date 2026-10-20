@@ -14,11 +14,10 @@ const experimentSettingIds: Partial<Record<ExperimentId, string>> = {
  * The Experiments sub-panel. Renders straight off the EXPERIMENTS registry, so a
  * new experiment shows up here the moment it's added to `utils/experiments.ts`.
  */
-export default function ExperimentsPanel({ onBack }: { onBack: () => void }) {
+export default function ExperimentsPanel({ experimentIds, showBuiltIn = true }: { experimentIds?: readonly ExperimentId[]; showBuiltIn?: boolean }) {
   return <div style={{ padding: "8px 0" }} className="slm w-40">
-    <div className="sl-sp-subheader"><button className="sl-sp-back-btn" onClick={onBack} aria-label="Back to Settings">Settings</button></div>
     <p className="sl-sp-experiments-note">These features are still being shaped. Toggle one off if you prefer how things worked before.</p>
-    <ExperimentSettings />
+    <ExperimentSettings experimentIds={experimentIds} showBuiltIn={showBuiltIn} />
   </div>;
 }
 

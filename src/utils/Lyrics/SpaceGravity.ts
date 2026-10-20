@@ -1122,17 +1122,53 @@ function applySoftAvoidance(delta: number): void {
   for (let index = 0; index < activeBodies.length; index += 1) for (let otherIndex = 0; otherIndex < index; otherIndex += 1) {
     const body = activeBodies[index];
     const other = activeBodies[otherIndex];
-    const dx = body.X - other.X;
-    const dy = body.Y - other.Y;
-    const distance = Math.hypot(dx, dy) || 0.001;
-    const influence = body.Radius + other.Radius + SOFT_SEPARATION_GAP;
-    if (distance >= influence) continue;
-    const nudge = ((influence - distance) / influence) * SOFT_SEPARATION_ACCELERATION * delta;
-    body.VX += dx / distance * nudge;
-    body.VY += dy / distance * nudge;
-    other.VX -= dx / distance * nudge;
-    other.VY -= dy / distance * nudge;
+    const collision = getBodyCollision(body, other);
+    if (collision.Overlap <= -SOFT_SEPARATION_GAP) continue;
+    const strength = Math.min(1, (SOFT_SEPARATION_GAP + collision.Overlap) / SOFT_SEPARATION_GAP);
+    const nudge = strength * SOFT_SEPARATION_ACCELERATION * delta;
+    body.VX += collision.DirectionX * nudge;
+    body.VY += collision.DirectionY * nudge;
+    other.VX -= collision.DirectionX * nudge;
+    other.VY -= collision.DirectionY * nudge;
   }
+}
+
+function getBodyCollision(body: GravityBody, other: GravityBody): { Overlap: number; DirectionX: number; DirectionY: number } {
+  const dx = body.X - other.X;
+  const dy = body.Y - other.Y;
+  const bodyCos = Math.cos(body.Angle * Math.PI / 180);
+  const bodySin = Math.sin(body.Angle * Math.PI / 180);
+  const otherCos = Math.cos(other.Angle * Math.PI / 180);
+  const otherSin = Math.sin(other.Angle * Math.PI / 180);
+  const axes = [
+    { X: bodyCos, Y: bodySin },
+    { X: -bodySin, Y: bodyCos },
+    { X: otherCos, Y: otherSin },
+    { X: -otherSin, Y: otherCos },
+  ];
+  let minimumOverlap = Number.POSITIVE_INFINITY;
+  let directionX = 1;
+  let directionY = 0;
+
+  for (const axis of axes) {
+    const bodyWidth = body.Width * body.Scale / 2;
+    const bodyHeight = body.Height * body.Scale / 2;
+    const otherWidth = other.Width * other.Scale / 2;
+    const otherHeight = other.Height * other.Scale / 2;
+    const bodyProjection = bodyWidth * Math.abs(bodyCos * axis.X + bodySin * axis.Y) +
+      bodyHeight * Math.abs(-bodySin * axis.X + bodyCos * axis.Y);
+    const otherProjection = otherWidth * Math.abs(otherCos * axis.X + otherSin * axis.Y) +
+      otherHeight * Math.abs(-otherSin * axis.X + otherCos * axis.Y);
+    const offset = dx * axis.X + dy * axis.Y;
+    const overlap = bodyProjection + otherProjection - Math.abs(offset);
+    if (overlap >= minimumOverlap) continue;
+    minimumOverlap = overlap;
+    const sign = offset < 0 ? -1 : 1;
+    directionX = axis.X * sign;
+    directionY = axis.Y * sign;
+  }
+
+  return { Overlap: minimumOverlap, DirectionX: directionX, DirectionY: directionY };
 }
 
 function resolveBodyOverlaps(width: number, height: number): void {
@@ -1142,20 +1178,14 @@ function resolveBodyOverlaps(width: number, height: number): void {
     for (let index = 0; index < bodies.length; index += 1) for (let otherIndex = 0; otherIndex < index; otherIndex += 1) {
       const body = bodies[index];
       const other = bodies[otherIndex];
-      const dx = body.X - other.X;
-      const dy = body.Y - other.Y;
-      const distance = Math.hypot(dx, dy);
-      const minimumDistance = body.Radius + other.Radius + SOFT_SEPARATION_GAP;
-      if (distance >= minimumDistance) continue;
+      const collision = getBodyCollision(body, other);
+      if (collision.Overlap >= SOFT_SEPARATION_GAP) continue;
 
-      const angle = random(hash(`${body.Line.StartTime}:${body.WordIndex}:${other.Line.StartTime}:${other.WordIndex}:separation`)) * Math.PI * 2;
-      const directionX = distance > 0 ? dx / distance : Math.cos(angle);
-      const directionY = distance > 0 ? dy / distance : Math.sin(angle);
-      const correction = (minimumDistance - distance) / 2;
-      body.X += directionX * correction;
-      body.Y += directionY * correction;
-      other.X -= directionX * correction;
-      other.Y -= directionY * correction;
+      const correction = (SOFT_SEPARATION_GAP - collision.Overlap) / 2;
+      body.X += collision.DirectionX * correction;
+      body.Y += collision.DirectionY * correction;
+      other.X -= collision.DirectionX * correction;
+      other.Y -= collision.DirectionY * correction;
       changed = true;
     }
     if (!changed) break;

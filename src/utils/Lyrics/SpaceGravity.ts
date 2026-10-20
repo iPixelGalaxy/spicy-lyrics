@@ -91,6 +91,7 @@ const SPAWN_ATTEMPTS = 48;
 const SPAWN_CLEARANCE = 4;
 
 let stage: HTMLElement | null = null;
+let playAreaMeasure: HTMLElement | null = null;
 let viewport: HTMLElement | null = null;
 let footer: HTMLElement | null = null;
 let cover: HTMLElement | null = null;
@@ -127,6 +128,7 @@ let coverTrackingFrame: number | null = null;
 let coverTrackingWindow: Window | null = null;
 let coverTrackingUntil = 0;
 let stageBounds: Bounds | null = null;
+let playAreaBounds: RectBounds | null = null;
 let footerBounds: RectBounds | null = null;
 let coverBounds: RectBounds | null = null;
 let nowBarHeaderBounds: RectBounds | null = null;
@@ -378,6 +380,17 @@ function updateObstacleBounds(): boolean {
   const canvasHidesCover = stage.closest("#SpicyLyricsPage")
     ?.matches(".CanvasImmersive:not(.CompactMode, .ForcedCompactMode)") ?? false;
   const nextFooterBounds = getRelativeBounds(footer?.getBoundingClientRect(), stageRect);
+  const width = stage.clientWidth;
+  const height = stage.clientHeight;
+  const left = canvasHidesCover ? 0 : Math.max(0, Math.min(width, playAreaMeasure?.offsetLeft ?? 0));
+  const right = canvasHidesCover ? width : Math.max(left, Math.min(width,
+    (playAreaMeasure?.offsetLeft ?? 0) + (playAreaMeasure?.offsetWidth ?? width)));
+  const nextPlayAreaBounds = {
+    Left: left,
+    Top: 0,
+    Right: right,
+    Bottom: canvasHidesCover ? height : Math.max(0, Math.min(height, nextFooterBounds?.Top ?? height)),
+  };
   const nextCoverBounds = canvasHidesCover ? null : getRelativeBounds(cover?.getBoundingClientRect(), stageRect);
   // Canvas keeps the invisible artwork square and a full-height header for layout.
   // Only the dock content blocks floating words in that mode.
@@ -389,10 +402,12 @@ function updateObstacleBounds(): boolean {
     ? null
     : rawViewControlsBounds;
   const changed =
+    !boundsEqual(playAreaBounds, nextPlayAreaBounds) ||
     !boundsEqual(footerBounds, nextFooterBounds) ||
     !boundsEqual(coverBounds, nextCoverBounds) ||
     !boundsEqual(nowBarHeaderBounds, nextNowBarHeaderBounds) ||
     !boundsEqual(viewControlsBounds, nextViewControlsBounds);
+  playAreaBounds = nextPlayAreaBounds;
   footerBounds = nextFooterBounds;
   coverBounds = nextCoverBounds;
   nowBarHeaderBounds = nextNowBarHeaderBounds;
@@ -420,11 +435,28 @@ function setBodyScale(body: GravityBody, scale: number): void {
   body.Radius = body.BaseRadius * scale;
 }
 
+function getPlayArea(width: number, height: number): RectBounds {
+  return playAreaBounds ?? { Left: 0, Top: 0, Right: width, Bottom: height };
+}
+
+function getBodyLimits(body: GravityBody, width: number, height: number, padding: number): RectBounds {
+  const area = getPlayArea(width, height);
+  const paddingX = Math.min(padding, Math.max(0, (area.Right - area.Left) / 2 - body.Radius));
+  const paddingY = Math.min(padding, Math.max(0, (area.Bottom - area.Top) / 2 - body.Radius));
+  return {
+    Left: area.Left + paddingX + body.Radius,
+    Right: area.Right - paddingX - body.Radius,
+    Top: area.Top + paddingY + body.Radius,
+    Bottom: area.Bottom - paddingY - body.Radius,
+  };
+}
+
 function constrainToStage(body: GravityBody, width: number, height: number, bouncedAxes: Set<CollisionAxis>, padding = EDGE_PADDING): boolean {
-  const minX = padding + body.Radius;
-  const maxX = Math.max(minX, width - padding - body.Radius);
-  const minY = padding + body.Radius;
-  const maxY = Math.max(minY, height - padding - body.Radius);
+  const limits = getBodyLimits(body, width, height, padding);
+  const minX = limits.Left;
+  const maxX = limits.Right;
+  const minY = limits.Top;
+  const maxY = limits.Bottom;
   let changed = false;
   if (body.X < minX) { body.X = minX; bounce(body, "X", 1, bouncedAxes); changed = true; }
   else if (body.X > maxX) { body.X = maxX; bounce(body, "X", -1, bouncedAxes); changed = true; }
@@ -456,10 +488,11 @@ function intersectsRectangle(body: GravityBody, obstacle: RectBounds | null): bo
 
 function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | null, width: number, height: number, exits: ObstacleExit[], bouncedAxes: Set<CollisionAxis>, padding = EDGE_PADDING): boolean {
   if (!intersectsRectangle(body, obstacle) || !obstacle) return false;
-  const minX = padding + body.Radius;
-  const maxX = Math.max(minX, width - padding - body.Radius);
-  const minY = padding + body.Radius;
-  const maxY = Math.max(minY, height - padding - body.Radius);
+  const limits = getBodyLimits(body, width, height, padding);
+  const minX = limits.Left;
+  const maxX = limits.Right;
+  const minY = limits.Top;
+  const maxY = limits.Bottom;
   const candidates = [
     { Exit: "Left" as const, X: obstacle.Left - body.Radius, Y: body.Y },
     { Exit: "Right" as const, X: obstacle.Right + body.Radius, Y: body.Y },
@@ -478,22 +511,25 @@ function resolveRectangleCollision(body: GravityBody, obstacle: RectBounds | nul
 }
 
 function fitBodyAroundCover(body: GravityBody, width: number, height: number): void {
+  const area = getPlayArea(width, height);
+  const areaWidth = area.Right - area.Left;
+  const areaHeight = area.Bottom - area.Top;
   const obstacle = coverBounds;
-  if (!obstacle || obstacle.Right <= 0 || obstacle.Left >= width || obstacle.Bottom <= 0 || obstacle.Top >= height) {
-    setBodyScale(body, 1);
+  if (!obstacle || obstacle.Right <= area.Left || obstacle.Left >= area.Right || obstacle.Bottom <= area.Top || obstacle.Top >= area.Bottom) {
+    setBodyScale(body, Math.min(1, areaWidth / (2 * body.BaseRadius), areaHeight / (2 * body.BaseRadius)));
     return;
   }
   const freeSpans = [
-    Math.max(0, Math.min(width, obstacle.Left)),
-    Math.max(0, width - Math.max(0, obstacle.Right)),
-    Math.max(0, Math.min(height, obstacle.Top)),
-    Math.max(0, height - Math.max(0, obstacle.Bottom)),
+    Math.max(0, Math.min(area.Right, obstacle.Left) - area.Left),
+    Math.max(0, area.Right - Math.max(area.Left, obstacle.Right)),
+    Math.max(0, Math.min(area.Bottom, obstacle.Top) - area.Top),
+    Math.max(0, area.Bottom - Math.max(area.Top, obstacle.Bottom)),
   ];
   const maximumRadius = Math.max(
-    Math.min(freeSpans[0] / 2, height / 2),
-    Math.min(freeSpans[1] / 2, height / 2),
-    Math.min(freeSpans[2] / 2, width / 2),
-    Math.min(freeSpans[3] / 2, width / 2),
+    Math.min(freeSpans[0] / 2, areaHeight / 2),
+    Math.min(freeSpans[1] / 2, areaHeight / 2),
+    Math.min(freeSpans[2] / 2, areaWidth / 2),
+    Math.min(freeSpans[3] / 2, areaWidth / 2),
   );
   setBodyScale(body, Math.min(1, maximumRadius / body.BaseRadius));
 }
@@ -949,16 +985,18 @@ function getLeadWindow(firstWord: number, lastWord: number): GravityLine[] {
 
 function getStageOverlapArea(bounds: RectBounds | null, width: number, height: number): number {
   if (!bounds) return 0;
-  const overlapWidth = Math.max(0, Math.min(width, bounds.Right) - Math.max(0, bounds.Left));
-  const overlapHeight = Math.max(0, Math.min(height, bounds.Bottom) - Math.max(0, bounds.Top));
+  const area = getPlayArea(width, height);
+  const overlapWidth = Math.max(0, Math.min(area.Right, bounds.Right) - Math.max(area.Left, bounds.Left));
+  const overlapHeight = Math.max(0, Math.min(area.Bottom, bounds.Bottom) - Math.max(area.Top, bounds.Top));
   return overlapWidth * overlapHeight;
 }
 
 function calculateVisibleLeadWordCount(width: number, height: number): number {
+  const area = getPlayArea(width, height);
   const occupiedArea =
     getStageOverlapArea(coverBounds, width, height) +
     getStageOverlapArea(footerBounds, width, height);
-  const availableArea = Math.max(0, width * height - occupiedArea);
+  const availableArea = Math.max(0, (area.Right - area.Left) * (area.Bottom - area.Top) - occupiedArea);
   return Math.min(
     MAX_VISIBLE_LEAD_WORDS,
     Math.max(MIN_VISIBLE_LEAD_WORDS, Math.ceil(availableArea / VISIBLE_WORD_AREA))
@@ -1100,12 +1138,14 @@ function spawnBody(body: GravityBody, width: number, height: number): void {
   const startY = body.NaturalY + (Math.random() * 2 - 1) * body.Height * 1.35;
   const occupied = [...activeBodies, ...exitingBodies].filter((other) => other !== body && other.Spawned);
   const phase = Math.random() * Math.PI * 2;
+  const area = getPlayArea(width, height);
+  const searchRadius = Math.hypot(area.Right - area.Left, area.Bottom - area.Top);
   let best: GravityBody = body;
   let bestOverlap = Number.POSITIVE_INFINITY;
   // Obstacle projection can collapse different spawn points onto the same spot.
   // Search outward without moving words that are already on screen.
   for (let attempt = 0; attempt < (reducedMotion ? 1 : SPAWN_ATTEMPTS); attempt += 1) {
-    const distance = Math.hypot(width, height) * attempt / (SPAWN_ATTEMPTS - 1);
+    const distance = searchRadius * attempt / (SPAWN_ATTEMPTS - 1);
     const angle = phase + attempt * Math.PI * (3 - Math.sqrt(5));
     const candidate = { ...body, X: startX + Math.cos(angle) * distance, Y: startY + Math.sin(angle) * distance, Angle: 0 };
     resolveBodyConstraints(candidate, width, height);
@@ -1195,6 +1235,11 @@ export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine
   viewport = nextViewport;
   footer = nextFooter;
   lines = nextLines;
+  // Resolve the same responsive insets as normal lyric lines, including side swaps.
+  playAreaMeasure = nextStage.ownerDocument.createElement("div");
+  playAreaMeasure.classList.add("SpaceGravityLine", "SpaceGravityMeasure");
+  playAreaMeasure.setAttribute("aria-hidden", "true");
+  nextStage.appendChild(playAreaMeasure);
   // A Gravity rebuild (for example after romanization changes) restores the
   // previously visible lines before mounting again. Remove that normal-flow
   // DOM now; prepareLines reattaches only the selected floating bodies.
@@ -1378,6 +1423,8 @@ export function destroySpaceGravity(): void {
   coverTrackingFrame = null;
   coverTrackingWindow = null;
   coverTrackingUntil = 0;
+  playAreaMeasure?.remove();
+  playAreaMeasure = null;
   stage = null;
   viewport = null;
   footer = null;
@@ -1409,6 +1456,7 @@ export function destroySpaceGravity(): void {
   staticLayoutDirty = true;
   visibleLeadWordCount = MIN_VISIBLE_LEAD_WORDS;
   stageBounds = null;
+  playAreaBounds = null;
   footerBounds = null;
   coverBounds = null;
   nowBarHeaderBounds = null;

@@ -1135,6 +1135,34 @@ function applySoftAvoidance(delta: number): void {
   }
 }
 
+function resolveBodyOverlaps(width: number, height: number): void {
+  const bodies = activeBodies.filter((body) => body.Spawned);
+  for (let pass = 0; pass < 3; pass += 1) {
+    let changed = false;
+    for (let index = 0; index < bodies.length; index += 1) for (let otherIndex = 0; otherIndex < index; otherIndex += 1) {
+      const body = bodies[index];
+      const other = bodies[otherIndex];
+      const dx = body.X - other.X;
+      const dy = body.Y - other.Y;
+      const distance = Math.hypot(dx, dy);
+      const minimumDistance = body.Radius + other.Radius + SOFT_SEPARATION_GAP;
+      if (distance >= minimumDistance) continue;
+
+      const angle = random(hash(`${body.Line.StartTime}:${body.WordIndex}:${other.Line.StartTime}:${other.WordIndex}:separation`)) * Math.PI * 2;
+      const directionX = distance > 0 ? dx / distance : Math.cos(angle);
+      const directionY = distance > 0 ? dy / distance : Math.sin(angle);
+      const correction = (minimumDistance - distance) / 2;
+      body.X += directionX * correction;
+      body.Y += directionY * correction;
+      other.X -= directionX * correction;
+      other.Y -= directionY * correction;
+      changed = true;
+    }
+    if (!changed) break;
+    for (const body of bodies) resolveBodyConstraints(body, width, height);
+  }
+}
+
 export function mountSpaceGravity(nextStage: HTMLElement, nextLines: GravityLine[], nextViewport: HTMLElement, nextFooter: HTMLElement): void {
   destroySpaceGravity();
   stage = nextStage;
@@ -1247,6 +1275,7 @@ export function tickSpaceGravity(position: number): void {
       body.Angle = ((body.Angle + body.AngularVelocity * delta + 180) % 360 + 360) % 360 - 180;
       resolveBodyConstraints(body, stageBounds.Width, stageBounds.Height);
     }
+    resolveBodyOverlaps(stageBounds.Width, stageBounds.Height);
   }
   for (const body of activeBodies) renderBody(body);
 }

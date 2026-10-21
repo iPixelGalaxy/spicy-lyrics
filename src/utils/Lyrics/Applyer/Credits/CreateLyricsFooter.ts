@@ -92,7 +92,7 @@ export function CreateLyricsFooter(
   spaceGravityMode = false
 ): HTMLElement {
   const footer = document.createElement("div");
-  footer.classList.add("LyricsFooter");
+  footer.classList.add("LyricsFooter", "SongCredits");
   PlaceLyricsFooter(footer, lyricsContainer, lyricsContent, spaceGravityMode);
   return footer;
 }

@@ -1,4 +1,5 @@
 import { RegisterLyricsFooterDetail } from "./CreateLyricsFooter.ts";
+import { CreditsRow } from "./CreditsRow.ts";
 
 interface LyricsData {
   SongWriters?: string[];
@@ -23,8 +24,7 @@ export function ApplyLyricsCredits(data: LyricsData, LyricsContainer: HTMLElemen
   const CreditsElement = document.createElement("div");
   CreditsElement.classList.add("Credits");
 
-  const SongWriters = data.SongWriters.join(", ");
-  CreditsElement.textContent = `Written by: ${SongWriters}`;
+  CreditsRow(CreditsElement, "Written by", data.SongWriters.join(", "));
   LyricsContainer.appendChild(CreditsElement);
   RegisterLyricsFooterDetail(CreditsElement, LyricsContainer);
 }

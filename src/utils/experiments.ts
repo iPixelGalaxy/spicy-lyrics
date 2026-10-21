@@ -208,6 +208,17 @@ export function getVisibleExperiments(): ResolvedExperiment[] {
   return getExperiments().filter((exp) => !exp.hidden);
 }
 
+// These controls already appear in their main settings sections.
+const INLINE_EXPERIMENTS: ReadonlySet<ExperimentId> = new Set([
+  "newSettingsDesign",
+  "newProgressBarStyling",
+  "lyricsSkeleton",
+]);
+
+export function getAdvancedExperiments(): ResolvedExperiment[] {
+  return getVisibleExperiments().filter((exp) => !INLINE_EXPERIMENTS.has(exp.id));
+}
+
 // `undefined` until the user toggles it, so a `default` (local or remote) keeps
 // applying to everyone who never made a choice. Kept even while an experiment is
 // forced, so lifting the force hands back whatever they had picked.

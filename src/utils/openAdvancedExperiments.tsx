@@ -1,9 +1,6 @@
 import { PopupModal } from "../components/Modal.ts";
 import ExperimentsPanel from "../components/ReactComponents/SettingsPanel/ExperimentsPanel.tsx";
 import { createReactModalContent, getModalScrollTop } from "./reactModalContent.tsx";
-import type { ExperimentId } from "./experiments.ts";
-
-const ADVANCED_EXPERIMENTS: readonly ExperimentId[] = ["canvasImmersive", "npvCanvasBackground", "popupDock", "refinedBackground", "refreshedSimpleLyrics"];
 
 export async function OpenAdvancedExperiments() {
   const { default: SettingsPanel } = await import("../components/ReactComponents/SettingsPanel/index.tsx");
@@ -26,7 +23,7 @@ export async function OpenAdvancedExperiments() {
 
   const options = {
     title: "Experiments",
-    ...createReactModalContent(<ExperimentsPanel experimentIds={ADVANCED_EXPERIMENTS} showBuiltIn={false} />, modalDocument),
+    ...createReactModalContent(<ExperimentsPanel advancedOnly showBuiltIn={false} />, modalDocument),
     isLarge: true,
     modalId: "advancedExperiments",
     headerLeft: backButton,

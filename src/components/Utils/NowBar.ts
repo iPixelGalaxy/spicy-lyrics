@@ -1,6 +1,6 @@
 import BlobURLMaker from "../../utils/BlobURLMaker.ts";
 import { GetCurrentLyricsContainerInstance } from "../../utils/Lyrics/Applyer/CreateLyricsContainer.ts";
-import { SongProgressBar } from "./../../utils/Lyrics/SongProgressBar.ts";
+import { FormatPlaybackTime, SongProgressBar } from "./../../utils/Lyrics/SongProgressBar.ts";
 import { QueueForceScroll, ResetLastLine } from "../../utils/Scrolling/ScrollToActiveLine.ts";
 import {
   $alwaysShowInFullscreen,
@@ -35,6 +35,36 @@ function setText(el: HTMLElement, text: string): void {
   } else if (el.textContent !== text) {
     el.textContent = text;
   }
+}
+
+function CreateScrubPreview(host: HTMLElement, keepInsideHost: boolean) {
+  const el = host.ownerDocument.createElement("div");
+  el.className = "ScrubPreview";
+  el.setAttribute("aria-hidden", "true");
+  host.appendChild(el);
+
+  return {
+    Show: (text: string, point: number, vertical: boolean) => {
+      setText(el, text);
+      el.classList.toggle("Vertical", vertical);
+      const rect = host.getBoundingClientRect();
+      const scale = vertical
+        ? rect.height / (host.offsetHeight || 1)
+        : rect.width / (host.offsetWidth || 1);
+      const offset = (point - (vertical ? rect.top : rect.left)) / (scale || 1);
+      if (vertical) {
+        el.style.translate = `0 ${offset}px`;
+      } else if (!keepInsideHost) {
+        el.style.translate = `${offset}px 0`;
+      } else {
+        const half = el.offsetWidth / 2;
+        const max = host.offsetWidth - half;
+        el.style.translate = `${Math.max(half, Math.min(max, offset))}px 0`;
+      }
+      el.classList.add("Visible");
+    },
+    Hide: () => el.classList.remove("Visible"),
+  };
 }
 
 // Define interfaces for our control instances
@@ -598,6 +628,31 @@ function OpenNowBar(skipSaving: boolean = false) {
         let previousUserSelect = "";
         const timelineDocument = TimelineElem.ownerDocument;
         const timelineWindow = timelineDocument.defaultView ?? window;
+        const scrubPreview = CreateScrubPreview(TimelineElem, true);
+        let isHovering = false;
+
+        const previewAt = (clientX: number) => {
+          const duration = isDragging ? draggingDurationMs : SpotifyPlayer.GetDuration() ?? 0;
+          const rect = SliderBar.getBoundingClientRect();
+          if (duration <= 0 || rect.width <= 0) {
+            scrubPreview.Hide();
+            return;
+          }
+          const x = Math.max(rect.left, Math.min(rect.right, clientX));
+          const positionMs = Math.floor(((x - rect.left) / rect.width) * duration);
+          scrubPreview.Show(FormatPlaybackTime(positionMs), x, false);
+        };
+
+        const handleHoverMove = (event: PointerEvent) => {
+          if (event.pointerType !== "mouse") return;
+          isHovering = true;
+          if (!isDragging) previewAt(event.clientX);
+        };
+
+        const handleHoverLeave = () => {
+          isHovering = false;
+          if (!isDragging) scrubPreview.Hide();
+        };
 
         const updateTimelineState = (positionMs: number | null = null) => {
           const PositionElem = TimelineElem.querySelector<HTMLElement>(".Time.Position");
@@ -722,6 +777,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           if (rect.width <= 0 || !Number.isFinite(clientX)) return;
           const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
 
+          previewAt(clientX);
           pendingDragPercentage = percentage;
           if (dragFrame === null) {
             dragFrame = timelineWindow.requestAnimationFrame(renderDragPosition);
@@ -752,11 +808,13 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
           dragPositionMs = null;
           pendingDragPercentage = null;
+          if (!isHovering) scrubPreview.Hide();
         };
 
         const handleDragCancel = () => {
           if (!isDragging) return;
           releaseDrag();
+          scrubPreview.Hide();
           Global.Event.evoke("nowbar:timeline:dragging", { isDragging: false });
           updateTimelineState();
         };
@@ -814,6 +872,9 @@ function OpenNowBar(skipSaving: boolean = false) {
 
         // Synthetic activation has no pointer release to handle the seek.
         SliderBar.addEventListener("click", sliderBarHandler);
+        SliderBar.addEventListener("pointerenter", handleHoverMove);
+        SliderBar.addEventListener("pointermove", handleHoverMove);
+        SliderBar.addEventListener("pointerleave", handleHoverLeave);
 
         timelineMaid.Give(() => {
           handleDragCancel();
@@ -822,6 +883,9 @@ function OpenNowBar(skipSaving: boolean = false) {
           SliderBar.removeEventListener("mousedown", handleDragStart);
           SliderBar.removeEventListener("touchstart", handleDragStart);
           SliderBar.removeEventListener("pointerdown", handleDragStart);
+          SliderBar.removeEventListener("pointerenter", handleHoverMove);
+          SliderBar.removeEventListener("pointermove", handleHoverMove);
+          SliderBar.removeEventListener("pointerleave", handleHoverLeave);
         });
 
         // Run initial update
@@ -894,6 +958,8 @@ function OpenNowBar(skipSaving: boolean = false) {
         let dragHasMoved = false;
         let dragStartY = 0;
         let suppressIconClickUntil = 0;
+        const scrubPreview = CreateScrubPreview(VolumeElement, false);
+        let isHovering = false;
 
         const clamp = (value: number) => Math.max(0, Math.min(1, value));
         const readMute = () => {
@@ -938,18 +1004,16 @@ function OpenNowBar(skipSaving: boolean = false) {
           }
         };
 
-        const clientYFromEvent = (event: MouseEvent | TouchEvent): number => {
+        const pointFromEvent = (event: MouseEvent | TouchEvent): MouseEvent | Touch => {
           if ("touches" in event && event.touches.length > 0) {
-            return event.touches[0].clientY;
+            return event.touches[0];
           } else if ("changedTouches" in event && event.changedTouches.length > 0) {
-            return event.changedTouches[0].clientY;
+            return event.changedTouches[0];
           }
-          return (event as MouseEvent).clientY;
+          return event as MouseEvent;
         };
         const percentageFromEvent = (event: MouseEvent | TouchEvent) => {
-          const point = "touches" in event
-            ? event.touches[0] ?? event.changedTouches[0]
-            : event;
+          const point = pointFromEvent(event);
           if (!point || !Number.isFinite(point.clientY)) return currentLevel;
           const rect = VolumeElement.getBoundingClientRect();
           // The Canvas Stage dock lays the capsule flat; its shape says which axis to read.
@@ -961,13 +1025,39 @@ function OpenNowBar(skipSaving: boolean = false) {
           return clamp(1 - (point.clientY - rect.top) / rect.height);
         };
 
+        const previewLevel = (event: MouseEvent | TouchEvent, level: number) => {
+          const point = pointFromEvent(event);
+          const rect = VolumeElement.getBoundingClientRect();
+          const vertical = rect.width <= rect.height;
+          const along = vertical
+            ? Math.max(rect.top, Math.min(rect.bottom, point.clientY))
+            : Math.max(rect.left, Math.min(rect.right, point.clientX));
+          scrubPreview.Show(`${Math.round(level * 100)}%`, along, vertical);
+        };
+
+        const handleHoverMove = (event: PointerEvent) => {
+          if (event.pointerType !== "mouse") return;
+          isHovering = true;
+          if (isDragging) return;
+          if ((event.target as HTMLElement | null)?.closest?.(".VolumeIcon")) {
+            scrubPreview.Hide();
+          } else {
+            previewLevel(event, percentageFromEvent(event));
+          }
+        };
+
+        const handleHoverLeave = () => {
+          isHovering = false;
+          if (!isDragging) scrubPreview.Hide();
+        };
+
         // Volume has no seek cost, so we commit live on every move instead of only
         // on release like the timeline does. A plain click is covered too — mousedown
         // starts the drag and immediately commits the position under the cursor.
         const handleDragStart = (event: MouseEvent | TouchEvent) => {
           if (isDragging || ("button" in event && event.button !== 0)) return;
           startedInIcon = Boolean((event.target as HTMLElement | null)?.closest?.(".VolumeIcon"));
-          dragStartY = clientYFromEvent(event);
+          dragStartY = pointFromEvent(event).clientY;
           dragHasMoved = false;
           if (event.cancelable) event.preventDefault();
           isDragging = true;
@@ -994,12 +1084,14 @@ function OpenNowBar(skipSaving: boolean = false) {
           if (!isDragging) return;
           // Tapping the glyph toggles mute; moving 6 px turns it into a drag.
           if (startedInIcon && !dragHasMoved) {
-            if (Math.abs(clientYFromEvent(event) - dragStartY) < 6) return;
+            if (Math.abs(pointFromEvent(event).clientY - dragStartY) < 6) return;
             dragHasMoved = true;
             VolumeElement.classList.add("Dragging");
           }
           if (event.cancelable) event.preventDefault();
-          commit(percentageFromEvent(event));
+          const level = percentageFromEvent(event);
+          commit(level);
+          previewLevel(event, level);
         };
 
         const handleDragCancel = () => {
@@ -1017,6 +1109,7 @@ function OpenNowBar(skipSaving: boolean = false) {
           volumeWindow.removeEventListener("blur", handleDragCancel);
           startedInIcon = false;
           dragHasMoved = false;
+          scrubPreview.Hide();
         };
 
         const handleDragEnd = (event: MouseEvent | TouchEvent) => {
@@ -1027,7 +1120,10 @@ function OpenNowBar(skipSaving: boolean = false) {
           handleDragCancel();
           if (wasIcon) suppressIconClickUntil = volumeWindow.performance.now() + 500;
           if (tappedIcon) iconHandler();
-          else commit(percentage);
+          else {
+            commit(percentage);
+            if (isHovering) previewLevel(event, percentage);
+          }
         };
 
         const iconHandler = (event?: MouseEvent) => {
@@ -1069,6 +1165,9 @@ function OpenNowBar(skipSaving: boolean = false) {
         VolumeElement.addEventListener("touchstart", handleDragStart, { passive: false });
         IconElement.addEventListener("click", iconHandler);
         VolumeElement.addEventListener("wheel", wheelHandler, { passive: false });
+        VolumeElement.addEventListener("pointerenter", handleHoverMove);
+        VolumeElement.addEventListener("pointermove", handleHoverMove);
+        VolumeElement.addEventListener("pointerleave", handleHoverLeave);
 
         volumeMaid.Give(() => {
           handleDragCancel();
@@ -1076,6 +1175,9 @@ function OpenNowBar(skipSaving: boolean = false) {
           VolumeElement.removeEventListener("touchstart", handleDragStart);
           IconElement.removeEventListener("click", iconHandler);
           VolumeElement.removeEventListener("wheel", wheelHandler);
+          VolumeElement.removeEventListener("pointerenter", handleHoverMove);
+          VolumeElement.removeEventListener("pointermove", handleHoverMove);
+          VolumeElement.removeEventListener("pointerleave", handleHoverLeave);
         });
 
         // The `volume` event only fires on change, so seed the initial state here

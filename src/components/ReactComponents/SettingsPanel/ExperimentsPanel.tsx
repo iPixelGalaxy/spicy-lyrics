@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import { $experiment, $experimentOverrides, $experimentsSyncing, forcedExperimentState, getVisibleExperiments, RefreshExperimentOverrides, setExperiment, type ExperimentId, type ResolvedExperiment } from "../../../utils/experiments.ts";
+import { $experiment, $experimentOverrides, $experimentsSyncing, forcedExperimentState, getAdvancedExperiments, getVisibleExperiments, RefreshExperimentOverrides, setExperiment, type ExperimentId, type ResolvedExperiment } from "../../../utils/experiments.ts";
 import { useEffect } from "react";
 import { $enableExperimentalWordSync, $externalCinemaLyricsAllowed } from "../../../utils/stores.ts";
 import { Row, SectionTitle, Toggle } from "./components.tsx";
@@ -14,23 +14,24 @@ const experimentSettingIds: Partial<Record<ExperimentId, string>> = {
  * The Experiments sub-panel. Renders straight off the EXPERIMENTS registry, so a
  * new experiment shows up here the moment it's added to `utils/experiments.ts`.
  */
-export default function ExperimentsPanel({ experimentIds, showBuiltIn = true }: { experimentIds?: readonly ExperimentId[]; showBuiltIn?: boolean }) {
+export default function ExperimentsPanel({ experimentIds, advancedOnly = false, showBuiltIn = true }: { experimentIds?: readonly ExperimentId[]; advancedOnly?: boolean; showBuiltIn?: boolean }) {
   return <div style={{ padding: "8px 0" }} className="slm w-40">
     <p className="sl-sp-experiments-note">These features are still being shaped. Toggle one off if you prefer how things worked before.</p>
-    <ExperimentSettings experimentIds={experimentIds} showBuiltIn={showBuiltIn} />
+    <ExperimentSettings experimentIds={experimentIds} advancedOnly={advancedOnly} showBuiltIn={showBuiltIn} />
   </div>;
 }
 
-export function ExperimentSettings({ title = false, experimentIds, showBuiltIn = true }: { title?: boolean; experimentIds?: readonly ExperimentId[]; showBuiltIn?: boolean }) {
+export function ExperimentSettings({ title = false, experimentIds, advancedOnly = false, showBuiltIn = true }: { title?: boolean; experimentIds?: readonly ExperimentId[]; advancedOnly?: boolean; showBuiltIn?: boolean }) {
   useStore($experimentOverrides);
   useEffect(() => { void RefreshExperimentOverrides(); }, []);
   const experimentalWordSync = useStore($enableExperimentalWordSync);
   const externalCinemaLyricsAllowed = useStore($externalCinemaLyricsAllowed);
+  const experiments = advancedOnly ? getAdvancedExperiments() : getVisibleExperiments();
 
   return (
     <>
       {title && <SectionTitle>Experiments</SectionTitle>}
-      {getVisibleExperiments().filter((exp) => !experimentIds || experimentIds.includes(exp.id)).map((exp) => (
+      {experiments.filter((exp) => !experimentIds || experimentIds.includes(exp.id)).map((exp) => (
         <ExperimentRow key={exp.id} experiment={exp} />
       ))}
       {showBuiltIn && <><Row

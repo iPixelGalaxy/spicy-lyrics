@@ -123,12 +123,12 @@
    maps --SLM_GradientPosition's -50%…100% onto fully dim…fully lit. Both
    rendering types drive that same variable, so this covers them both. The
    part still to come stays a little brighter than before. */
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line.Active
   .word:not(.dot),
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line.Active
@@ -144,15 +144,7 @@
   background-position: calc((100% - var(--SLM_GradientPosition)) / 1.5) 0;
 }
 
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
-  .LyricsContainer
-  .LyricsContent
-  .line.Active
-  .letter {
-  --SLR_FadeWidth: 0.4em;
-}
-
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line.Active:not(.bg-line)
@@ -164,7 +156,7 @@
    animated. Here they wait as plain text like the words around them, so a
    split word doesn't grow into place as its line starts. Sung lines are left
    alone: the last word's letters settle there after the line ends. */
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line:not(.Active, .Sung)
@@ -174,18 +166,18 @@
   translate: none !important;
 }
 
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line.Sung
   .letter {
   text-shadow:
     0 0 var(--BlurAmount, 0)
-      rgba(var(--gradient-color), var(--gradient-color), var(--gradient-color), var(--gradient-alpha)),
+    rgba(var(--gradient-rgb), var(--gradient-alpha)),
     0 0 var(--text-shadow-blur-radius) rgba(255, 255, 255, var(--text-shadow-opacity));
 }
 
-#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics:not(.SpaceGravityMode)
   .LyricsContainer
   .LyricsContent
   .line.rtl.Active
@@ -1006,6 +998,110 @@
   font-size: var(--font-size) !important;
   font-weight: 600 !important;
 }
+
+
+
+/* Keep Overlapping Lines (experiment): a sung line after an active one
+   (overlapping lines, background vocals) stays visible at full size, just
+   dimmer. SungAfterActive is set in LyricsAnimator.ts. */
+#SpicyLyricsPage.SpicyRenderer.Fullscreen.MinimalLyricsMode.Exp_KeepOverlappingLines:not(.CompactMode):not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent:not(.HideLineBlur)
+  .line.Sung.SungAfterActive:not(.musical-line) {
+  scale: 1;
+  opacity: 0.45;
+  --BlurAmount: 0px !important;
+}
+
+/* Background Vocal Pop-Out (experiment). A background line takes no space
+   until it or its lead line is sung (GroupActive, set in LyricsAnimator.ts),
+   then slides out from under the lead while the rows below glide down to make
+   room (the virtualizer's layout glide, same duration and curve). Collapsed it
+   keeps overflow visible, so on the way out the text fades over the rows
+   gliding up instead of being cut off. The reveal is on `transform`, which
+   nothing else sets on a line; Minimal Lyrics Mode drives `scale` and
+   `opacity`. The selectors carry .SpicyLyricsScrollContainer and the :not()s
+   so their transition outranks Minimal Lyrics Mode's `!important` one. */
+#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer
+  .line.bg-line:not(.musical-line):not(.static) {
+  transform-origin: left top !important;
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.4s ease-in-out !important;
+}
+
+/* Opening (a line opens NotSung, with its lead): the fade waits for the rows
+   below to get most of the way clear. Only here, so the brightening as it's
+   sung stays in time with its words. */
+#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer
+  .line.bg-line.GroupActive.NotSung:not(.musical-line):not(.static) {
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
+    scale 0.4s ease-in-out !important;
+}
+
+#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer
+  .line.bg-line:is(.OppositeAligned, .rtl):not(.musical-line):not(.static) {
+  transform-origin: right top !important;
+}
+
+#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer
+  .line.bg-line.rtl.OppositeAligned:not(.musical-line):not(.static) {
+  transform-origin: left top !important;
+}
+
+#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .SpicyLyricsScrollContainer
+  .line.bg-line:not(.GroupActive):not(.musical-line):not(.static) {
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: visible;
+  pointer-events: none;
+  opacity: 0 !important;
+  transform: translateY(-0.6em) scale(0.8);
+  /* Gone before the rows below glide in over it. */
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.12s ease-out,
+    scale 0.4s ease-in-out !important;
+}
+
+/* A translation row of a collapsed line would be left on its own. */
+#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+  .LyricsContainer
+  .LyricsContent
+  .line.bg-line:not(.GroupActive)
+  + :is(.slt-interleaved-translation, .slt-replace-line, .slt-romanization-line) {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
+    .LyricsContainer
+    .LyricsContent
+    .SpicyLyricsScrollContainer
+    .line.bg-line:not(.GroupActive):not(.musical-line):not(.static) {
+    transform: none;
+  }
+}
+
 
 
 

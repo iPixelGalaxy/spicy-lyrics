@@ -114,7 +114,16 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   const { signal } = isByCommunityAbortController;
 
   const songInfoElement = PageDocument.createElement("div");
-  songInfoElement.classList.add("SongInfo");
+  songInfoElement.classList.add("SongInfo", "CommunityCredits");
+  LyricsContainer.classList.add("FromCommunity");
+
+  const communityNote = PageDocument.createElement("span");
+  communityNote.classList.add("SongInfoNote");
+  communityNote.textContent = "These lyrics have been provided by our community";
+  const communityLead = PageDocument.createElement("span");
+  communityLead.classList.add("SongInfoLead");
+  communityLead.textContent = "Community lyrics";
+  songInfoElement.append(communityNote, communityLead);
 
   const preferredProfileName = (username?: string, displayName?: string) => {
     const cleanUsername = username?.trim();
@@ -132,7 +141,6 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   const uploaderUsername = preferredProfileName(data.TTMLUploadMetadata?.Uploader?.username, uploaderDisplayName);
   const uploaderAvatar = data.TTMLUploadMetadata?.Uploader?.avatar;
 
-  // Helper for creating a profile section (Maker / Uploader) safely
   const createProfileSection = (
     type: "Maker" | "Uploader",
     labelText: string,
@@ -142,39 +150,37 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     const wrapperSpan = PageDocument.createElement("span");
     wrapperSpan.classList.add(type);
 
-    const innerSpan = PageDocument.createElement("span");
-
     const labelSpan = PageDocument.createElement("span");
-    labelSpan.style.opacity = "0.5";
-    labelSpan.textContent = `${labelText} `;
+    labelSpan.classList.add("SongInfoRole");
+    labelSpan.textContent = labelText;
 
-    const profileSectionSpan = PageDocument.createElement("span");
+    const profileSectionSpan = PageDocument.createElement("button");
+    profileSectionSpan.type = "button";
     profileSectionSpan.classList.add("song-info-profile-section");
 
-    // "@username"
-    const atText = PageDocument.createTextNode("@");
-    profileSectionSpan.appendChild(atText);
-
+    const nameSpan = PageDocument.createElement("span");
+    nameSpan.classList.add("SongInfoName");
     const usernameSpan = PageDocument.createElement("span");
     usernameSpan.textContent = username;
-    profileSectionSpan.appendChild(usernameSpan);
+    nameSpan.append("@", usernameSpan);
+    profileSectionSpan.append(labelSpan, " ");
 
-    // Optional avatar image
     if (avatarUrl) {
-      const avatarWrapper = PageDocument.createElement("span");
       const img = PageDocument.createElement("img");
       img.src = avatarUrl;
-      img.alt = `${username}'s avatar`;
+      img.alt = "";
       img.onerror = () => {
         img.style.display = "none";
       };
-      avatarWrapper.appendChild(img);
-      profileSectionSpan.appendChild(avatarWrapper);
+      profileSectionSpan.appendChild(img);
     }
 
-    innerSpan.appendChild(labelSpan);
-    innerSpan.appendChild(profileSectionSpan);
-    wrapperSpan.appendChild(innerSpan);
+    profileSectionSpan.appendChild(nameSpan);
+    // Spotify's playback shortcut must not cancel a keyboard button press.
+    profileSectionSpan.addEventListener("keydown", (event) => {
+      if (event.key === " " || event.key === "Enter") event.stopPropagation();
+    }, { signal });
+    wrapperSpan.appendChild(profileSectionSpan);
 
     songInfoElement.appendChild(wrapperSpan);
     return usernameSpan;
@@ -199,10 +205,12 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
   ])];
   const creditStates = communityCreditElements.map((element) => ({
     element: element as HTMLElement,
-    opacity: element.classList.contains("Credits") ? "0.6"
-      : element.classList.contains("LyricsProvider") ? "0.5"
-      : "1",
+    opacity: element.style.opacity,
   }));
+  const restoreCreditOpacity = (element: HTMLElement, opacity: string) => {
+    if (opacity) element.style.opacity = opacity;
+    else element.style.removeProperty("opacity");
+  };
   creditStates.forEach(({ element: creditElement }) => {
     // Commit the hidden starting state without transitioning away from visible.
     creditElement.style.transition = "none";
@@ -218,7 +226,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
     const creditDocument = songInfoElement.ownerDocument;
     if (creditDocument !== document) {
       creditStates.forEach(({ element, opacity }) => {
-        element.style.opacity = opacity;
+        restoreCreditOpacity(element, opacity);
       });
       return;
     }
@@ -235,7 +243,7 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
         if (signal.aborted) return;
         creditStates.forEach(({ element, opacity }) => {
           element.style.transition = "opacity 180ms cubic-bezier(0.22, 1, 0.36, 1)";
-          element.style.opacity = opacity;
+          restoreCreditOpacity(element, opacity);
         });
       });
     });
@@ -267,8 +275,6 @@ export function ApplyIsByCommunity(data: any, LyricsContainer: HTMLElement): voi
           renderedName || displayName || profile.displayName,
         ) ?? profile.username;
         element.textContent = profileName;
-        const avatar = element.parentElement?.querySelector("img");
-        if (avatar) avatar.alt = `${profileName}'s avatar`;
       }
     });
   };

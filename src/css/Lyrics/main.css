@@ -332,6 +332,15 @@ body:has(.Root:not(.global-nav)) #SpicyLyricsPage .LyricsContainer .LyricsConten
 
 #SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter, .letterGroup, .word-group) {
   --gradient-rgb: 255, 140, 168;
+}
+
+/* Parent text clips paint split syllables again underneath their animated fill. */
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine,
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityWord :is(.letterGroup, .word-group) {
+  background-image: none !important;
+}
+
+#SpicyLyricsPage.SpaceGravityMode .LyricsContainer .LyricsContent .SpaceGravityStage .SpaceGravityLine.OppositeAligned .SpaceGravityWord :is(.word, .letter) {
   background-image: linear-gradient(
     var(--gradient-degrees),
     rgba(var(--gradient-rgb), var(--gradient-alpha)) var(--gradient-position),

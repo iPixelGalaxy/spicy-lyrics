@@ -999,8 +999,6 @@
   font-weight: 600 !important;
 }
 
-
-
 /* Keep Overlapping Lines (experiment): a sung line after an active one
    (overlapping lines, background vocals) stays visible at full size, just
    dimmer. SungAfterActive is set in LyricsAnimator.ts. */
@@ -1013,8 +1011,9 @@
   --BlurAmount: 0px !important;
 }
 
-/* Background Vocal Pop-Out (experiment). A background line takes no space
-   until it or its lead line is sung (GroupActive, set in LyricsAnimator.ts),
+/* Background Vocal Pop-Out (experiment, Refreshed Simple Lyrics only). A
+   background line takes no space until it or its lead line is sung
+   (GroupActive, set in LyricsAnimator.ts),
    then slides out from under the lead while the rows below glide down to make
    room (the virtualizer's layout glide, same duration and curve). Collapsed it
    keeps overflow visible, so on the way out the text fades over the rows
@@ -1022,90 +1021,63 @@
    nothing else sets on a line; Minimal Lyrics Mode drives `scale` and
    `opacity`. The selectors carry .SpicyLyricsScrollContainer and the :not()s
    so their transition outranks Minimal Lyrics Mode's `!important` one. */
-#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-  .LyricsContainer
-  .LyricsContent
-  .SpicyLyricsScrollContainer
-  .line.bg-line:not(.musical-line):not(.static) {
-  transform-origin: left top !important;
-  transition:
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    scale 0.4s ease-in-out !important;
-}
+#SpicyLyricsPage.SpicyRenderer.SimpleLyricsMode.Exp_RefreshedSimpleLyrics.Exp_BackgroundLinePop:not(.SpaceGravityMode) {
+  & .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .line.bg-line:not(.musical-line):not(.static) {
+    transform-origin: left top !important;
+    transition:
+      transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+      scale 0.4s ease-in-out !important;
+  }
 
-/* Opening (a line opens NotSung, with its lead): the fade waits for the rows
-   below to get most of the way clear. Only here, so the brightening as it's
-   sung stays in time with its words. */
-#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-  .LyricsContainer
-  .LyricsContent
-  .SpicyLyricsScrollContainer
-  .line.bg-line.GroupActive.NotSung:not(.musical-line):not(.static) {
-  transition:
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
-    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
-    scale 0.4s ease-in-out !important;
-}
+  /* Opening (a line opens NotSung, with its lead): the fade waits for the rows
+     below to get most of the way clear. Only here, so the brightening as it's
+     sung stays in time with its words. */
+  & .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .line.bg-line.GroupActive.NotSung:not(.musical-line):not(.static) {
+    transition:
+      transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
+      opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.1s,
+      scale 0.4s ease-in-out !important;
+  }
 
-#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-  .LyricsContainer
-  .LyricsContent
-  .SpicyLyricsScrollContainer
-  .line.bg-line:is(.OppositeAligned, .rtl):not(.musical-line):not(.static) {
-  transform-origin: right top !important;
-}
+  & .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .line.bg-line:is(.OppositeAligned, .rtl):not(.musical-line):not(.static) {
+    transform-origin: right top !important;
+  }
 
-#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-  .LyricsContainer
-  .LyricsContent
-  .SpicyLyricsScrollContainer
-  .line.bg-line.rtl.OppositeAligned:not(.musical-line):not(.static) {
-  transform-origin: left top !important;
-}
+  & .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .line.bg-line.rtl.OppositeAligned:not(.musical-line):not(.static) {
+    transform-origin: left top !important;
+  }
 
-#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-  .LyricsContainer
-  .LyricsContent
-  .SpicyLyricsScrollContainer
-  .line.bg-line:not(.GroupActive):not(.musical-line):not(.static) {
-  height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: visible;
-  pointer-events: none;
-  opacity: 0 !important;
-  transform: translateY(-0.6em) scale(0.8);
-  /* Gone before the rows below glide in over it. */
-  transition:
-    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.12s ease-out,
-    scale 0.4s ease-in-out !important;
-}
+  & .LyricsContainer .LyricsContent .SpicyLyricsScrollContainer .line.bg-line:not(.GroupActive):not(.musical-line):not(.static) {
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible;
+    pointer-events: none;
+    opacity: 0 !important;
+    transform: translateY(-0.6em) scale(0.8);
+    /* Gone before the rows below glide in over it. */
+    transition:
+      transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.12s ease-out,
+      scale 0.4s ease-in-out !important;
+  }
 
-/* A translation row of a collapsed line would be left on its own. */
-#SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-  .LyricsContainer
-  .LyricsContent
-  .line.bg-line:not(.GroupActive)
-  + :is(.slt-interleaved-translation, .slt-replace-line, .slt-romanization-line) {
-  display: none !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #SpicyLyricsPage.SpicyRenderer.Exp_BackgroundLinePop:not(.SpaceGravityMode)
-    .LyricsContainer
-    .LyricsContent
-    .SpicyLyricsScrollContainer
-    .line.bg-line:not(.GroupActive):not(.musical-line):not(.static) {
-    transform: none;
+  /* A translation row of a collapsed line would be left on its own. */
+  & .LyricsContainer .LyricsContent .line.bg-line:not(.GroupActive)
+    + :is(.slt-interleaved-translation, .slt-replace-line, .slt-romanization-line) {
+    display: none !important;
   }
 }
 
-
-
-
 #SpicyLyricsPage.SpicyRenderer .LyricsContainer :is(.LyricsContent, .LyricsPinnedFooter) .Credits {
+  /* Follows the .LyricsContent width (`cqw`, it's a size container), capped at
+     a ratio of the lyrics size. `em` is the parent's font-size, which the
+     scroll container inherits as var(--DefaultLyricsSize) from .LyricsContent.
+     A plain `em` ratio doesn't work in narrow views (sidebar card, popup): the
+     lyrics sit at their clamp floor there, which left the credits oversized.
+     The rem inside max() keeps that cap from undercutting the cqw value when
+     the lyrics are small. .SongInfo and .LyricsProvider follow the same scheme. */
   font-size: clamp(0.8rem, 3.7cqw, max(0.47em, 1rem)) !important;
   font-weight: 600 !important;
   opacity: 0.6;

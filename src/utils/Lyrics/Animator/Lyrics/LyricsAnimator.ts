@@ -5,7 +5,7 @@ import { $currentLyricsType, $simpleLyricsMode, $simpleLyricsModeRenderingType, 
 import { LyricsObject, type LyricsLine, type LyricsSyllable, type SyllableLead, SimpleLyricsMode_LetterEffectsStrengthConfig, preHiddenDotLineMs } from "../../lyrics.ts";
 import { isExperimentEnabled } from "../../../experiments.ts";
 import { BlurMultiplier, getIdleEmphasisLyricsScale, getIdleLyricsScale, timeOffset } from "../Shared.ts";
-import { isLyricsListMoving, setOnNewElementMounted, syncDetachedBackgroundLines } from "../../LyricsVirtualizer.ts";
+import { isBgPopActive, isLyricsListMoving, setOnNewElementMounted, syncDetachedBackgroundLines } from "../../LyricsVirtualizer.ts";
 import { Spring } from "../../../../modules/Spring.ts";
 import { $animatorPreset, $animatorValues } from "../Tuning.ts";
 import { UPSTREAM_ANIMATOR_VALUES } from "../Upstream.ts";
@@ -1346,7 +1346,8 @@ export function Animate(position: number): void {
 
   if (CurrentLyricsType === "Syllable") {
     const arr = LyricsObject.Types.Syllable.Lines;
-    markBackgroundGroups(arr, ProcessedPosition, !$spaceGravityMode.get() && isExperimentEnabled("backgroundLinePop"));
+    // The pop-out belongs to the refreshed layout; anywhere else every background line stays open.
+    markBackgroundGroups(arr, ProcessedPosition, isBgPopActive());
 
     if (refreshedSimple) {
       for (const line of arr) {

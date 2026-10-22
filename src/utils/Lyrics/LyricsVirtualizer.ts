@@ -7,7 +7,7 @@ import {
 import { Maid } from "../../modules/Maid.ts";
 import { Spring } from "../../modules/Spring.ts";
 import Logger from "../Logger.ts";
-import { $simpleLyricsMode, $smoothScrolling } from "../stores.ts";
+import { $simpleLyricsMode, $smoothScrolling, $spaceGravityMode } from "../stores.ts";
 import { $experiment, isExperimentEnabled } from "../experiments.ts";
 import { cancelCappedFrame, requestCappedFrame } from "../AnimationFrameLoop.ts";
 
@@ -126,6 +126,11 @@ function stepCascadeRow(row: CascadeRow, dt: number, w: number): void {
 
 const isRefreshedSimpleLyrics = (): boolean =>
   $simpleLyricsMode.get() && isExperimentEnabled("refreshedSimpleLyrics");
+
+// Background Vocal Pop-Out only applies to the refreshed layout. The animator
+// folds lines by the same gate, so the two agree on which rows collapse.
+export const isBgPopActive = (): boolean =>
+  !$spaceGravityMode.get() && isRefreshedSimpleLyrics() && isExperimentEnabled("backgroundLinePop");
 
 class LyricsVirtualizer {
   private _virtualizer: Virtualizer<HTMLElement, HTMLElement> | null = null;
@@ -384,7 +389,8 @@ class LyricsVirtualizer {
     this._remeasureVisible();
   }
 
-  // Background Vocal Pop-Out flipped. Off-screen background lines and the rows
+  // Background Vocal Pop-Out turned on or off (the experiment, or the refreshed
+  // layout it needs). Off-screen background lines and the rows
   // above them keep their measured size, so they are resized here to what they
   // would measure now; otherwise the list would shift as each one next mounts.
   private _applyBgPop(next: boolean): void {
@@ -441,11 +447,6 @@ class LyricsVirtualizer {
         if (index < bgFirst && this._allElements[index]?.classList.contains("bg-line")) bgFirst = index;
       }
     }
-    // With reduced motion the rows below a fold jump to their new places
-    // instead of gliding. Blocked before anything is resized, so the scroll
-    // correction for rows above the viewport applies as well.
-    if (bgFirst < Infinity && this._window().matchMedia("(prefers-reduced-motion: reduce)").matches) this._blockLayoutGlide(LAYOUT_GLIDE_BLOCK_MS);
-
     const toMeasure: HTMLElement[] = [];
     // Unmounted rows resized below, with their previous size.
     const resized: { index: number; prev: number }[] = [];
@@ -921,7 +922,7 @@ class LyricsVirtualizer {
       this._trailingObserver.observe(listParent, { childList: true });
     }
     this._refreshed = isRefreshedSimpleLyrics();
-    this._bgPop = isExperimentEnabled("backgroundLinePop");
+    this._bgPop = isBgPopActive();
     // The ripple holds rows back with `translate` as the list scrolls past them,
     // and Chromium's scroll anchoring reads that as the rows moving down, so it
     // scrolled the list a second time by the same amount.
@@ -1052,10 +1053,14 @@ class LyricsVirtualizer {
         if (!enabled) this._handOffSmoothScroll();
       })
     );
-    const syncRefreshed = () => this._applyRefreshed(isRefreshedSimpleLyrics());
-    this._maid!.Give($simpleLyricsMode.listen(syncRefreshed));
-    this._maid!.Give($experiment("refreshedSimpleLyrics").listen(syncRefreshed));
-    this._maid!.Give($experiment("backgroundLinePop").listen((next) => this._applyBgPop(next)));
+    // In this order: each one resizes rows relative to the other's current state.
+    const syncLayout = () => {
+      this._applyRefreshed(isRefreshedSimpleLyrics());
+      this._applyBgPop(isBgPopActive());
+    };
+    this._maid!.Give($simpleLyricsMode.listen(syncLayout));
+    this._maid!.Give($experiment("refreshedSimpleLyrics").listen(syncLayout));
+    this._maid!.Give($experiment("backgroundLinePop").listen(syncLayout));
     this._blockLayoutGlide(LAYOUT_GLIDE_BLOCK_INIT_MS);
 
     if (viewportAnchor) {
